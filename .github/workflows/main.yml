@@ -36,6 +36,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Sync Rust crate versions
+        run: cargo update -p tauri -p tauri-plugin-dialog
+        working-directory: src-tauri
+
       - name: Build Tauri app
         run: pnpm tauri build
 
