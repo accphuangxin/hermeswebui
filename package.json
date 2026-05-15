@@ -40,6 +40,12 @@
     "vite": "^7.3.0",
     "vitest": "^2.0.5"
   },
+  "pnpm": {
+    "overrides": {
+      "@tauri-apps/api": "2.10.1",
+      "@tauri-apps/plugin-dialog": "2.6.0"
+    }
+  },
   "dependencies": {
     "@codemirror/lang-javascript": "^6.2.4",
     "@codemirror/lang-json": "^6.0.2",
