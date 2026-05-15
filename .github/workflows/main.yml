@@ -41,7 +41,7 @@ jobs:
         working-directory: src-tauri
         run: cargo update -p tauri -p tauri-plugin-dialog
 
-      - name: Build Tauri app
+      - name: Build Tauri app --ignore-version-mismatches
         run: pnpm tauri build
 
       - name: Upload MSI installer
