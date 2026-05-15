@@ -34,7 +34,12 @@ jobs:
           workspaces: src-tauri
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
+
+      - name: Update Rust crates to match npm packages
+        shell: bash
+        working-directory: src-tauri
+        run: cargo update -p tauri -p tauri-plugin-dialog
 
       - name: Build Tauri app
         run: pnpm tauri build
