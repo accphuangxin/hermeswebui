@@ -36,15 +36,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Pin Tauri npm packages to match Cargo.lock
-        shell: bash
-        run: |
-          TAURI_VER=$(grep -A1 '^name = "tauri"$' src-tauri/Cargo.lock | grep version | sed 's/.*"\(.*\)".*/\1/')
-          DIALOG_VER=$(grep -A1 'name = "tauri-plugin-dialog"' src-tauri/Cargo.lock | grep version | sed 's/.*"\(.*\)".*/\1/')
-          echo "Pinning @tauri-apps/api to $TAURI_VER"
-          echo "Pinning @tauri-apps/plugin-dialog to $DIALOG_VER"
-          pnpm add "@tauri-apps/api@$TAURI_VER" "@tauri-apps/plugin-dialog@$DIALOG_VER"
-
       - name: Build Tauri app
         run: pnpm tauri build
 
