@@ -346,7 +346,8 @@ fn write_yaml_section_to_config_locked(
 ) -> Result<HermesWriteOutcome, AppError> {
     let config_path = get_hermes_config_path();
     let raw = if config_path.exists() {
-        fs::read_to_string(&config_path).map_err(|e| AppError::io(&config_path, e))?
+        let bytes = fs::read(&config_path).map_err(|e| AppError::io(&config_path, e))?;
+        decode_config_bytes(&bytes)
     } else {
         String::new()
     };
