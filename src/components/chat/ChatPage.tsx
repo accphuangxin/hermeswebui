@@ -115,9 +115,13 @@ export function ChatPage() {
 
       let fullContent = "";
 
+      const hermesModel = selectedModel
+        ? selectedModel.replace(/^custom_[^:]+:/, "")
+        : undefined;
+
       await sendRun({
         input: text,
-        model: selectedModel || undefined,
+        model: hermesModel,
         sessionId: hermesSessionId ?? undefined,
         onDelta: (delta) => {
           fullContent += delta;
