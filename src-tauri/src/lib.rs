@@ -1304,6 +1304,7 @@ pub fn run() {
             commands::clearChatMessages,
             commands::getHermesChatStatus,
             commands::getHermesChatModels,
+            commands::debugHermesConfig,
             commands::startChatRun,
             commands::stopChatRun,
             commands::approveChatRun,

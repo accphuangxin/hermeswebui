@@ -263,6 +263,38 @@ pub fn getHermesChatModels() -> Result<Vec<HermesChatModel>, String> {
     Ok(models)
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HermesConfigDebug {
+    pub config_path: String,
+    pub path_exists: bool,
+    pub raw_content: String,
+    pub custom_providers_found: bool,
+    pub provider_count: usize,
+}
+
+#[tauri::command]
+pub fn debugHermesConfig() -> HermesConfigDebug {
+    let path = hermes_config::get_hermes_config_path();
+    let config_path = path.display().to_string();
+    let path_exists = path.exists();
+    let raw_content = std::fs::read_to_string(&path).unwrap_or_else(|e| format!("读取失败: {e}"));
+    let (custom_providers_found, provider_count) = hermes_config::read_hermes_config()
+        .map(|c| {
+            let providers = c.get("custom_providers").and_then(|v| v.as_sequence());
+            (providers.is_some(), providers.map(|p| p.len()).unwrap_or(0))
+        })
+        .unwrap_or((false, 0));
+
+    HermesConfigDebug {
+        config_path,
+        path_exists,
+        raw_content,
+        custom_providers_found,
+        provider_count,
+    }
+}
+
 // ============================================================================
 // Runs API — Streaming via Tauri Channel
 // ============================================================================
