@@ -1775,7 +1775,8 @@
       "approvalRequired": "Approval Required",
       "approve": "Approve",
       "deny": "Deny",
-      "rename": "Rename"
+      "rename": "Rename",
+      "contextCompressed": "Context too long, oldest {{count}} messages have been omitted"
     }
   },
   "env": {

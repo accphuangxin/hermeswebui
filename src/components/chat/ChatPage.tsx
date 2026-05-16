@@ -15,6 +15,7 @@ import {
 } from "@/hooks/useHermesChat";
 import { useChatStream, type ToolActivity, type ApprovalRequest } from "@/hooks/useChatStream";
 import { chatApi } from "@/lib/api/chat";
+import { compressContext } from "@/lib/contextCompression";
 import { ChatSidebar } from "./ChatSidebar";
 import { ChatHeader } from "./ChatHeader";
 import { ChatMessageBubble } from "./ChatMessage";
@@ -119,10 +120,15 @@ export function ChatPage() {
         ? selectedModel.replace(/^custom_[^:]+:/, "")
         : undefined;
 
+      const { compressedInput, wasCompressed, droppedCount } = compressContext(messages, text);
+      if (wasCompressed) {
+        toast.info(t("hermes.chat.contextCompressed", { count: droppedCount, defaultValue: `上下文过长，已省略最旧的 ${droppedCount} 条消息` }));
+      }
+
       await sendRun({
-        input: text,
+        input: compressedInput,
         model: hermesModel,
-        sessionId: hermesSessionId ?? undefined,
+        sessionId: wasCompressed ? undefined : (hermesSessionId ?? undefined),
         onDelta: (delta) => {
           fullContent += delta;
           setStreamingContent(fullContent);

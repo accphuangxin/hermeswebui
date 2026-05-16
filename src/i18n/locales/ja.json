@@ -1775,7 +1775,8 @@
       "approvalRequired": "承認が必要です",
       "approve": "承認",
       "deny": "拒否",
-      "rename": "名前を変更"
+      "rename": "名前を変更",
+      "contextCompressed": "コンテキストが長すぎます。古い {{count}} 件のメッセージを省略しました"
     }
   },
   "env": {

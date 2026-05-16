@@ -1775,7 +1775,8 @@
       "approvalRequired": "需要审批",
       "approve": "批准",
       "deny": "拒绝",
-      "rename": "重命名"
+      "rename": "重命名",
+      "contextCompressed": "上下文过长，已省略最旧的 {{count}} 条消息"
     }
   },
   "env": {
