@@ -41,6 +41,43 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 
 // ============================================================================
+// Encoding Helpers
+// ============================================================================
+
+/// 将文件字节解码为 UTF-8 字符串，自动处理 BOM：
+/// - UTF-16 LE BOM (FF FE) → 以 UTF-16 LE 解码
+/// - UTF-16 BE BOM (FE FF) → 以 UTF-16 BE 解码
+/// - UTF-8 BOM (EF BB BF)  → 去掉 BOM 后直接用
+/// - 其他                  → 直接按 UTF-8 解析（无效字节替换为 U+FFFD）
+pub fn decode_config_bytes_pub(bytes: &[u8]) -> String {
+    decode_config_bytes(bytes)
+}
+
+fn decode_config_bytes(bytes: &[u8]) -> String {
+    if bytes.len() >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE {
+        // UTF-16 LE
+        let words: Vec<u16> = bytes[2..]
+            .chunks_exact(2)
+            .map(|c| u16::from_le_bytes([c[0], c[1]]))
+            .collect();
+        return String::from_utf16_lossy(&words).to_string();
+    }
+    if bytes.len() >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF {
+        // UTF-16 BE
+        let words: Vec<u16> = bytes[2..]
+            .chunks_exact(2)
+            .map(|c| u16::from_be_bytes([c[0], c[1]]))
+            .collect();
+        return String::from_utf16_lossy(&words).to_string();
+    }
+    if bytes.len() >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF {
+        // UTF-8 BOM
+        return String::from_utf8_lossy(&bytes[3..]).to_string();
+    }
+    String::from_utf8_lossy(bytes).to_string()
+}
+
+// ============================================================================
 // Path Functions
 // ============================================================================
 
@@ -111,7 +148,8 @@ pub fn read_hermes_config() -> Result<serde_yaml::Value, AppError> {
         return Ok(serde_yaml::Value::Mapping(serde_yaml::Mapping::new()));
     }
 
-    let content = fs::read_to_string(&path).map_err(|e| AppError::io(&path, e))?;
+    let bytes = fs::read(&path).map_err(|e| AppError::io(&path, e))?;
+    let content = decode_config_bytes(&bytes);
     if content.trim().is_empty() {
         return Ok(serde_yaml::Value::Mapping(serde_yaml::Mapping::new()));
     }
