@@ -171,6 +171,7 @@ pub fn read_hermes_config() -> Result<serde_yaml::Value, AppError> {
 /// - Not be a sequence item (starting with `-`)
 /// - Contain `:` followed by space, tab, newline, or end-of-line
 fn is_top_level_key_line(line: &str) -> bool {
+    let line = line.trim_end_matches('\r');
     if line.is_empty() {
         return false;
     }
@@ -347,7 +348,8 @@ fn write_yaml_section_to_config_locked(
     let config_path = get_hermes_config_path();
     let raw = if config_path.exists() {
         let bytes = fs::read(&config_path).map_err(|e| AppError::io(&config_path, e))?;
-        decode_config_bytes(&bytes)
+        // Normalize CRLF → LF so section-range logic works on Windows-authored files
+        decode_config_bytes(&bytes).replace("\r\n", "\n")
     } else {
         String::new()
     };
