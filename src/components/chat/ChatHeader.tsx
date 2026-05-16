@@ -34,6 +34,10 @@ interface HermesConfigDebug {
   rawContent: string;
   customProvidersFound: boolean;
   providerCount: number;
+  activeProvider: string | null;
+  activeModel: string | null;
+  activeBaseUrl: string | null;
+  activeApiKeyPreview: string | null;
 }
 
 export function ChatHeader({
@@ -139,6 +143,33 @@ export function ChatHeader({
                     ? `找到 ${debugInfo.providerCount} 个`
                     : "未找到"}
                 </span>
+              </div>
+              <div className="border rounded p-2 space-y-1">
+                <div className="text-muted-foreground font-semibold mb-1">当前激活 Provider</div>
+                <div>
+                  <span className="text-muted-foreground">provider: </span>
+                  <span className={debugInfo.activeProvider ? "text-green-500" : "text-red-500"}>
+                    {debugInfo.activeProvider ?? "(未设置)"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">model: </span>
+                  <span className={debugInfo.activeModel ? "text-green-500" : "text-red-500"}>
+                    {debugInfo.activeModel ?? "(未设置)"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">base_url: </span>
+                  <span className={debugInfo.activeBaseUrl ? "text-green-500" : "text-red-500"}>
+                    {debugInfo.activeBaseUrl ?? "(未找到)"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">api_key: </span>
+                  <span className={debugInfo.activeApiKeyPreview ? "text-green-500" : "text-red-500"}>
+                    {debugInfo.activeApiKeyPreview ?? "(未找到)"}
+                  </span>
+                </div>
               </div>
               <div>
                 <div className="text-muted-foreground mb-1">config.yaml 原始内容：</div>
