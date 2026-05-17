@@ -46,7 +46,12 @@ export function ChatPage() {
   const deleteSession = useDeleteChatSession();
   const updateSession = useUpdateChatSession();
   const saveMessage = useSaveChatMessage();
+  const userCancelledRef = useRef(false);
   const { sendRun, isStreaming, stop } = useChatStream();
+  const handleStop = useCallback(() => {
+    userCancelledRef.current = true;
+    void stop();
+  }, [stop]);
 
   const isOnline = status?.online ?? false;
 
@@ -133,11 +138,13 @@ export function ChatPage() {
         toast.info(t("hermes.chat.contextCompressed", { count: droppedCount, defaultValue: `上下文过长，已省略最旧的 ${droppedCount} 条消息` }));
       }
 
+      userCancelledRef.current = false;
       const MAX_RETRIES = 3;
       let attempt = 0;
       let lastError = "";
 
       while (attempt < MAX_RETRIES) {
+        if (userCancelledRef.current) break;
         if (attempt > 0) {
           await new Promise((r) => setTimeout(r, 1500 * attempt));
           toast.info(t("hermes.chat.retrying", { attempt, max: MAX_RETRIES, defaultValue: `请求失败，正在重试 (${attempt}/${MAX_RETRIES})...` }));
@@ -207,10 +214,11 @@ export function ChatPage() {
         attempt++;
       }
 
-      // All retries exhausted
       setStreamingContent("");
       setToolActivities([]);
-      toast.error("Chat error", { description: lastError });
+      if (!userCancelledRef.current && lastError) {
+        toast.error("Chat error", { description: lastError });
+      }
     },
     [isOnline, activeSessionId, messages, selectedModel, hermesSessionId, sendRun, saveMessage, t],
   );
@@ -326,7 +334,7 @@ export function ChatPage() {
         </ScrollArea>
         <ChatInput
           onSend={handleSend}
-          onStop={stop}
+          onStop={handleStop}
           isStreaming={isStreaming}
           disabled={!isOnline || !activeSessionId}
         />
