@@ -532,21 +532,27 @@ pub async fn startChatRun(
                         let session_id =
                             json["session_id"].as_str().unwrap_or("").to_string();
 
-                        // Write usage stats to proxy_request_logs with app_type="hermes"
+                        // Notify frontend first — DB write must not delay the response
+                        let _ = on_event.send(RunStreamEvent::Completed {
+                            output,
+                            run_id: run_id_clone.clone(),
+                            session_id,
+                        });
+
+                        // Fire-and-forget usage log
                         let input_tokens = json["usage"]["input_tokens"].as_i64().unwrap_or(0);
                         let output_tokens = json["usage"]["output_tokens"].as_i64().unwrap_or(0);
                         if input_tokens > 0 || output_tokens > 0 {
                             let req_id = format!("hermes-{}", run_id_clone);
                             let model = if log_model.is_empty() { "unknown".to_string() } else { log_model.clone() };
                             let provider = if log_provider.is_empty() { "hermes".to_string() } else { log_provider.clone() };
-                            let _ = db.log_hermes_run(&req_id, &provider, &model, input_tokens, output_tokens, started_at);
+                            let db_clone = db.clone();
+                            tauri::async_runtime::spawn_blocking(move || {
+                                if let Err(e) = db_clone.log_hermes_run(&req_id, &provider, &model, input_tokens, output_tokens, started_at) {
+                                    log::warn!("Failed to log hermes run: {e}");
+                                }
+                            });
                         }
-
-                        let _ = on_event.send(RunStreamEvent::Completed {
-                            output,
-                            run_id: run_id_clone.clone(),
-                            session_id,
-                        });
                         return;
                     }
                     "run.failed" => {
