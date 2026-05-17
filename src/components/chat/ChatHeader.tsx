@@ -1,7 +1,5 @@
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Wifi, WifiOff, Bug } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
+import { Wifi, WifiOff } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -9,13 +7,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import type { HermesChatModel } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -28,18 +19,6 @@ interface ChatHeaderProps {
   onModelChange: (model: string) => void;
 }
 
-interface HermesConfigDebug {
-  configPath: string;
-  pathExists: boolean;
-  rawContent: string;
-  customProvidersFound: boolean;
-  providerCount: number;
-  activeProvider: string | null;
-  activeModel: string | null;
-  activeBaseUrl: string | null;
-  activeApiKeyPreview: string | null;
-}
-
 export function ChatHeader({
   online,
   defaultModel,
@@ -49,14 +28,6 @@ export function ChatHeader({
   onModelChange,
 }: ChatHeaderProps) {
   const { t } = useTranslation();
-  const [debugOpen, setDebugOpen] = useState(false);
-  const [debugInfo, setDebugInfo] = useState<HermesConfigDebug | null>(null);
-
-  const handleDebug = async () => {
-    const info = await invoke<HermesConfigDebug>("debugHermesConfig");
-    setDebugInfo(info);
-    setDebugOpen(true);
-  };
 
   return (
     <div className="flex items-center gap-3 px-4 py-2 border-b bg-muted/20">
@@ -88,15 +59,6 @@ export function ChatHeader({
 
       {/* Model selector */}
       <div className="flex items-center gap-2 ml-auto">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7"
-          onClick={handleDebug}
-          title="调试配置"
-        >
-          <Bug className="w-3.5 h-3.5 text-muted-foreground" />
-        </Button>
         <Select
           value={selectedModel}
           onValueChange={onModelChange}
@@ -119,68 +81,6 @@ export function ChatHeader({
           </SelectContent>
         </Select>
       </div>
-
-      <Dialog open={debugOpen} onOpenChange={setDebugOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
-          <DialogHeader>
-            <DialogTitle>Hermes 配置调试</DialogTitle>
-          </DialogHeader>
-          {debugInfo && (
-            <div className="space-y-3 text-xs font-mono">
-              <div>
-                <span className="text-muted-foreground">配置文件路径：</span>
-                <span className={debugInfo.pathExists ? "text-green-500" : "text-red-500"}>
-                  {debugInfo.configPath}
-                </span>
-                <span className="ml-2 text-muted-foreground">
-                  ({debugInfo.pathExists ? "文件存在" : "文件不存在"})
-                </span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">custom_providers：</span>
-                <span className={debugInfo.customProvidersFound ? "text-green-500" : "text-red-500"}>
-                  {debugInfo.customProvidersFound
-                    ? `找到 ${debugInfo.providerCount} 个`
-                    : "未找到"}
-                </span>
-              </div>
-              <div className="border rounded p-2 space-y-1">
-                <div className="text-muted-foreground font-semibold mb-1">当前激活 Provider</div>
-                <div>
-                  <span className="text-muted-foreground">provider: </span>
-                  <span className={debugInfo.activeProvider ? "text-green-500" : "text-red-500"}>
-                    {debugInfo.activeProvider ?? "(未设置)"}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">model: </span>
-                  <span className={debugInfo.activeModel ? "text-green-500" : "text-red-500"}>
-                    {debugInfo.activeModel ?? "(未设置)"}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">base_url: </span>
-                  <span className={debugInfo.activeBaseUrl ? "text-green-500" : "text-red-500"}>
-                    {debugInfo.activeBaseUrl ?? "(未找到)"}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">api_key: </span>
-                  <span className={debugInfo.activeApiKeyPreview ? "text-green-500" : "text-red-500"}>
-                    {debugInfo.activeApiKeyPreview ?? "(未找到)"}
-                  </span>
-                </div>
-              </div>
-              <div>
-                <div className="text-muted-foreground mb-1">config.yaml 原始内容：</div>
-                <pre className="bg-muted p-3 rounded text-xs overflow-auto max-h-[400px] whitespace-pre-wrap break-all">
-                  {debugInfo.rawContent}
-                </pre>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

@@ -263,75 +263,6 @@ pub fn getHermesChatModels() -> Result<Vec<HermesChatModel>, String> {
     Ok(models)
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HermesConfigDebug {
-    pub config_path: String,
-    pub path_exists: bool,
-    pub raw_content: String,
-    pub custom_providers_found: bool,
-    pub provider_count: usize,
-    pub active_provider: Option<String>,
-    pub active_model: Option<String>,
-    pub active_base_url: Option<String>,
-    pub active_api_key_preview: Option<String>,
-}
-
-#[tauri::command]
-pub fn debugHermesConfig() -> HermesConfigDebug {
-    let path = hermes_config::get_hermes_config_path();
-    let config_path = path.display().to_string();
-    let path_exists = path.exists();
-    let raw_content = std::fs::read(&path)
-        .map(|b| hermes_config::decode_config_bytes_pub(&b))
-        .unwrap_or_else(|e| format!("读取失败: {e}"));
-
-    let config = hermes_config::read_hermes_config().ok();
-
-    let (custom_providers_found, provider_count) = config
-        .as_ref()
-        .map(|c| {
-            let providers = c.get("custom_providers").and_then(|v| v.as_sequence());
-            (providers.is_some(), providers.map(|p| p.len()).unwrap_or(0))
-        })
-        .unwrap_or((false, 0));
-
-    let model_config = hermes_config::get_model_config().ok().flatten();
-    let active_provider = model_config.as_ref().and_then(|m| m.provider.clone());
-    let active_model = model_config.as_ref().and_then(|m| m.default.clone());
-
-    // Find active provider config to show base_url and api_key preview
-    let (active_base_url, active_api_key_preview) = active_provider
-        .as_deref()
-        .and_then(|name| hermes_config::get_providers().ok()?.get(name).cloned())
-        .map(|p| {
-            let base_url = p.get("base_url").and_then(|v| v.as_str()).map(str::to_string);
-            let key_preview = p.get("api_key").and_then(|v| v.as_str()).map(|k| {
-                if k.len() > 8 {
-                    format!("{}...{}", &k[..4], &k[k.len() - 4..])
-                } else if k.is_empty() {
-                    "(empty)".to_string()
-                } else {
-                    "****".to_string()
-                }
-            });
-            (base_url, key_preview)
-        })
-        .unwrap_or((None, None));
-
-    HermesConfigDebug {
-        config_path,
-        path_exists,
-        raw_content,
-        custom_providers_found,
-        provider_count,
-        active_provider,
-        active_model,
-        active_base_url,
-        active_api_key_preview,
-    }
-}
-
 // ============================================================================
 // Runs API — Streaming via Tauri Channel
 // ============================================================================
@@ -398,7 +329,7 @@ pub async fn startChatRun(
     if !resp.status().is_success() {
         let status = resp.status();
         let text = resp.text().await.unwrap_or_default();
-        return Err(format!("HTTP {status}: {text}\n[request: {body}]"));
+        return Err(format!("HTTP {status}: {text}"));
     }
 
     let create_resp: serde_json::Value = resp
