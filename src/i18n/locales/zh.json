@@ -1778,7 +1778,16 @@
       "rename": "重命名",
       "contextCompressed": "上下文过长，已省略最旧的 {{count}} 条消息",
       "retrying": "请求失败，正在重试 ({{attempt}}/{{max}})...",
-      "emptyResponse": "服务器无返回内容"
+      "emptyResponse": "服务器无返回内容",
+      "apiKey": {
+        "title": "配置 Hermes API Server Key",
+        "description": "检测到未配置 API_SERVER_KEY。请输入 Hermes 服务端的认证 Key，或留空跳过（无认证时可跳过）。",
+        "placeholder": "输入 API Server Key...",
+        "hint": "Key 将保存到 ~/.hermes/.env，与 hermes config set API_SERVER_KEY 效果相同。",
+        "skip": "跳过",
+        "save": "保存",
+        "saving": "保存中..."
+      }
     }
   },
   "env": {

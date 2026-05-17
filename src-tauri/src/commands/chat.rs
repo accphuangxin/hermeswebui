@@ -175,7 +175,6 @@ struct ApiServerConfig {
 }
 
 fn read_hermes_env_key() -> String {
-    // Read API_SERVER_KEY from ~/.hermes/.env (dotenv format)
     let env_path = hermes_config::get_hermes_dir().join(".env");
     if let Ok(content) = std::fs::read_to_string(&env_path) {
         for line in content.lines() {
@@ -192,6 +191,40 @@ fn read_hermes_env_key() -> String {
         }
     }
     String::new()
+}
+
+/// Read the current API_SERVER_KEY from ~/.hermes/.env
+#[tauri::command]
+pub fn getHermesApiServerKey() -> String {
+    read_hermes_env_key()
+}
+
+/// Write (or clear) API_SERVER_KEY in ~/.hermes/.env, preserving all other lines.
+#[tauri::command]
+pub fn setHermesApiServerKey(key: String) -> Result<(), String> {
+    let env_path = hermes_config::get_hermes_dir().join(".env");
+
+    let existing = std::fs::read_to_string(&env_path).unwrap_or_default();
+    let mut lines: Vec<String> = existing
+        .lines()
+        .filter(|l| !l.trim_start().starts_with("API_SERVER_KEY="))
+        .map(str::to_string)
+        .collect();
+
+    if !key.is_empty() {
+        lines.push(format!("API_SERVER_KEY={key}"));
+    }
+
+    // Ensure trailing newline
+    let mut content = lines.join("\n");
+    if !content.is_empty() {
+        content.push('\n');
+    }
+
+    if let Some(parent) = env_path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(&env_path, content).map_err(|e| e.to_string())
 }
 
 fn read_api_server_config() -> ApiServerConfig {

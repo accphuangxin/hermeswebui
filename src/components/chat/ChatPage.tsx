@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { invoke } from "@tauri-apps/api/core";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   chatKeys,
@@ -22,6 +23,7 @@ import { ChatMessageBubble } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
 import { ToolActivityBlock } from "./ToolActivityBlock";
 import { ApprovalCard } from "./ApprovalCard";
+import { ApiServerKeyDialog } from "./ApiServerKeyDialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 export function ChatPage() {
@@ -33,6 +35,7 @@ export function ChatPage() {
   const [toolActivities, setToolActivities] = useState<ToolActivity[]>([]);
   const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(null);
   const [hermesSessionId, setHermesSessionId] = useState<string | null>(null);
+  const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { data: status } = useChatStatus(true);
@@ -46,6 +49,13 @@ export function ChatPage() {
   const { sendRun, isStreaming, stop } = useChatStream();
 
   const isOnline = status?.online ?? false;
+
+  // On mount: check if API_SERVER_KEY is configured; prompt if not found anywhere
+  useEffect(() => {
+    void invoke<string>("getHermesApiServerKey").then((key) => {
+      if (!key) setShowApiKeyDialog(true);
+    });
+  }, []);
 
   // Auto-select default model
   useEffect(() => {
@@ -238,6 +248,10 @@ export function ChatPage() {
 
   return (
     <div className="flex h-full">
+      <ApiServerKeyDialog
+        open={showApiKeyDialog}
+        onSaved={() => setShowApiKeyDialog(false)}
+      />
       <ChatSidebar
         sessions={sessions}
         activeSessionId={activeSessionId}

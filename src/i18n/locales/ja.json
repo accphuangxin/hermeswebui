@@ -1778,7 +1778,16 @@
       "rename": "名前を変更",
       "contextCompressed": "コンテキストが長すぎます。古い {{count}} 件のメッセージを省略しました",
       "retrying": "リクエスト失敗、リトライ中 ({{attempt}}/{{max}})...",
-      "emptyResponse": "サーバーからの応答がありません"
+      "emptyResponse": "サーバーからの応答がありません",
+      "apiKey": {
+        "title": "Hermes API Server Key の設定",
+        "description": "API_SERVER_KEY が未設定です。Hermes サーバーの認証キーを入力するか、不要な場合はスキップしてください。",
+        "placeholder": "API Server Key を入力...",
+        "hint": "キーは ~/.hermes/.env に保存されます（hermes config set API_SERVER_KEY と同じ効果）。",
+        "skip": "スキップ",
+        "save": "保存",
+        "saving": "保存中..."
+      }
     }
   },
   "env": {

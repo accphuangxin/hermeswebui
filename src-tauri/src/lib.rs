@@ -1304,6 +1304,8 @@ pub fn run() {
             commands::clearChatMessages,
             commands::getHermesChatStatus,
             commands::getHermesChatModels,
+            commands::getHermesApiServerKey,
+            commands::setHermesApiServerKey,
             commands::startChatRun,
             commands::stopChatRun,
             commands::approveChatRun,

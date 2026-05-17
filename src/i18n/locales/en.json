@@ -1778,7 +1778,16 @@
       "rename": "Rename",
       "contextCompressed": "Context too long, oldest {{count}} messages have been omitted",
       "retrying": "Request failed, retrying ({{attempt}}/{{max}})...",
-      "emptyResponse": "Server returned no content"
+      "emptyResponse": "Server returned no content",
+      "apiKey": {
+        "title": "Configure Hermes API Server Key",
+        "description": "No API_SERVER_KEY detected. Enter the Hermes server authentication key, or skip if no auth is required.",
+        "placeholder": "Enter API Server Key...",
+        "hint": "The key will be saved to ~/.hermes/.env, same as hermes config set API_SERVER_KEY.",
+        "skip": "Skip",
+        "save": "Save",
+        "saving": "Saving..."
+      }
     }
   },
   "env": {
