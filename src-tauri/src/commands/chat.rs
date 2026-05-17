@@ -167,7 +167,14 @@ pub fn clearChatMessages(state: State<'_, AppState>, sessionId: String) -> Resul
 // Hermes Chat Status & Models
 // ============================================================================
 
-fn read_api_server_config() -> (String, u16) {
+struct ApiServerConfig {
+    host: String,
+    port: u16,
+    /// `platforms.api_server.key` — empty string means no auth required
+    key: String,
+}
+
+fn read_api_server_config() -> ApiServerConfig {
     let config = hermes_config::read_hermes_config().unwrap_or_default();
     let platforms = config.get("platforms");
     let api_server = platforms.and_then(|p| p.get("api_server"));
@@ -184,18 +191,37 @@ fn read_api_server_config() -> (String, u16) {
         .and_then(|v| v.as_u64())
         .unwrap_or(8643) as u16;
 
-    (host, port)
+    let key = api_server
+        .and_then(|a| a.get("key"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    ApiServerConfig { host, port, key }
 }
 
-fn api_base_url() -> String {
-    let (host, port) = read_api_server_config();
-    format!("http://{host}:{port}")
+fn build_api_client(timeout_secs: u64) -> Result<(reqwest::Client, String, String), String> {
+    let cfg = read_api_server_config();
+    let base_url = format!("http://{}:{}", cfg.host, cfg.port);
+    let auth_header = if cfg.key.is_empty() {
+        String::new()
+    } else {
+        format!("Bearer {}", cfg.key)
+    };
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(timeout_secs))
+        .no_proxy()
+        .build()
+        .map_err(|e| format!("failed to build client: {e}"))?;
+    Ok((client, base_url, auth_header))
 }
 
 #[tauri::command]
 pub async fn getHermesChatStatus() -> Result<HermesChatStatus, String> {
-    let (host, port) = read_api_server_config();
-    let base_url = format!("http://{host}:{port}");
+    let cfg = read_api_server_config();
+    let host = cfg.host.clone();
+    let port = cfg.port;
+    let base_url = format!("http://{}:{}", cfg.host, cfg.port);
     let probe_url = format!("{base_url}/v1/models");
 
     let client = reqwest::Client::builder()
@@ -204,7 +230,11 @@ pub async fn getHermesChatStatus() -> Result<HermesChatStatus, String> {
         .build()
         .map_err(|e| format!("failed to build probe client: {e}"))?;
 
-    let online = client.get(&probe_url).send().await.is_ok();
+    let mut req = client.get(&probe_url);
+    if !cfg.key.is_empty() {
+        req = req.header("Authorization", format!("Bearer {}", cfg.key));
+    }
+    let online = req.send().await.is_ok();
 
     let model_config = hermes_config::get_model_config().ok().flatten();
     let default_model = model_config.as_ref().and_then(|m| m.default.clone());
@@ -300,7 +330,7 @@ pub async fn startChatRun(
 ) -> Result<RunCreated, String> {
     use futures::StreamExt;
 
-    let base = api_base_url();
+    let (client, base, auth_header) = build_api_client(300)?;
     let url = format!("{base}/v1/runs");
 
     let mut body = serde_json::json!({ "input": request.input });
@@ -311,17 +341,15 @@ pub async fn startChatRun(
         body["session_id"] = serde_json::json!(sid);
     }
 
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(300))
-        .no_proxy()
-        .build()
-        .map_err(|e| format!("failed to build client: {e}"))?;
-
     // POST /v1/runs — create run
-    let resp = client
+    let mut req = client
         .post(&url)
         .header("Content-Type", "application/json")
-        .body(body.to_string())
+        .body(body.to_string());
+    if !auth_header.is_empty() {
+        req = req.header("Authorization", &auth_header);
+    }
+    let resp = req
         .send()
         .await
         .map_err(|e| format!("create run failed: {e}"))?;
@@ -344,8 +372,11 @@ pub async fn startChatRun(
 
     // GET /v1/runs/{run_id}/events — SSE stream
     let events_url = format!("{base}/v1/runs/{run_id}/events");
-    let events_resp = client
-        .get(&events_url)
+    let mut events_req = client.get(&events_url);
+    if !auth_header.is_empty() {
+        events_req = events_req.header("Authorization", &auth_header);
+    }
+    let events_resp = events_req
         .send()
         .await
         .map_err(|e| format!("subscribe events failed: {e}"))?;
@@ -466,17 +497,14 @@ pub async fn startChatRun(
 // GET /v1/runs/{run_id} — get run status
 #[tauri::command]
 pub async fn getChatRunStatus(runId: String) -> Result<serde_json::Value, String> {
-    let base = api_base_url();
+    let (client, base, auth_header) = build_api_client(10)?;
     let url = format!("{base}/v1/runs/{runId}");
 
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(10))
-        .no_proxy()
-        .build()
-        .map_err(|e| format!("failed to build client: {e}"))?;
-
-    let resp = client
-        .get(&url)
+    let mut req = client.get(&url);
+    if !auth_header.is_empty() {
+        req = req.header("Authorization", &auth_header);
+    }
+    let resp = req
         .send()
         .await
         .map_err(|e| format!("get run status failed: {e}"))?;
@@ -494,17 +522,14 @@ pub async fn getChatRunStatus(runId: String) -> Result<serde_json::Value, String
 // POST /v1/runs/{run_id}/stop — stop run
 #[tauri::command]
 pub async fn stopChatRun(runId: String) -> Result<bool, String> {
-    let base = api_base_url();
+    let (client, base, auth_header) = build_api_client(10)?;
     let url = format!("{base}/v1/runs/{runId}/stop");
 
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(10))
-        .no_proxy()
-        .build()
-        .map_err(|e| format!("failed to build client: {e}"))?;
-
-    let resp = client
-        .post(&url)
+    let mut req = client.post(&url);
+    if !auth_header.is_empty() {
+        req = req.header("Authorization", &auth_header);
+    }
+    let resp = req
         .send()
         .await
         .map_err(|e| format!("stop request failed: {e}"))?;
@@ -515,21 +540,19 @@ pub async fn stopChatRun(runId: String) -> Result<bool, String> {
 // POST /v1/runs/{run_id}/approval — approve/deny
 #[tauri::command]
 pub async fn approveChatRun(runId: String, approve: bool) -> Result<bool, String> {
-    let base = api_base_url();
+    let (client, base, auth_header) = build_api_client(10)?;
     let url = format!("{base}/v1/runs/{runId}/approval");
 
     let body = serde_json::json!({ "approved": approve });
 
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(10))
-        .no_proxy()
-        .build()
-        .map_err(|e| format!("failed to build client: {e}"))?;
-
-    let resp = client
+    let mut req = client
         .post(&url)
         .header("Content-Type", "application/json")
-        .body(body.to_string())
+        .body(body.to_string());
+    if !auth_header.is_empty() {
+        req = req.header("Authorization", &auth_header);
+    }
+    let resp = req
         .send()
         .await
         .map_err(|e| format!("approval request failed: {e}"))?;
