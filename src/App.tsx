@@ -1231,7 +1231,7 @@ function App() {
                         : "text-blue-500 dark:text-blue-400",
                     )}
                   >
-                    CC Switch
+                    Hermes Web
                   </span>
                 </div>
                 <Button
