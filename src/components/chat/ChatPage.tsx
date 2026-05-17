@@ -114,8 +114,6 @@ export function ChatPage() {
       setToolActivities([]);
       setPendingApproval(null);
 
-      let fullContent = "";
-
       const hermesModel = selectedModel
         ? selectedModel.replace(/^custom_[^:]+:/, "")
         : undefined;
@@ -125,59 +123,86 @@ export function ChatPage() {
         toast.info(t("hermes.chat.contextCompressed", { count: droppedCount, defaultValue: `上下文过长，已省略最旧的 ${droppedCount} 条消息` }));
       }
 
-      await sendRun({
-        input: compressedInput,
-        model: hermesModel,
-        sessionId: wasCompressed ? undefined : (hermesSessionId ?? undefined),
-        onDelta: (delta) => {
-          fullContent += delta;
-          setStreamingContent(fullContent);
-        },
-        onToolStarted: (tool, preview) => {
-          setToolActivities((prev) => [...prev, { tool, preview, status: "running" }]);
-        },
-        onToolCompleted: (tool, duration, error) => {
-          setToolActivities((prev) =>
-            prev.map((a) =>
-              a.tool === tool && a.status === "running"
-                ? { ...a, status: error ? "error" : "completed", duration }
-                : a,
-            ),
-          );
-        },
-        onApprovalRequired: (approval) => {
-          setPendingApproval(approval);
-        },
-        onCompleted: async (output, runSessionId) => {
+      const MAX_RETRIES = 3;
+      let attempt = 0;
+      let lastError = "";
+
+      while (attempt < MAX_RETRIES) {
+        if (attempt > 0) {
+          await new Promise((r) => setTimeout(r, 1500 * attempt));
+          toast.info(t("hermes.chat.retrying", { attempt, max: MAX_RETRIES, defaultValue: `请求失败，正在重试 (${attempt}/${MAX_RETRIES})...` }));
           setStreamingContent("");
           setToolActivities([]);
+        }
 
-          if (runSessionId) {
-            setHermesSessionId(runSessionId);
-          }
+        let fullContent = "";
+        let succeeded = false;
 
-          const content = fullContent || output;
-          if (!content) return;
+        await sendRun({
+          input: compressedInput,
+          model: hermesModel,
+          sessionId: wasCompressed ? undefined : (hermesSessionId ?? undefined),
+          onDelta: (delta) => {
+            fullContent += delta;
+            setStreamingContent(fullContent);
+          },
+          onToolStarted: (tool, preview) => {
+            setToolActivities((prev) => [...prev, { tool, preview, status: "running" }]);
+          },
+          onToolCompleted: (tool, duration, error) => {
+            setToolActivities((prev) =>
+              prev.map((a) =>
+                a.tool === tool && a.status === "running"
+                  ? { ...a, status: error ? "error" : "completed", duration }
+                  : a,
+              ),
+            );
+          },
+          onApprovalRequired: (approval) => {
+            setPendingApproval(approval);
+          },
+          onCompleted: async (output, runSessionId) => {
+            const content = fullContent || output;
+            // No content means the server responded but produced nothing — treat as failure
+            if (!content) {
+              lastError = t("hermes.chat.emptyResponse", { defaultValue: "服务器无返回内容" });
+              return;
+            }
 
-          const assistantMsgId = crypto.randomUUID();
-          await saveMessage.mutateAsync({
-            sessionId: activeSessionId,
-            message: { id: assistantMsgId, role: "assistant", content },
-          });
+            succeeded = true;
+            setStreamingContent("");
+            setToolActivities([]);
 
-          if (messages.length === 0) {
-            const title = text.slice(0, 50) + (text.length > 50 ? "..." : "");
-            await chatApi.updateSession(activeSessionId, title);
-          }
-        },
-        onError: (err) => {
-          setStreamingContent("");
-          setToolActivities([]);
-          toast.error("Chat error", { description: err });
-        },
-      });
+            if (runSessionId) {
+              setHermesSessionId(runSessionId);
+            }
+
+            const assistantMsgId = crypto.randomUUID();
+            await saveMessage.mutateAsync({
+              sessionId: activeSessionId,
+              message: { id: assistantMsgId, role: "assistant", content },
+            });
+
+            if (messages.length === 0) {
+              const title = text.slice(0, 50) + (text.length > 50 ? "..." : "");
+              await chatApi.updateSession(activeSessionId, title);
+            }
+          },
+          onError: (err) => {
+            lastError = err;
+          },
+        });
+
+        if (succeeded) return;
+        attempt++;
+      }
+
+      // All retries exhausted
+      setStreamingContent("");
+      setToolActivities([]);
+      toast.error("Chat error", { description: lastError });
     },
-    [isOnline, activeSessionId, messages, selectedModel, hermesSessionId, sendRun, saveMessage],
+    [isOnline, activeSessionId, messages, selectedModel, hermesSessionId, sendRun, saveMessage, t],
   );
 
   const handleSend = useCallback(
