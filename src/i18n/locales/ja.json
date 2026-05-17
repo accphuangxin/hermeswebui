@@ -1160,7 +1160,8 @@
       "all": "すべて",
       "claude": "Claude Code",
       "codex": "Codex",
-      "gemini": "Gemini"
+      "gemini": "Gemini",
+      "hermes": "Hermes"
     },
     "dataSources": "データソース",
     "dataSource": {

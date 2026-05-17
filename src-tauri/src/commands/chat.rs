@@ -390,6 +390,7 @@ pub struct RunCreated {
 
 #[tauri::command]
 pub async fn startChatRun(
+    state: State<'_, AppState>,
     request: RunRequest,
     on_event: Channel<RunStreamEvent>,
 ) -> Result<RunCreated, String> {
@@ -452,6 +453,17 @@ pub async fn startChatRun(
     }
 
     let run_id_clone = run_id.clone();
+    let db = state.db.clone();
+    let log_model = request.model.clone().unwrap_or_default();
+    let log_provider = hermes_config::get_model_config()
+        .ok()
+        .flatten()
+        .and_then(|m| m.provider)
+        .unwrap_or_default();
+    let started_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
 
     tauri::async_runtime::spawn(async move {
         let mut stream = events_resp.bytes_stream();
@@ -519,6 +531,17 @@ pub async fn startChatRun(
                         let output = json["output"].as_str().unwrap_or("").to_string();
                         let session_id =
                             json["session_id"].as_str().unwrap_or("").to_string();
+
+                        // Write usage stats to proxy_request_logs with app_type="hermes"
+                        let input_tokens = json["usage"]["input_tokens"].as_i64().unwrap_or(0);
+                        let output_tokens = json["usage"]["output_tokens"].as_i64().unwrap_or(0);
+                        if input_tokens > 0 || output_tokens > 0 {
+                            let req_id = format!("hermes-{}", run_id_clone);
+                            let model = if log_model.is_empty() { "unknown".to_string() } else { log_model.clone() };
+                            let provider = if log_provider.is_empty() { "hermes".to_string() } else { log_provider.clone() };
+                            let _ = db.log_hermes_run(&req_id, &provider, &model, input_tokens, output_tokens, started_at);
+                        }
+
                         let _ = on_event.send(RunStreamEvent::Completed {
                             output,
                             run_id: run_id_clone.clone(),

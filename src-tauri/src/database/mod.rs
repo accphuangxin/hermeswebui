@@ -248,6 +248,33 @@ impl Database {
         Ok(rebuilt)
     }
 
+    /// 记录一次 Hermes 聊天请求到 proxy_request_logs，供使用统计展示
+    pub fn log_hermes_run(
+        &self,
+        request_id: &str,
+        provider_id: &str,
+        model: &str,
+        input_tokens: i64,
+        output_tokens: i64,
+        created_at: i64,
+    ) -> Result<(), AppError> {
+        let conn = lock_conn!(self.conn);
+        conn.execute(
+            "INSERT OR IGNORE INTO proxy_request_logs (
+                request_id, provider_id, app_type, model, request_model,
+                input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens,
+                input_cost_usd, output_cost_usd, cache_read_cost_usd, cache_creation_cost_usd,
+                total_cost_usd, latency_ms, status_code, created_at, data_source
+            ) VALUES (?, ?, 'hermes', ?, ?, ?, ?, 0, 0, '0', '0', '0', '0', '0', 0, 200, ?, 'hermes')",
+            rusqlite::params![
+                request_id, provider_id, model, model,
+                input_tokens, output_tokens, created_at
+            ],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+        Ok(())
+    }
+
     /// 检查 MCP 服务器表是否为空
     pub fn is_mcp_table_empty(&self) -> Result<bool, AppError> {
         let conn = lock_conn!(self.conn);
