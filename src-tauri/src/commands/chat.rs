@@ -174,6 +174,26 @@ struct ApiServerConfig {
     key: String,
 }
 
+fn read_hermes_env_key() -> String {
+    // Read API_SERVER_KEY from ~/.hermes/.env (dotenv format)
+    let env_path = hermes_config::get_hermes_dir().join(".env");
+    if let Ok(content) = std::fs::read_to_string(&env_path) {
+        for line in content.lines() {
+            let line = line.trim();
+            if line.starts_with('#') || line.is_empty() {
+                continue;
+            }
+            if let Some(val) = line.strip_prefix("API_SERVER_KEY=") {
+                let val = val.trim().trim_matches('"').trim_matches('\'');
+                if !val.is_empty() {
+                    return val.to_string();
+                }
+            }
+        }
+    }
+    String::new()
+}
+
 fn read_api_server_config() -> ApiServerConfig {
     let config = hermes_config::read_hermes_config().unwrap_or_default();
     let platforms = config.get("platforms");
@@ -191,11 +211,23 @@ fn read_api_server_config() -> ApiServerConfig {
         .and_then(|v| v.as_u64())
         .unwrap_or(8643) as u16;
 
-    let key = api_server
-        .and_then(|a| a.get("key"))
+    // Key resolution order (mirrors Hermes gateway/platforms/api_server.py):
+    //   1. platforms.api_server.extra.key  (runtime injection)
+    //   2. platforms.api_server.key        (config.yaml top-level field)
+    //   3. API_SERVER_KEY in ~/.hermes/.env
+    let key = extra
+        .and_then(|e| e.get("key"))
         .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .or_else(|| {
+            api_server
+                .and_then(|a| a.get("key"))
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+        })
+        .unwrap_or_else(read_hermes_env_key);
 
     ApiServerConfig { host, port, key }
 }
