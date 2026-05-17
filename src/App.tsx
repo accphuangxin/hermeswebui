@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -172,6 +172,12 @@ function App() {
   const [activeApp, setActiveApp] = useState<AppId>(getInitialApp);
   const [currentView, setCurrentView] = useState<View>(getInitialView);
   const [settingsDefaultTab, setSettingsDefaultTab] = useState("general");
+  const [settingsKey, setSettingsKey] = useState(0);
+  const openSettings = useCallback((tab = "general") => {
+    setSettingsDefaultTab(tab);
+    setSettingsKey((k) => k + 1);
+    setCurrentView("settings");
+  }, []);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isWindowMaximized, setIsWindowMaximized] = useState(false);
 
@@ -611,7 +617,7 @@ function App() {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "," && (event.metaKey || event.ctrlKey)) {
         event.preventDefault();
-        setCurrentView("settings");
+        openSettings();
         return;
       }
 
@@ -904,6 +910,7 @@ function App() {
         case "settings":
           return (
             <SettingsPage
+              key={settingsKey}
               open={true}
               onOpenChange={() => setCurrentView("hermesChat")}
               onImportSuccess={handleImportSuccess}
@@ -1170,8 +1177,7 @@ function App() {
                 </Button>
                 <UpdateBadge
                   onClick={() => {
-                    setSettingsDefaultTab("about");
-                    setCurrentView("settings");
+                    openSettings("general");
                   }}
                 />
               </div>
@@ -1238,8 +1244,7 @@ function App() {
                   variant="ghost"
                   size="icon"
                   onClick={() => {
-                    setSettingsDefaultTab("general");
-                    setCurrentView("settings");
+                    openSettings("general");
                   }}
                   title={t("common.settings")}
                   className="hover:bg-black/5 dark:hover:bg-white/5"
@@ -1248,8 +1253,7 @@ function App() {
                 </Button>
                 <UpdateBadge
                   onClick={() => {
-                    setSettingsDefaultTab("about");
-                    setCurrentView("settings");
+                    openSettings("general");
                   }}
                 />
                 {isCurrentAppTakeoverActive && (
@@ -1257,8 +1261,7 @@ function App() {
                     variant="ghost"
                     size="icon"
                     onClick={() => {
-                      setSettingsDefaultTab("usage");
-                      setCurrentView("settings");
+                      openSettings("usage");
                     }}
                     title={t("usage.title", {
                       defaultValue: "使用统计",
