@@ -5,14 +5,10 @@ import { KeyRound } from "lucide-react";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 interface ApiServerKeyDialogProps {
   open: boolean;
@@ -38,54 +34,54 @@ export function ApiServerKeyDialog({ open, onSaved }: ApiServerKeyDialogProps) {
     }
   };
 
-  const handleSkip = () => {
-    onSaved();
-  };
-
   return (
     <Dialog open={open}>
-      <DialogContent className="sm:max-w-md" onInteractOutside={(e) => e.preventDefault()}>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <KeyRound className="w-4 h-4" />
-            {t("hermes.apiKey.title", { defaultValue: "配置 Hermes API Server Key" })}
-          </DialogTitle>
-          <DialogDescription>
-            {t("hermes.apiKey.description", {
-              defaultValue:
-                "检测到 Hermes API Server 需要认证。请输入 ~/.hermes/.env 中配置的 API_SERVER_KEY，或留空跳过。",
-            })}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-3 py-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="api-server-key">API_SERVER_KEY</Label>
-            <Input
-              id="api-server-key"
-              type="password"
-              placeholder={t("hermes.apiKey.placeholder", { defaultValue: "输入 API Server Key..." })}
-              value={key}
-              onChange={(e) => setKey(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void handleSave();
-              }}
-              autoFocus
-            />
-          </div>
-          {error && <p className="text-xs text-destructive">{error}</p>}
-          <p className="text-xs text-muted-foreground">
-            {t("hermes.apiKey.hint", {
-              defaultValue: "此 Key 将保存到 ~/.hermes/.env 文件，与 hermes config set API_SERVER_KEY 效果相同。",
-            })}
-          </p>
+      <DialogContent
+        className="sm:max-w-sm focus:outline-none"
+        onInteractOutside={(e) => e.preventDefault()}
+      >
+        {/* Header */}
+        <div className="flex items-center gap-2 mb-1">
+          <KeyRound className="w-4 h-4 text-muted-foreground shrink-0" />
+          <h3 className="font-semibold text-sm">
+            {t("hermes.apiKey.title", { defaultValue: "配置 API Server Key" })}
+          </h3>
         </div>
 
-        <DialogFooter className="gap-2">
-          <Button variant="ghost" size="sm" onClick={handleSkip}>
+        <p className="text-xs text-muted-foreground leading-relaxed mb-4">
+          {t("hermes.apiKey.description", {
+            defaultValue: "Hermes 服务端配置了认证 Key，请输入 API_SERVER_KEY 以正常使用聊天功能。",
+          })}
+        </p>
+
+        {/* Input */}
+        <Input
+          type="password"
+          placeholder="API_SERVER_KEY"
+          value={key}
+          onChange={(e) => setKey(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") void handleSave(); }}
+          autoFocus
+          className="text-sm"
+        />
+
+        {error && <p className="text-xs text-destructive mt-1.5">{error}</p>}
+
+        <p className="text-xs text-muted-foreground mt-2">
+          {t("hermes.apiKey.hint", {
+            defaultValue: "将写入 ~/.hermes/.env，与 hermes config set API_SERVER_KEY 效果相同。",
+          })}
+        </p>
+
+        <DialogFooter className="mt-4 gap-2">
+          <Button variant="ghost" size="sm" onClick={onSaved}>
             {t("hermes.apiKey.skip", { defaultValue: "跳过" })}
           </Button>
-          <Button size="sm" onClick={() => void handleSave()} disabled={saving || !key.trim()}>
+          <Button
+            size="sm"
+            onClick={() => void handleSave()}
+            disabled={saving || !key.trim()}
+          >
             {saving
               ? t("hermes.apiKey.saving", { defaultValue: "保存中..." })
               : t("hermes.apiKey.save", { defaultValue: "保存" })}
