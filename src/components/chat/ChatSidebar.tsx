@@ -7,6 +7,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
   DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -130,10 +133,12 @@ export function ChatSidebar({
 
       {/* Delete confirm dialog */}
       <Dialog open={!!deletingId} onOpenChange={(o) => { if (!o) setDeletingId(null); }}>
-        <DialogContent className="sm:max-w-xs focus:outline-none">
-          <p className="text-sm font-medium">{t("hermes.chat.deleteConfirm", { defaultValue: "确定删除该聊天记录？" })}</p>
-          <p className="text-xs text-muted-foreground mt-1">{t("hermes.chat.deleteConfirmDesc", { defaultValue: "删除后无法恢复。" })}</p>
-          <DialogFooter className="mt-3 gap-2">
+        <DialogContent className="sm:max-w-sm focus:outline-none" onInteractOutside={() => setDeletingId(null)}>
+          <DialogHeader>
+            <DialogTitle>{t("hermes.chat.deleteConfirm", { defaultValue: "删除聊天记录" })}</DialogTitle>
+            <DialogDescription>{t("hermes.chat.deleteConfirmDesc", { defaultValue: "此操作无法撤销，聊天记录将被永久删除。" })}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
             <Button variant="ghost" size="sm" onClick={() => setDeletingId(null)}>
               {t("common.cancel", { defaultValue: "取消" })}
             </Button>
