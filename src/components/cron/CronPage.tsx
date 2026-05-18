@@ -7,7 +7,7 @@ import { cronApi, type CronJob, type CreateCronJobRequest, type UpdateCronJobReq
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { CronJobFormDialog } from "./CronJobFormDialog";
+import { CronJobForm } from "./CronJobForm";
 import { cn } from "@/lib/utils";
 
 const cronKeys = {
@@ -45,8 +45,8 @@ export function CronPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [formOpen, setFormOpen] = useState(false);
-  const [editingJob, setEditingJob] = useState<CronJob | null>(null);
+  // "detail" | "edit" | "new"
+  const [rightMode, setRightMode] = useState<"detail" | "edit" | "new">("detail");
 
   const { data: jobs = [], isLoading, refetch } = useQuery({
     queryKey: cronKeys.list,
@@ -60,9 +60,8 @@ export function CronPage() {
     mutationFn: (job: CreateCronJobRequest) => cronApi.create(job),
     onSuccess: (newJob) => {
       void queryClient.invalidateQueries({ queryKey: cronKeys.list });
-      setFormOpen(false);
-      setEditingJob(null);
       if (newJob && "id" in newJob) setSelectedId((newJob as CronJob).id);
+      setRightMode("detail");
       toast.success(t("cron.created", { defaultValue: "任务已创建" }));
     },
     onError: (e) => toast.error(String(e)),
@@ -73,8 +72,7 @@ export function CronPage() {
       cronApi.update(id, job),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: cronKeys.list });
-      setFormOpen(false);
-      setEditingJob(null);
+      setRightMode("detail");
       toast.success(t("cron.updated", { defaultValue: "任务已更新" }));
     },
     onError: (e) => toast.error(String(e)),
@@ -103,17 +101,12 @@ export function CronPage() {
     onError: (e) => toast.error(String(e)),
   });
 
-  const handleSubmit = (data: CreateCronJobRequest) => {
-    if (editingJob) {
-      updateMutation.mutate({ id: editingJob.id, job: data });
+  const handleFormSubmit = (data: CreateCronJobRequest) => {
+    if (rightMode === "edit" && selectedJob) {
+      updateMutation.mutate({ id: selectedJob.id, job: data });
     } else {
       createMutation.mutate(data);
     }
-  };
-
-  const openEdit = (job: CronJob) => {
-    setEditingJob(job);
-    setFormOpen(true);
   };
 
   return (
@@ -133,7 +126,7 @@ export function CronPage() {
               variant="ghost"
               size="icon"
               className="h-6 w-6"
-              onClick={() => { setEditingJob(null); setFormOpen(true); }}
+              onClick={() => { setSelectedId(null); setRightMode("new"); }}
               title={t("cron.new", { defaultValue: "新建" })}
             >
               <Plus className="w-3 h-3" />
@@ -158,7 +151,7 @@ export function CronPage() {
                 <button
                   key={job.id}
                   type="button"
-                  onClick={() => setSelectedId(job.id)}
+                  onClick={() => { setSelectedId(job.id); setRightMode("detail"); }}
                   className={cn(
                     "group w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left hover:bg-muted transition-colors",
                     selectedId === job.id && "bg-muted font-medium",
@@ -177,12 +170,26 @@ export function CronPage() {
         </ScrollArea>
       </div>
 
-      {/* ── Right: detail / empty state ── */}
+      {/* ── Right ── */}
       <div className="flex-1 flex flex-col min-w-0">
-        {selectedJob ? (
+        {rightMode === "new" ? (
+          <CronJobForm
+            job={null}
+            onCancel={() => setRightMode("detail")}
+            onSubmit={handleFormSubmit}
+            isPending={createMutation.isPending}
+          />
+        ) : rightMode === "edit" && selectedJob ? (
+          <CronJobForm
+            job={selectedJob}
+            onCancel={() => setRightMode("detail")}
+            onSubmit={handleFormSubmit}
+            isPending={updateMutation.isPending}
+          />
+        ) : selectedJob ? (
           <JobDetail
             job={selectedJob}
-            onEdit={openEdit}
+            onEdit={() => setRightMode("edit")}
             onDelete={(id) => deleteMutation.mutate(id)}
             onTrigger={(id) => triggerMutation.mutate(id)}
             onToggle={(id, enabled) => toggleMutation.mutate({ id, enabled })}
@@ -192,25 +199,13 @@ export function CronPage() {
           <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
             <Clock className="w-10 h-10 opacity-20" />
             <p className="text-sm">{t("cron.selectHint", { defaultValue: "选择一个任务查看详情" })}</p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => { setEditingJob(null); setFormOpen(true); }}
-            >
+            <Button variant="outline" size="sm" onClick={() => setRightMode("new")}>
               <Plus className="w-3.5 h-3.5 mr-1.5" />
               {t("cron.new", { defaultValue: "新建任务" })}
             </Button>
           </div>
         )}
       </div>
-
-      <CronJobFormDialog
-        open={formOpen}
-        job={editingJob}
-        onClose={() => { setFormOpen(false); setEditingJob(null); }}
-        onSubmit={handleSubmit}
-        isPending={createMutation.isPending || updateMutation.isPending}
-      />
     </div>
   );
 }
@@ -219,7 +214,7 @@ export function CronPage() {
 
 interface JobDetailProps {
   job: CronJob;
-  onEdit: (job: CronJob) => void;
+  onEdit: () => void;
   onDelete: (id: string) => void;
   onTrigger: (id: string) => void;
   onToggle: (id: string, enabled: boolean) => void;
@@ -271,7 +266,7 @@ function JobDetail({ job, onEdit, onDelete, onTrigger, onToggle, isTriggering }:
             variant="ghost"
             size="icon"
             className="h-7 w-7"
-            onClick={() => onEdit(job)}
+            onClick={() => onEdit()}
             title={t("cron.edit", { defaultValue: "编辑" })}
           >
             <Pencil className="w-3.5 h-3.5" />
