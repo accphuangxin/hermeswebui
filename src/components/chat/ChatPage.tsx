@@ -297,8 +297,13 @@ export function ChatPage() {
       </div>
 
       <div className="flex flex-1 min-h-0">
-        {sidebarTab === "cron" && <CronPage />}
-        {sidebarTab === "chat" && <>
+        {/* CronPage: always mounted to preserve state, hidden when not active */}
+        <div className={sidebarTab === "cron" ? "contents" : "hidden"}>
+          <CronPage />
+        </div>
+
+        {/* Chat: always mounted so in-progress runs survive tab switches */}
+        <div className={cn("contents", sidebarTab !== "chat" && "hidden")}>
       <ChatSidebar
         sessions={sessions}
         activeSessionId={activeSessionId}
@@ -399,7 +404,7 @@ export function ChatPage() {
             disabled={!isOnline || !activeSessionId}
           />
         </div>
-        </>}
+        </div>
       </div>
     </div>
   );
