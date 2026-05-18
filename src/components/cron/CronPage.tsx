@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Play, Pencil, Trash2, Power, PowerOff, Clock, RefreshCw, ChevronRight } from "lucide-react";
+import { Plus, Play, Pencil, Trash2, Power, PowerOff, Clock, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { cronApi, type CronJob, type CreateCronJobRequest, type UpdateCronJobRequest } from "@/lib/api/cron";
 import { Button } from "@/components/ui/button";
@@ -152,26 +152,23 @@ export function CronPage() {
               <span className="text-xs">{t("cron.empty", { defaultValue: "暂无任务" })}</span>
             </div>
           ) : (
-            <div className="py-1">
+            <div className="px-2 pb-2 space-y-0.5">
               {jobs.map((job) => (
                 <button
                   key={job.id}
                   type="button"
                   onClick={() => setSelectedId(job.id)}
                   className={cn(
-                    "w-full flex items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-muted/50",
+                    "group w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left hover:bg-muted transition-colors",
                     selectedId === job.id && "bg-muted font-medium",
                     !job.enabled && "opacity-50",
                   )}
                 >
-                  <span
-                    className={cn(
-                      "w-1.5 h-1.5 rounded-full shrink-0",
-                      job.enabled ? "bg-green-500" : "bg-muted-foreground",
-                    )}
-                  />
+                  <Clock className={cn(
+                    "w-3.5 h-3.5 flex-shrink-0",
+                    job.enabled ? "text-primary" : "text-muted-foreground",
+                  )} />
                   <span className="flex-1 truncate">{job.name}</span>
-                  {selectedId === job.id && <ChevronRight className="w-3 h-3 shrink-0 text-muted-foreground" />}
                 </button>
               ))}
             </div>
@@ -290,32 +287,30 @@ function JobDetail({ job, onEdit, onDelete, onTrigger, onToggle, isTriggering }:
       </div>
 
       {/* Detail body */}
-      <ScrollArea className="flex-1">
-        <div className="px-6 py-5 space-y-5">
-          {/* Meta row */}
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <DetailField label={t("cron.lastRun", { defaultValue: "上次执行" })} value={formatTime(job.last_run)} />
-            <DetailField label={t("cron.nextRun", { defaultValue: "下次执行" })} value={formatTime(job.next_run)} />
-            {job.model && (
-              <DetailField label={t("cron.form.model", { defaultValue: "模型" })} value={job.model} />
-            )}
-            <DetailField
-              label={t("cron.form.enabled", { defaultValue: "状态" })}
-              value={job.enabled ? t("cron.enable", { defaultValue: "启用" }) : t("cron.disable", { defaultValue: "禁用" })}
-            />
-          </div>
+      <div className="flex-1 flex flex-col min-h-0 px-6 py-5 gap-5">
+        {/* Meta row — horizontal pills */}
+        <div className="flex flex-wrap gap-x-8 gap-y-3">
+          <DetailField label={t("cron.lastRun", { defaultValue: "上次执行" })} value={formatTime(job.last_run)} />
+          <DetailField label={t("cron.nextRun", { defaultValue: "下次执行" })} value={formatTime(job.next_run)} />
+          {job.model && (
+            <DetailField label={t("cron.form.model", { defaultValue: "模型" })} value={job.model} />
+          )}
+          <DetailField
+            label={t("cron.form.enabled", { defaultValue: "状态" })}
+            value={job.enabled ? "✓ 启用" : "✗ 禁用"}
+          />
+        </div>
 
-          {/* Prompt */}
-          <div className="space-y-1.5">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              {t("cron.form.prompt", { defaultValue: "Prompt" })}
-            </p>
-            <div className="rounded-lg bg-muted/40 px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap">
-              {job.prompt}
-            </div>
+        {/* Prompt — fills remaining height */}
+        <div className="flex flex-col flex-1 min-h-0 gap-1.5">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide shrink-0">
+            {t("cron.form.prompt", { defaultValue: "Prompt" })}
+          </p>
+          <div className="flex-1 rounded-lg bg-muted/30 border px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap overflow-auto">
+            {job.prompt}
           </div>
         </div>
-      </ScrollArea>
+      </div>
     </div>
   );
 }
