@@ -358,6 +358,24 @@ pub fn getHermesChatModels() -> Result<Vec<HermesChatModel>, String> {
     Ok(models)
 }
 
+/// Switch the active Hermes model by updating model.default and model.provider
+/// in config.yaml. Returns the applied model id so the frontend can confirm.
+#[tauri::command]
+pub fn switchHermesModel(modelId: String, providerId: String) -> Result<String, String> {
+    let current = hermes_config::get_model_config()
+        .map_err(|e| e.to_string())?
+        .unwrap_or_default();
+
+    let updated = hermes_config::HermesModelConfig {
+        default: Some(modelId.clone()),
+        provider: Some(providerId),
+        ..current
+    };
+
+    hermes_config::set_model_config(&updated).map_err(|e| e.to_string())?;
+    Ok(modelId)
+}
+
 // ============================================================================
 // Runs API — Streaming via Tauri Channel
 // ============================================================================

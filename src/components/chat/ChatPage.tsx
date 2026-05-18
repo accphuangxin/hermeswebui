@@ -284,7 +284,27 @@ export function ChatPage() {
           provider={status?.provider ?? null}
           models={models}
           selectedModel={selectedModel}
-          onModelChange={(m) => { setSelectedModel(m); setHermesSessionId(null); }}
+          onModelChange={async (m) => {
+            setSelectedModel(m);
+            setHermesSessionId(null);
+            // m format: "custom_{provider}:{modelId}"
+            const match = m.match(/^custom_([^:]+):(.+)$/);
+            if (match) {
+              const [, providerId, modelId] = match;
+              try {
+                await invoke("switchHermesModel", { modelId, providerId });
+                toast.success(t("hermes.chat.modelSwitched", {
+                  model: modelId,
+                  provider: providerId,
+                  defaultValue: `已切换到 ${modelId} (${providerId})`,
+                }));
+              } catch (e) {
+                toast.error(t("hermes.chat.modelSwitchFailed", {
+                  defaultValue: "模型切换失败",
+                }), { description: String(e) });
+              }
+            }
+          }}
         />
         <ScrollArea className="flex-1" ref={scrollRef}>
           <div className="py-4">
