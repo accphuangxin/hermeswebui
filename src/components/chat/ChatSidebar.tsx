@@ -50,12 +50,12 @@ export function ChatSidebar({
   return (
     <div className="flex flex-col h-full w-56 border-r bg-muted/30">
       {/* Tab bar */}
-      <div className="flex border-b shrink-0">
+      <div className="flex border-b shrink-0 h-10">
         <button
           type="button"
           onClick={() => onTabChange("chat")}
           className={cn(
-            "flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors",
+            "flex-1 flex items-center justify-center gap-1.5 text-xs font-medium transition-colors",
             activeTab === "chat"
               ? "text-primary border-b-2 border-primary"
               : "text-muted-foreground hover:text-foreground",
@@ -68,7 +68,7 @@ export function ChatSidebar({
           type="button"
           onClick={() => onTabChange("cron")}
           className={cn(
-            "flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors",
+            "flex-1 flex items-center justify-center gap-1.5 text-xs font-medium transition-colors",
             activeTab === "cron"
               ? "text-primary border-b-2 border-primary"
               : "text-muted-foreground hover:text-foreground",
