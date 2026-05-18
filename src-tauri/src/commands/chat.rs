@@ -282,6 +282,24 @@ pub(crate) fn build_api_client(timeout_secs: u64) -> Result<(reqwest::Client, St
     Ok((client, base_url, auth_header))
 }
 
+/// Build a client for SSE streaming — only limits connection establishment,
+/// no overall timeout so long-running agent runs are never cut off mid-stream.
+pub(crate) fn build_stream_client() -> Result<(reqwest::Client, String, String), String> {
+    let cfg = read_api_server_config();
+    let base_url = format!("http://{}:{}", cfg.host, cfg.port);
+    let auth_header = if cfg.key.is_empty() {
+        String::new()
+    } else {
+        format!("Bearer {}", cfg.key)
+    };
+    let client = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(10)) // only limit connection setup
+        .no_proxy()
+        .build()
+        .map_err(|e| format!("failed to build stream client: {e}"))?;
+    Ok((client, base_url, auth_header))
+}
+
 #[tauri::command]
 pub async fn getHermesChatStatus() -> Result<HermesChatStatus, String> {
     let cfg = read_api_server_config();
@@ -530,11 +548,12 @@ pub async fn startChatRun(
         .ok_or("missing run_id")?
         .to_string();
 
-    // GET /v1/runs/{run_id}/events — SSE stream
+    // GET /v1/runs/{run_id}/events — SSE stream (no overall timeout)
+    let (stream_client, _, stream_auth) = build_stream_client()?;
     let events_url = format!("{base}/v1/runs/{run_id}/events");
-    let mut events_req = client.get(&events_url);
-    if !auth_header.is_empty() {
-        events_req = events_req.header("Authorization", &auth_header);
+    let mut events_req = stream_client.get(&events_url);
+    if !stream_auth.is_empty() {
+        events_req = events_req.header("Authorization", &stream_auth);
     }
     let events_resp = events_req
         .send()
