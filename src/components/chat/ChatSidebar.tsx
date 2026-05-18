@@ -4,6 +4,11 @@ import { Plus, Trash2, MessageSquare, Pencil } from "lucide-react";
 import type { ChatSession } from "@/types";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 export type SidebarTab = "chat" | "cron";
@@ -28,6 +33,7 @@ export function ChatSidebar({
   const { t } = useTranslation();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const startRename = (session: ChatSession) => {
@@ -108,7 +114,7 @@ export function ChatSidebar({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      onDeleteSession(s.id);
+                      setDeletingId(s.id);
                     }}
                     className="p-0.5 hover:text-destructive"
                     title={t("hermes.chat.deleteSession")}
@@ -121,6 +127,29 @@ export function ChatSidebar({
           ))}
         </div>
       </ScrollArea>
+
+      {/* Delete confirm dialog */}
+      <Dialog open={!!deletingId} onOpenChange={(o) => { if (!o) setDeletingId(null); }}>
+        <DialogContent className="sm:max-w-xs focus:outline-none">
+          <p className="text-sm font-medium">{t("hermes.chat.deleteConfirm", { defaultValue: "确定删除该聊天记录？" })}</p>
+          <p className="text-xs text-muted-foreground mt-1">{t("hermes.chat.deleteConfirmDesc", { defaultValue: "删除后无法恢复。" })}</p>
+          <DialogFooter className="mt-3 gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setDeletingId(null)}>
+              {t("common.cancel", { defaultValue: "取消" })}
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => {
+                if (deletingId) onDeleteSession(deletingId);
+                setDeletingId(null);
+              }}
+            >
+              {t("common.delete", { defaultValue: "删除" })}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

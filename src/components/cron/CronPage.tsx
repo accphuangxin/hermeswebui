@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { cronApi, type CronJob, type CreateCronJobRequest, type UpdateCronJobRequest } from "@/lib/api/cron";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { CronJobFormDialog } from "./CronJobFormDialog";
 import { cn } from "@/lib/utils";
 
@@ -227,6 +228,7 @@ interface JobDetailProps {
 
 function JobDetail({ job, onEdit, onDelete, onTrigger, onToggle, isTriggering }: JobDetailProps) {
   const { t } = useTranslation();
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const color = statusColor[job.status ?? ""] ?? "text-muted-foreground";
   const label = statusLabel[job.status ?? ""] ?? job.status ?? "—";
 
@@ -278,7 +280,7 @@ function JobDetail({ job, onEdit, onDelete, onTrigger, onToggle, isTriggering }:
             variant="ghost"
             size="icon"
             className="h-7 w-7 text-destructive hover:text-destructive"
-            onClick={() => onDelete(job.id)}
+            onClick={() => setConfirmDelete(true)}
             title={t("cron.delete", { defaultValue: "删除" })}
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -311,6 +313,26 @@ function JobDetail({ job, onEdit, onDelete, onTrigger, onToggle, isTriggering }:
           </div>
         </div>
       </div>
+
+      {/* Delete confirm */}
+      <Dialog open={confirmDelete} onOpenChange={(o) => { if (!o) setConfirmDelete(false); }}>
+        <DialogContent className="sm:max-w-xs focus:outline-none">
+          <p className="text-sm font-medium">{t("cron.deleteConfirm", { defaultValue: "确定删除该定时任务？" })}</p>
+          <p className="text-xs text-muted-foreground mt-1">{t("cron.deleteConfirmDesc", { defaultValue: "删除后无法恢复。" })}</p>
+          <DialogFooter className="mt-3 gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(false)}>
+              {t("common.cancel", { defaultValue: "取消" })}
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => { onDelete(job.id); setConfirmDelete(false); }}
+            >
+              {t("common.delete", { defaultValue: "删除" })}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
