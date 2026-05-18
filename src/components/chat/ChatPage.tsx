@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { invoke } from "@tauri-apps/api/core";
+import { MessageSquare, Clock } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   chatKeys,
@@ -17,7 +19,8 @@ import {
 import { useChatStream, type ToolActivity, type ApprovalRequest } from "@/hooks/useChatStream";
 import { chatApi } from "@/lib/api/chat";
 import { compressContext } from "@/lib/contextCompression";
-import { ChatSidebar, type SidebarTab } from "./ChatSidebar";
+import { ChatSidebar } from "./ChatSidebar";
+import type { SidebarTab } from "./ChatSidebar";
 import { ChatHeader } from "./ChatHeader";
 import { CronPage } from "@/components/cron/CronPage";
 import { ChatMessageBubble } from "./ChatMessage";
@@ -257,11 +260,45 @@ export function ChatPage() {
   }, [pendingApproval]);
 
   return (
-    <div className="flex h-full">
+    <div className="flex flex-col h-full">
       <ApiServerKeyDialog
         open={showApiKeyDialog}
         onSaved={() => setShowApiKeyDialog(false)}
       />
+
+      {/* Top tab bar */}
+      <div className="flex border-b shrink-0 h-10 bg-muted/30">
+        <button
+          type="button"
+          onClick={() => setSidebarTab("chat")}
+          className={cn(
+            "flex items-center gap-1.5 px-4 text-xs font-medium transition-colors",
+            sidebarTab === "chat"
+              ? "text-primary border-b-2 border-primary"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <MessageSquare className="w-3.5 h-3.5" />
+          {t("hermes.chat.title", { defaultValue: "聊天" })}
+        </button>
+        <button
+          type="button"
+          onClick={() => setSidebarTab("cron")}
+          className={cn(
+            "flex items-center gap-1.5 px-4 text-xs font-medium transition-colors",
+            sidebarTab === "cron"
+              ? "text-primary border-b-2 border-primary"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <Clock className="w-3.5 h-3.5" />
+          {t("cron.title", { defaultValue: "定时任务" })}
+        </button>
+      </div>
+
+      <div className="flex flex-1 min-h-0">
+        {sidebarTab === "cron" && <CronPage />}
+        {sidebarTab === "chat" && <>
       <ChatSidebar
         sessions={sessions}
         activeSessionId={activeSessionId}
@@ -269,12 +306,8 @@ export function ChatPage() {
         onNewSession={handleNewSession}
         onDeleteSession={handleDeleteSession}
         onRenameSession={handleRenameSession}
-        activeTab={sidebarTab}
-        onTabChange={setSidebarTab}
       />
       <div className="flex-1 flex flex-col min-w-0">
-        {sidebarTab === "cron" && <CronPage />}
-        {sidebarTab === "chat" && <>
         <ChatHeader
           online={isOnline}
           defaultModel={status?.defaultModel ?? null}
@@ -356,17 +389,19 @@ export function ChatPage() {
                 )}
               </>
             )}
-            <div ref={scrollBottomRef} />
-          </div>
-        </ScrollArea>
-        <ChatInput
-          onSend={handleSend}
-          onStop={handleStop}
-          isStreaming={isStreaming}
-          disabled={!isOnline || !activeSessionId}
-        />
+              <div ref={scrollBottomRef} />
+            </div>
+          </ScrollArea>
+          <ChatInput
+            onSend={handleSend}
+            onStop={handleStop}
+            isStreaming={isStreaming}
+            disabled={!isOnline || !activeSessionId}
+          />
+        </div>
         </>}
       </div>
     </div>
   );
 }
+

@@ -1809,6 +1809,7 @@
     "disable": "禁用",
     "edit": "编辑",
     "delete": "删除",
+    "selectHint": "选择一个任务查看详情",
     "lastRun": "上次执行",
     "nextRun": "下次执行",
     "form": {

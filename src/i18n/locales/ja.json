@@ -1809,6 +1809,7 @@
     "disable": "無効化",
     "edit": "編集",
     "delete": "削除",
+    "selectHint": "タスクを選択して詳細を表示",
     "lastRun": "前回実行",
     "nextRun": "次回実行",
     "form": {

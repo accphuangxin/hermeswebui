@@ -1809,6 +1809,7 @@
     "disable": "Disable",
     "edit": "Edit",
     "delete": "Delete",
+    "selectHint": "Select a job to view details",
     "lastRun": "Last run",
     "nextRun": "Next run",
     "form": {
