@@ -116,7 +116,7 @@ export function CronPage() {
   };
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full w-full">
       {/* ── Left: job list ── */}
       <div className="w-56 border-r flex flex-col shrink-0 bg-muted/20">
         {/* list header */}
