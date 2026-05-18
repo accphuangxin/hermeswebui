@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { cronApi, type CronJob, type CreateCronJobRequest, type UpdateCronJobRequest } from "@/lib/api/cron";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { CronJobFormDialog } from "./CronJobFormDialog";
 import { cn } from "@/lib/utils";
 
@@ -318,8 +318,7 @@ function JobDetail({ job, onEdit, onDelete, onTrigger, onToggle, isTriggering }:
       <Dialog open={confirmDelete} onOpenChange={(o) => { if (!o) setConfirmDelete(false); }}>
         <DialogContent className="sm:max-w-sm focus:outline-none" onInteractOutside={() => setConfirmDelete(false)}>
           <DialogHeader>
-            <DialogTitle>{t("cron.deleteConfirm", { defaultValue: "删除定时任务" })}</DialogTitle>
-            <DialogDescription>{t("cron.deleteConfirmDesc", { defaultValue: "此操作无法撤销，任务将被永久删除。" })}</DialogDescription>
+            <DialogTitle className="text-sm">{t("cron.deleteConfirm", { defaultValue: "删除此定时任务？此操作无法撤销。" })}</DialogTitle>
           </DialogHeader>
           <DialogFooter>
             <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(false)}>

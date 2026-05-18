@@ -9,7 +9,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -135,8 +134,7 @@ export function ChatSidebar({
       <Dialog open={!!deletingId} onOpenChange={(o) => { if (!o) setDeletingId(null); }}>
         <DialogContent className="sm:max-w-sm focus:outline-none" onInteractOutside={() => setDeletingId(null)}>
           <DialogHeader>
-            <DialogTitle>{t("hermes.chat.deleteConfirm", { defaultValue: "删除聊天记录" })}</DialogTitle>
-            <DialogDescription>{t("hermes.chat.deleteConfirmDesc", { defaultValue: "此操作无法撤销，聊天记录将被永久删除。" })}</DialogDescription>
+            <DialogTitle className="text-sm">{t("hermes.chat.deleteConfirm", { defaultValue: "删除聊天记录？此操作无法撤销。" })}</DialogTitle>
           </DialogHeader>
           <DialogFooter>
             <Button variant="ghost" size="sm" onClick={() => setDeletingId(null)}>
