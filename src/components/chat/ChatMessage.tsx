@@ -102,13 +102,20 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
           </div>
         )}
         {(isAssistant || isUser) && (
-          <button
-            onClick={handleCopy}
-            className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground p-1"
-            title={copied ? t("hermes.chat.copied") : t("hermes.chat.copy")}
-          >
-            {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-          </button>
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            {message.createdAt > 0 && (
+              <span className="text-[10px] text-muted-foreground select-none">
+                {new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              </span>
+            )}
+            <button
+              onClick={handleCopy}
+              className="text-muted-foreground hover:text-foreground p-1"
+              title={copied ? t("hermes.chat.copied") : t("hermes.chat.copy")}
+            >
+              {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+            </button>
+          </div>
         )}
       </div>
     </div>
