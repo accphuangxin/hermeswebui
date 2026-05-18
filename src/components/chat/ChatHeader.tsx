@@ -76,6 +76,9 @@ export function ChatHeader({
               >
                 <span>{m.id}</span>
                 <span className="ml-2 text-muted-foreground">({m.provider})</span>
+                {m.isDefault && (
+                  <span className="ml-1.5 text-[10px] text-primary font-medium">●</span>
+                )}
               </SelectItem>
             ))}
           </SelectContent>

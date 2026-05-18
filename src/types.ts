@@ -678,4 +678,5 @@ export interface HermesChatModel {
   id: string;
   provider: string;
   contextLength: number | null;
+  isDefault: boolean;
 }

@@ -26,6 +26,7 @@ pub struct HermesChatModel {
     pub id: String,
     pub provider: String,
     pub context_length: Option<u64>,
+    pub is_default: bool,
 }
 
 // ============================================================================
@@ -315,45 +316,120 @@ pub async fn getHermesChatStatus() -> Result<HermesChatStatus, String> {
     })
 }
 
+/// Fetch the model list from a provider's /v1/models endpoint.
+/// Returns model ids on success, empty vec on any failure (non-fatal).
+async fn fetch_remote_models(base_url: &str, api_key: &str) -> Vec<String> {
+    let url = format!("{}/v1/models", base_url.trim_end_matches('/'));
+    let client = match reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .no_proxy()
+        .build()
+    {
+        Ok(c) => c,
+        Err(_) => return vec![],
+    };
+    let mut req = client.get(&url);
+    if !api_key.is_empty() {
+        req = req.header("Authorization", format!("Bearer {api_key}"));
+    }
+    let resp = match req.send().await {
+        Ok(r) if r.status().is_success() => r,
+        _ => return vec![],
+    };
+    let json: serde_json::Value = match resp.json().await {
+        Ok(v) => v,
+        Err(_) => return vec![],
+    };
+    json.get("data")
+        .and_then(|d| d.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|m| m.get("id").and_then(|id| id.as_str()).map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 #[tauri::command]
-pub fn getHermesChatModels() -> Result<Vec<HermesChatModel>, String> {
+pub async fn getHermesChatModels() -> Result<Vec<HermesChatModel>, String> {
     let config = hermes_config::read_hermes_config().map_err(|e| e.to_string())?;
-    let mut models = Vec::new();
 
-    if let Some(seq) = config.get("custom_providers").and_then(|v| v.as_sequence()) {
-        for item in seq {
-            let provider_name = item
-                .get("name")
-                .and_then(|n| n.as_str())
-                .unwrap_or("unknown")
-                .to_string();
+    // Current active model & provider from model: section
+    let model_config = hermes_config::get_model_config().ok().flatten();
+    let default_model = model_config.as_ref().and_then(|m| m.default.as_deref()).unwrap_or("");
+    let default_provider = model_config.as_ref().and_then(|m| m.provider.as_deref()).unwrap_or("");
 
-            if let Some(models_map) = item.get("models").and_then(|v| v.as_mapping()) {
-                for (k, v) in models_map {
-                    if let Some(model_id) = k.as_str() {
-                        let context_length = v
-                            .get("context_length")
-                            .and_then(|c| c.as_u64());
-                        models.push(HermesChatModel {
-                            id: model_id.to_string(),
-                            provider: provider_name.clone(),
-                            context_length,
-                        });
-                    }
-                }
-            }
+    let mut models: Vec<HermesChatModel> = Vec::new();
 
-            if let Some(singular) = item.get("model").and_then(|m| m.as_str()) {
-                if !models.iter().any(|m| m.id == singular) {
-                    models.push(HermesChatModel {
-                        id: singular.to_string(),
-                        provider: provider_name,
-                        context_length: None,
-                    });
+    let Some(seq) = config.get("custom_providers").and_then(|v| v.as_sequence()) else {
+        return Ok(models);
+    };
+
+    for item in seq {
+        let provider_name = item
+            .get("name")
+            .and_then(|n| n.as_str())
+            .unwrap_or("unknown")
+            .to_string();
+
+        let base_url = item
+            .get("base_url")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+
+        let api_key = item
+            .get("api_key")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+
+        // 1. Static models from config.yaml
+        let mut provider_model_ids: Vec<(String, Option<u64>)> = Vec::new();
+
+        if let Some(models_map) = item.get("models").and_then(|v| v.as_mapping()) {
+            for (k, v) in models_map {
+                if let Some(model_id) = k.as_str() {
+                    let context_length = v.get("context_length").and_then(|c| c.as_u64());
+                    provider_model_ids.push((model_id.to_string(), context_length));
                 }
             }
         }
+
+        // 2. If no static models declared, fetch dynamically from provider's /v1/models
+        if provider_model_ids.is_empty() && !base_url.is_empty() {
+            let remote = fetch_remote_models(&base_url, &api_key).await;
+            for id in remote {
+                provider_model_ids.push((id, None));
+            }
+        }
+
+        // 3. Fallback: singular model: field
+        if provider_model_ids.is_empty() {
+            if let Some(singular) = item.get("model").and_then(|m| m.as_str()) {
+                provider_model_ids.push((singular.to_string(), None));
+            }
+        }
+
+        for (id, context_length) in provider_model_ids {
+            let is_default =
+                id == default_model && provider_name == default_provider;
+            models.push(HermesChatModel {
+                id,
+                provider: provider_name.clone(),
+                context_length,
+                is_default,
+            });
+        }
     }
+
+    // Sort: default first, then alphabetically by provider+model
+    models.sort_by(|a, b| {
+        b.is_default
+            .cmp(&a.is_default)
+            .then(a.provider.cmp(&b.provider))
+            .then(a.id.cmp(&b.id))
+    });
 
     Ok(models)
 }

@@ -65,16 +65,13 @@ export function ChatPage() {
     });
   }, []);
 
-  // Auto-select default model
+  // Auto-select default model from models list (isDefault flag)
   useEffect(() => {
-    if (!selectedModel && status?.defaultModel) {
-      const provider = status.provider?.replace("custom:", "") ?? "";
-      const modelValue = provider
-        ? `custom_${provider}:${status.defaultModel}`
-        : status.defaultModel;
-      setSelectedModel(modelValue);
+    if (!selectedModel && models.length > 0) {
+      const defaultModel = models.find((m) => m.isDefault) ?? models[0];
+      setSelectedModel(`custom_${defaultModel.provider}:${defaultModel.id}`);
     }
-  }, [status?.defaultModel, status?.provider, selectedModel]);
+  }, [models, selectedModel]);
 
   // Auto-select first session
   useEffect(() => {
