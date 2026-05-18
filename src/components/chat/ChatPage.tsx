@@ -39,6 +39,7 @@ export function ChatPage() {
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("chat");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollBottomRef = useRef<HTMLDivElement>(null);
 
   const { data: status } = useChatStatus(true);
   const { data: models = [] } = useChatModels();
@@ -87,12 +88,14 @@ export function ChatPage() {
     setHermesSessionId(null);
   }, [activeSessionId]);
 
-  // Auto-scroll
+  // Auto-scroll to bottom when messages load or stream
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages, streamingContent, toolActivities]);
+    scrollBottomRef.current?.scrollIntoView({ behavior: "instant" });
+  }, [activeSessionId, messages]);
+
+  useEffect(() => {
+    scrollBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [streamingContent, toolActivities]);
 
   const handleNewSession = useCallback(async () => {
     const id = crypto.randomUUID();
@@ -336,6 +339,7 @@ export function ChatPage() {
                 )}
               </>
             )}
+            <div ref={scrollBottomRef} />
           </div>
         </ScrollArea>
         <ChatInput
