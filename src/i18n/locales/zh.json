@@ -1791,6 +1791,37 @@
       }
     }
   },
+  "cron": {
+    "title": "定时任务",
+    "subtitle": "管理定期执行的 Agent 任务",
+    "new": "新建任务",
+    "newTitle": "新建定时任务",
+    "editTitle": "编辑定时任务",
+    "empty": "暂无定时任务",
+    "loading": "加载中...",
+    "refresh": "刷新",
+    "created": "任务已创建",
+    "updated": "任务已更新",
+    "deleted": "任务已删除",
+    "triggered": "任务已触发执行",
+    "trigger": "立即执行",
+    "enable": "启用",
+    "disable": "禁用",
+    "edit": "编辑",
+    "delete": "删除",
+    "lastRun": "上次执行",
+    "nextRun": "下次执行",
+    "form": {
+      "name": "任务名称",
+      "namePlaceholder": "例：每日早报",
+      "schedule": "Cron 表达式",
+      "prompt": "执行 Prompt",
+      "promptPlaceholder": "输入要定期执行的任务描述...",
+      "model": "模型（可选）",
+      "modelPlaceholder": "留空使用默认模型",
+      "enabled": "启用任务"
+    }
+  },
   "env": {
     "warning": {
       "title": "检测到系统环境变量冲突",

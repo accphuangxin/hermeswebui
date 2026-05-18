@@ -17,8 +17,9 @@ import {
 import { useChatStream, type ToolActivity, type ApprovalRequest } from "@/hooks/useChatStream";
 import { chatApi } from "@/lib/api/chat";
 import { compressContext } from "@/lib/contextCompression";
-import { ChatSidebar } from "./ChatSidebar";
+import { ChatSidebar, type SidebarTab } from "./ChatSidebar";
 import { ChatHeader } from "./ChatHeader";
+import { CronPage } from "@/components/cron/CronPage";
 import { ChatMessageBubble } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
 import { ToolActivityBlock } from "./ToolActivityBlock";
@@ -36,6 +37,7 @@ export function ChatPage() {
   const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(null);
   const [hermesSessionId, setHermesSessionId] = useState<string | null>(null);
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab>("chat");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { data: status } = useChatStatus(true);
@@ -267,8 +269,12 @@ export function ChatPage() {
         onNewSession={handleNewSession}
         onDeleteSession={handleDeleteSession}
         onRenameSession={handleRenameSession}
+        activeTab={sidebarTab}
+        onTabChange={setSidebarTab}
       />
       <div className="flex-1 flex flex-col min-w-0">
+        {sidebarTab === "cron" && <CronPage />}
+        {sidebarTab === "chat" && <>
         <ChatHeader
           online={isOnline}
           defaultModel={status?.defaultModel ?? null}
@@ -338,6 +344,7 @@ export function ChatPage() {
           isStreaming={isStreaming}
           disabled={!isOnline || !activeSessionId}
         />
+        </>}
       </div>
     </div>
   );

@@ -1791,6 +1791,37 @@
       }
     }
   },
+  "cron": {
+    "title": "Cron Jobs",
+    "subtitle": "Manage scheduled Agent tasks",
+    "new": "New Job",
+    "newTitle": "New Cron Job",
+    "editTitle": "Edit Cron Job",
+    "empty": "No cron jobs yet",
+    "loading": "Loading...",
+    "refresh": "Refresh",
+    "created": "Job created",
+    "updated": "Job updated",
+    "deleted": "Job deleted",
+    "triggered": "Job triggered",
+    "trigger": "Run Now",
+    "enable": "Enable",
+    "disable": "Disable",
+    "edit": "Edit",
+    "delete": "Delete",
+    "lastRun": "Last run",
+    "nextRun": "Next run",
+    "form": {
+      "name": "Job Name",
+      "namePlaceholder": "e.g. Daily Briefing",
+      "schedule": "Cron Expression",
+      "prompt": "Prompt",
+      "promptPlaceholder": "Describe the task to run periodically...",
+      "model": "Model (optional)",
+      "modelPlaceholder": "Leave empty to use default model",
+      "enabled": "Enable Job"
+    }
+  },
   "env": {
     "warning": {
       "title": "Environment Variable Conflicts Detected",

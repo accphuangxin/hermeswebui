@@ -3,6 +3,7 @@
 mod auth;
 mod balance;
 mod chat;
+mod cron;
 mod codex_oauth;
 mod coding_plan;
 mod config;
@@ -37,6 +38,7 @@ mod workspace;
 pub use auth::*;
 pub use balance::*;
 pub use chat::*;
+pub use cron::*;
 pub use codex_oauth::*;
 pub use coding_plan::*;
 pub use config::*;

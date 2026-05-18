@@ -1791,6 +1791,37 @@
       }
     }
   },
+  "cron": {
+    "title": "定期タスク",
+    "subtitle": "定期実行する Agent タスクを管理",
+    "new": "新規タスク",
+    "newTitle": "新規定期タスク",
+    "editTitle": "定期タスクを編集",
+    "empty": "定期タスクがありません",
+    "loading": "読み込み中...",
+    "refresh": "更新",
+    "created": "タスクを作成しました",
+    "updated": "タスクを更新しました",
+    "deleted": "タスクを削除しました",
+    "triggered": "タスクを実行しました",
+    "trigger": "今すぐ実行",
+    "enable": "有効化",
+    "disable": "無効化",
+    "edit": "編集",
+    "delete": "削除",
+    "lastRun": "前回実行",
+    "nextRun": "次回実行",
+    "form": {
+      "name": "タスク名",
+      "namePlaceholder": "例：毎日のブリーフィング",
+      "schedule": "Cron 式",
+      "prompt": "プロンプト",
+      "promptPlaceholder": "定期実行するタスクを記述...",
+      "model": "モデル（任意）",
+      "modelPlaceholder": "空欄の場合はデフォルトモデルを使用",
+      "enabled": "タスクを有効化"
+    }
+  },
   "env": {
     "warning": {
       "title": "競合する環境変数を検出しました",

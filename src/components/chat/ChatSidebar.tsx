@@ -1,10 +1,12 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, Trash2, MessageSquare, Pencil } from "lucide-react";
+import { Plus, Trash2, MessageSquare, Pencil, Clock } from "lucide-react";
 import type { ChatSession } from "@/types";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+
+export type SidebarTab = "chat" | "cron";
 
 interface ChatSidebarProps {
   sessions: ChatSession[];
@@ -13,6 +15,8 @@ interface ChatSidebarProps {
   onNewSession: () => void;
   onDeleteSession: (id: string) => void;
   onRenameSession: (id: string, title: string) => void;
+  activeTab: SidebarTab;
+  onTabChange: (tab: SidebarTab) => void;
 }
 
 export function ChatSidebar({
@@ -22,6 +26,8 @@ export function ChatSidebar({
   onNewSession,
   onDeleteSession,
   onRenameSession,
+  activeTab,
+  onTabChange,
 }: ChatSidebarProps) {
   const { t } = useTranslation();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -43,6 +49,37 @@ export function ChatSidebar({
 
   return (
     <div className="flex flex-col h-full w-56 border-r bg-muted/30">
+      {/* Tab bar */}
+      <div className="flex border-b shrink-0">
+        <button
+          type="button"
+          onClick={() => onTabChange("chat")}
+          className={cn(
+            "flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors",
+            activeTab === "chat"
+              ? "text-primary border-b-2 border-primary"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <MessageSquare className="w-3.5 h-3.5" />
+          {t("hermes.chat.title", { defaultValue: "聊天" })}
+        </button>
+        <button
+          type="button"
+          onClick={() => onTabChange("cron")}
+          className={cn(
+            "flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors",
+            activeTab === "cron"
+              ? "text-primary border-b-2 border-primary"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <Clock className="w-3.5 h-3.5" />
+          {t("cron.title", { defaultValue: "定时" })}
+        </button>
+      </div>
+
+      {activeTab === "chat" && (
       <div className="p-2">
         <Button
           variant="outline"
@@ -54,7 +91,8 @@ export function ChatSidebar({
           {t("hermes.chat.newSession")}
         </Button>
       </div>
-      <ScrollArea className="flex-1">
+      )}
+      {activeTab === "chat" && <ScrollArea className="flex-1">
         <div className="px-2 pb-2 space-y-0.5">
           {sessions.length === 0 && (
             <div className="text-xs text-muted-foreground text-center py-4">
@@ -118,7 +156,7 @@ export function ChatSidebar({
             </button>
           ))}
         </div>
-      </ScrollArea>
+      </ScrollArea>}
     </div>
   );
 }

@@ -167,11 +167,11 @@ pub fn clearChatMessages(state: State<'_, AppState>, sessionId: String) -> Resul
 // Hermes Chat Status & Models
 // ============================================================================
 
-struct ApiServerConfig {
-    host: String,
-    port: u16,
+pub(crate) struct ApiServerConfig {
+    pub host: String,
+    pub port: u16,
     /// `platforms.api_server.key` — empty string means no auth required
-    key: String,
+    pub key: String,
 }
 
 fn read_hermes_env_key() -> String {
@@ -227,7 +227,7 @@ pub fn setHermesApiServerKey(key: String) -> Result<(), String> {
     std::fs::write(&env_path, content).map_err(|e| e.to_string())
 }
 
-fn read_api_server_config() -> ApiServerConfig {
+pub(crate) fn read_api_server_config() -> ApiServerConfig {
     let config = hermes_config::read_hermes_config().unwrap_or_default();
     let platforms = config.get("platforms");
     let api_server = platforms.and_then(|p| p.get("api_server"));
@@ -265,7 +265,7 @@ fn read_api_server_config() -> ApiServerConfig {
     ApiServerConfig { host, port, key }
 }
 
-fn build_api_client(timeout_secs: u64) -> Result<(reqwest::Client, String, String), String> {
+pub(crate) fn build_api_client(timeout_secs: u64) -> Result<(reqwest::Client, String, String), String> {
     let cfg = read_api_server_config();
     let base_url = format!("http://{}:{}", cfg.host, cfg.port);
     let auth_header = if cfg.key.is_empty() {

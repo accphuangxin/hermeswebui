@@ -1311,6 +1311,13 @@ pub fn run() {
             commands::approveChatRun,
             commands::getChatRunStatus,
             commands::readChatFile,
+            // Cron jobs
+            commands::listCronJobs,
+            commands::getCronJob,
+            commands::createCronJob,
+            commands::updateCronJob,
+            commands::deleteCronJob,
+            commands::triggerCronJob,
             // Global upstream proxy
             commands::get_global_proxy_url,
             commands::set_global_proxy_url,
