@@ -1,9 +1,25 @@
 import { invoke } from "@tauri-apps/api/core";
 
+// Raw shape returned by Hermes /api/jobs
+export interface CronJobRaw {
+  id: string;
+  name: string;
+  schedule: { kind: string; expr: string; display: string } | string;
+  schedule_display?: string;
+  prompt: string;
+  enabled: boolean;
+  model?: string | null;
+  last_run_at?: string | null;
+  next_run_at?: string | null;
+  last_status?: string | null;
+  state?: string | null;
+}
+
+// Normalized shape used in the UI
 export interface CronJob {
   id: string;
   name: string;
-  schedule: string;
+  schedule: string;       // always the cron expr string
   prompt: string;
   enabled: boolean;
   model?: string | null;
@@ -28,17 +44,44 @@ export interface UpdateCronJobRequest {
   model?: string | null;
 }
 
+function normalizeJob(raw: CronJobRaw): CronJob {
+  const scheduleExpr =
+    typeof raw.schedule === "string"
+      ? raw.schedule
+      : raw.schedule?.expr ?? raw.schedule_display ?? "";
+  return {
+    id: raw.id,
+    name: raw.name,
+    schedule: scheduleExpr,
+    prompt: raw.prompt,
+    enabled: raw.enabled,
+    model: raw.model,
+    last_run: raw.last_run_at,
+    next_run: raw.next_run_at,
+    status: raw.last_status ?? raw.state,
+  };
+}
+
 export const cronApi = {
-  list: (includeDisabled = true) =>
-    invoke<CronJob[]>("listCronJobs", { includeDisabled }),
+  list: async (includeDisabled = true): Promise<CronJob[]> => {
+    const raws = await invoke<CronJobRaw[]>("listCronJobs", { includeDisabled });
+    return raws.map(normalizeJob);
+  },
 
-  get: (jobId: string) => invoke<CronJob>("getCronJob", { jobId }),
+  get: async (jobId: string): Promise<CronJob> => {
+    const raw = await invoke<CronJobRaw>("getCronJob", { jobId });
+    return normalizeJob(raw);
+  },
 
-  create: (job: CreateCronJobRequest) =>
-    invoke<CronJob>("createCronJob", { job }),
+  create: async (job: CreateCronJobRequest): Promise<CronJob> => {
+    const raw = await invoke<CronJobRaw>("createCronJob", { job });
+    return normalizeJob(raw);
+  },
 
-  update: (jobId: string, job: UpdateCronJobRequest) =>
-    invoke<CronJob>("updateCronJob", { jobId, job }),
+  update: async (jobId: string, job: UpdateCronJobRequest): Promise<CronJob> => {
+    const raw = await invoke<CronJobRaw>("updateCronJob", { jobId, job });
+    return normalizeJob(raw);
+  },
 
   delete: (jobId: string) => invoke<void>("deleteCronJob", { jobId }),
 
