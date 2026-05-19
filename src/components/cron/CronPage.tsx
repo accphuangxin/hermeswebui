@@ -236,7 +236,7 @@ function JobDetail({ job, onEdit, onDelete, onTrigger, onToggle, isTriggering }:
   const color = statusColor[job.status ?? ""] ?? "text-muted-foreground";
   const label = statusLabel[job.status ?? ""] ?? job.status ?? "—";
 
-  const { data: logs = [] } = useQuery<CronOutputEntry[]>({
+  const { data: logs = [], refetch: refetchLogs, isFetching: isRefetchingLogs } = useQuery<CronOutputEntry[]>({
     queryKey: ["cron_outputs", job.id],
     queryFn: () => invoke("list_cron_outputs", { jobId: job.id }),
     refetchInterval: 30000,
@@ -349,6 +349,16 @@ function JobDetail({ job, onEdit, onDelete, onTrigger, onToggle, isTriggering }:
             </p>
             {!selectedLog && (
               <span className="text-xs text-muted-foreground ml-1">({logs.length})</span>
+            )}
+            {!selectedLog && (
+              <button
+                onClick={() => void refetchLogs()}
+                disabled={isRefetchingLogs}
+                className="ml-auto text-muted-foreground hover:text-foreground disabled:opacity-50"
+                title={t("common.refresh", { defaultValue: "刷新" })}
+              >
+                <RefreshCw className={cn("w-3.5 h-3.5", isRefetchingLogs && "animate-spin")} />
+              </button>
             )}
           </div>
 
