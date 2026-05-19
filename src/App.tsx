@@ -926,6 +926,8 @@ function App() {
   };
 
   const renderContent = () => {
+    const isHermesView = currentView === "hermesChat" || currentView === "skills" || currentView === "skillsDiscovery";
+
     const content = (() => {
       switch (currentView) {
         case "settings":
@@ -949,23 +951,6 @@ function App() {
           );
         case "hermesMemory":
           return <HermesMemoryPanel />;
-        case "hermesChat":
-          return <ChatPage selectedModel={hermesSelectedModel} />;
-        case "skills":
-          return (
-            <UnifiedSkillsPanel
-              ref={unifiedSkillsPanelRef}
-              onOpenDiscovery={() => setCurrentView("skillsDiscovery")}
-              currentApp={activeApp === "openclaw" ? "claude" : activeApp}
-            />
-          );
-        case "skillsDiscovery":
-          return (
-            <SkillsPage
-              ref={skillsPageRef}
-              initialApp={activeApp === "openclaw" ? "claude" : activeApp}
-            />
-          );
         case "mcp":
           return (
             <UnifiedMcpPanel
@@ -1064,18 +1049,42 @@ function App() {
     })();
 
     return (
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={currentView}
-          className="flex-1 min-h-0"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-        >
-          {content}
-        </motion.div>
-      </AnimatePresence>
+      <>
+        {/* Always-mounted hermes views — hidden via CSS to preserve streaming state */}
+        <div className={cn("flex-1 min-h-0", !isHermesView && "hidden")}>
+          <div className={cn("contents", currentView !== "hermesChat" && "hidden")}>
+            <ChatPage selectedModel={hermesSelectedModel} />
+          </div>
+          <div className={cn("contents", currentView !== "skills" && "hidden")}>
+            <UnifiedSkillsPanel
+              ref={unifiedSkillsPanelRef}
+              onOpenDiscovery={() => setCurrentView("skillsDiscovery")}
+              currentApp={activeApp === "openclaw" ? "claude" : activeApp}
+            />
+          </div>
+          <div className={cn("contents", currentView !== "skillsDiscovery" && "hidden")}>
+            <SkillsPage
+              ref={skillsPageRef}
+              initialApp={activeApp === "openclaw" ? "claude" : activeApp}
+            />
+          </div>
+        </div>
+        {/* All other views — normal switch-based rendering with animation */}
+        {!isHermesView && (
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentView}
+              className="flex-1 min-h-0"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              {content}
+            </motion.div>
+          </AnimatePresence>
+        )}
+      </>
     );
   };
 
