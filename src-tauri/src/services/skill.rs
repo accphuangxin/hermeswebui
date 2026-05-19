@@ -557,10 +557,83 @@ impl SkillService {
 
     // ========== 统一管理方法 ==========
 
-    /// 获取所有已安装的 Skills
+    /// 获取所有已安装的 Skills（含 ~/.hermes/skills/ 目录下未被管理的技能）
     pub fn get_all_installed(db: &Arc<Database>) -> Result<Vec<InstalledSkill>> {
-        let skills = db.get_all_installed_skills()?;
+        let mut skills = db.get_all_installed_skills()?;
+
+        // 递归扫描 ~/.hermes/skills/ 目录，把不在数据库中的技能以 local: 形式补充进去
+        if let Ok(hermes_dir) = Self::get_app_skills_dir(&AppType::Hermes) {
+            let managed_dirs: std::collections::HashSet<String> =
+                skills.values().map(|s| s.directory.clone()).collect();
+            Self::scan_hermes_skills_recursive(&hermes_dir, &hermes_dir, &managed_dirs, &mut skills);
+        }
+
         Ok(skills.into_values().collect())
+    }
+
+    /// 递归扫描 hermes skills 目录，把有 SKILL.md 的子目录作为技能补充进 skills map
+    fn scan_hermes_skills_recursive(
+        root: &std::path::Path,
+        current: &std::path::Path,
+        managed_dirs: &std::collections::HashSet<String>,
+        skills: &mut indexmap::IndexMap<String, InstalledSkill>,
+    ) {
+        let entries = match fs::read_dir(current) {
+            Ok(e) => e,
+            Err(_) => return,
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+            let dir_name = entry.file_name().to_string_lossy().to_string();
+            if dir_name.starts_with('.') {
+                continue;
+            }
+            let skill_md = path.join("SKILL.md");
+            if skill_md.exists() {
+                // 用相对于 root 的路径作为 directory（如 "apple/apple-reminders"）
+                let rel = path.strip_prefix(root).unwrap_or(&path);
+                let directory = rel.to_string_lossy().to_string();
+                // 以最末段目录名判断是否已托管
+                let leaf = dir_name.clone();
+                if managed_dirs.contains(&leaf) || managed_dirs.contains(&directory) {
+                    continue;
+                }
+                let id = format!("local:{directory}");
+                if skills.contains_key(&id) {
+                    continue;
+                }
+                let (name, description) = Self::read_skill_name_desc(&skill_md, &leaf);
+                skills.insert(
+                    id.clone(),
+                    InstalledSkill {
+                        id,
+                        name,
+                        description,
+                        directory,
+                        repo_owner: None,
+                        repo_name: None,
+                        repo_branch: None,
+                        readme_url: None,
+                        apps: crate::app_config::SkillApps {
+                            claude: false,
+                            codex: false,
+                            gemini: false,
+                            opencode: false,
+                            hermes: true,
+                        },
+                        installed_at: 0,
+                        content_hash: None,
+                        updated_at: 0,
+                    },
+                );
+            } else {
+                // 没有 SKILL.md，继续往下递归
+                Self::scan_hermes_skills_recursive(root, &path, managed_dirs, skills);
+            }
+        }
     }
 
     /// 安装 Skill

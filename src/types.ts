@@ -663,6 +663,7 @@ export interface ChatFileRef {
   filename: string;
   mimeType: string;
   sizeBytes: number;
+  content: string;
 }
 
 export interface HermesChatStatus {

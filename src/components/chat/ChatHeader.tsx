@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Wifi, WifiOff } from "lucide-react";
+import { Wifi, WifiOff, Sparkles } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -7,6 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import type { HermesChatModel } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +18,7 @@ interface ChatHeaderProps {
   models: HermesChatModel[];
   selectedModel: string;
   onModelChange: (model: string) => void;
+  onNavigateSkills?: () => void;
 }
 
 export function ChatHeader({
@@ -26,6 +28,7 @@ export function ChatHeader({
   models,
   selectedModel,
   onModelChange,
+  onNavigateSkills,
 }: ChatHeaderProps) {
   const { t } = useTranslation();
 
@@ -59,6 +62,17 @@ export function ChatHeader({
 
       {/* Model selector */}
       <div className="flex items-center gap-2 ml-auto">
+        {onNavigateSkills && (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7"
+            onClick={onNavigateSkills}
+            title={t("skills.title", { defaultValue: "Skills 管理" })}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+          </Button>
+        )}
         <Select
           value={selectedModel}
           onValueChange={onModelChange}

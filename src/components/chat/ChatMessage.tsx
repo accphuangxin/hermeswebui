@@ -2,8 +2,8 @@ import { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Copy, Check, User, Bot } from "lucide-react";
-import type { ChatMessage as ChatMessageType, ChatToolCall } from "@/types";
+import { Copy, Check, User, Bot, Paperclip } from "lucide-react";
+import type { ChatMessage as ChatMessageType, ChatToolCall, ChatFileRef } from "@/types";
 import { ToolCallBlock } from "./ToolCallBlock";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +33,37 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
       })()
     : [];
 
+  const fileRefs: ChatFileRef[] = message.fileRefs
+    ? (() => {
+        try {
+          return JSON.parse(message.fileRefs);
+        } catch {
+          return [];
+        }
+      })()
+    : [];
+
+  // Strip legacy inline <file name="...">...</file> blocks from content for display,
+  // extracting filenames to show as chips (for messages saved before fileRefs was used).
+  const FILE_BLOCK_RE = /<file name="([^"]+)">([\s\S]*?)<\/file>/g;
+  const legacyFileChips: { filename: string }[] = [];
+  let displayContent = message.content;
+  if (isUser && fileRefs.length === 0 && FILE_BLOCK_RE.test(message.content)) {
+    displayContent = message.content
+      .replace(/<file name="([^"]+)">[\s\S]*?<\/file>/g, (_, name: string) => {
+        legacyFileChips.push({ filename: name });
+        return "";
+      })
+      .replace(/^\n+|\n+$/g, "")
+      .trim();
+  }
+
+  const formatSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes}B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+  };
+
   const handleCopy = async () => {
     await navigator.clipboard.writeText(message.content);
     setCopied(true);
@@ -52,6 +83,29 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
         {isUser ? <User className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5" />}
       </div>
       <div className={cn("flex-1 min-w-0 space-y-1", isUser && "flex flex-col items-end")}>
+        {isUser && (fileRefs.length > 0 || legacyFileChips.length > 0) && (
+          <div className="flex flex-wrap gap-1 max-w-[85%] justify-end">
+            {fileRefs.map((f, i) => (
+              <div
+                key={`ref-${f.filename}-${i}`}
+                className="flex items-center gap-1 bg-primary/20 text-primary rounded px-2 py-0.5 text-xs"
+              >
+                <Paperclip className="w-3 h-3 flex-shrink-0" />
+                <span className="truncate max-w-[120px]">{f.filename}</span>
+                <span className="opacity-60">({formatSize(f.sizeBytes)})</span>
+              </div>
+            ))}
+            {legacyFileChips.map((f, i) => (
+              <div
+                key={`legacy-${f.filename}-${i}`}
+                className="flex items-center gap-1 bg-primary/20 text-primary rounded px-2 py-0.5 text-xs"
+              >
+                <Paperclip className="w-3 h-3 flex-shrink-0" />
+                <span className="truncate max-w-[120px]">{f.filename}</span>
+              </div>
+            ))}
+          </div>
+        )}
         <div
           className={cn(
             "rounded-lg px-3 py-2 text-sm max-w-[85%] inline-block",
@@ -61,7 +115,7 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
           )}
         >
           {isUser ? (
-            <div className="whitespace-pre-wrap break-words">{message.content}</div>
+            <div className="whitespace-pre-wrap break-words">{displayContent || <span className="opacity-50">{t("hermes.chat.fileOnly", { defaultValue: "(附件)" })}</span>}</div>
           ) : (
             <div className="prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
               <Markdown

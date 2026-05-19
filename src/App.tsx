@@ -28,6 +28,7 @@ import {
   Cpu,
   LayoutDashboard,
   MessageSquare,
+  Sparkles,
 } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Provider, VisibleApps } from "@/types";
@@ -92,6 +93,15 @@ import AgentsDefaultsPanel from "@/components/openclaw/AgentsDefaultsPanel";
 import OpenClawHealthBanner from "@/components/openclaw/OpenClawHealthBanner";
 import HermesMemoryPanel from "@/components/hermes/HermesMemoryPanel";
 import { ChatPage } from "@/components/chat/ChatPage";
+import { useChatStatus, useChatModels } from "@/hooks/useHermesChat";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Wifi, WifiOff } from "lucide-react";
 
 type View =
   | "providers"
@@ -186,6 +196,17 @@ function App() {
   }, [currentView]);
 
   const { data: settingsData } = useSettingsQuery();
+
+  // Hermes chat status & model selector (hoisted to title bar)
+  const { data: hermesChatStatus } = useChatStatus(currentView === "hermesChat");
+  const { data: hermesChatModels = [] } = useChatModels();
+  const [hermesSelectedModel, setHermesSelectedModel] = useState("");
+  useEffect(() => {
+    if (!hermesSelectedModel && hermesChatModels.length > 0) {
+      const def = hermesChatModels.find((m) => m.isDefault) ?? hermesChatModels[0];
+      setHermesSelectedModel(`custom_${def.provider}:${def.id}`);
+    }
+  }, [hermesChatModels, hermesSelectedModel]);
   const useAppWindowControls =
     isLinux() && (settingsData?.useAppWindowControls ?? false);
   const dragBarHeight = useAppWindowControls ? 32 : DEFAULT_DRAG_BAR_HEIGHT;
@@ -929,7 +950,7 @@ function App() {
         case "hermesMemory":
           return <HermesMemoryPanel />;
         case "hermesChat":
-          return <ChatPage />;
+          return <ChatPage selectedModel={hermesSelectedModel} />;
         case "skills":
           return (
             <UnifiedSkillsPanel
@@ -1160,7 +1181,7 @@ function App() {
           >
             {currentView === "hermesChat" ? (
               <div className="flex items-center gap-2">
-                <div className="relative inline-flex items-center gap-1.5">
+                <div className="relative inline-flex items-center gap-1.5 shrink-0">
                   <ProviderIcon icon="hermes" name="Hermes" size={22} />
                   <span className="text-xl font-semibold text-foreground">
                     Hermes
@@ -1171,15 +1192,20 @@ function App() {
                   size="icon"
                   onClick={() => setCurrentView("providers")}
                   title={t("common.settings")}
-                  className="hover:bg-black/5 dark:hover:bg-white/5"
+                  className="hover:bg-black/5 dark:hover:bg-white/5 shrink-0"
                 >
                   <Settings className="w-4 h-4" />
                 </Button>
-                <UpdateBadge
-                  onClick={() => {
-                    openSettings("general");
-                  }}
-                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setCurrentView("skills")}
+                  title={t("skills.title", { defaultValue: "Skills 管理" })}
+                  className="hover:bg-black/5 dark:hover:bg-white/5 shrink-0"
+                >
+                  <Sparkles className="w-4 h-4" />
+                </Button>
+                <UpdateBadge onClick={() => openSettings("general")} />
               </div>
             ) : currentView !== "providers" ? (
               <div className="flex items-center gap-2">
@@ -1305,6 +1331,59 @@ function App() {
                 className="flex shrink-0 items-center gap-1.5 ml-auto"
                 style={{ WebkitAppRegion: "no-drag" } as any}
               >
+                {currentView === "hermesChat" && (
+                  <>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {hermesChatStatus?.online ? (
+                        <Wifi className="w-3.5 h-3.5 text-green-500" />
+                      ) : (
+                        <WifiOff className="w-3.5 h-3.5 text-destructive" />
+                      )}
+                      <span className={cn("text-xs font-medium", hermesChatStatus?.online ? "text-green-600 dark:text-green-400" : "text-destructive")}>
+                        {hermesChatStatus?.online ? t("hermes.chat.connected") : t("hermes.chat.disconnected")}
+                      </span>
+                      {hermesChatStatus && (
+                        <span className="text-xs text-muted-foreground ml-1">
+                          {hermesSelectedModel
+                            ? hermesSelectedModel.replace(/^custom_/, "").replace(":", " / ")
+                            : hermesChatStatus.provider
+                              ? `${hermesChatStatus.provider} / ${hermesChatStatus.defaultModel}`
+                              : hermesChatStatus.defaultModel || ""}
+                        </span>
+                      )}
+                    </div>
+                    <Select
+                      value={hermesSelectedModel}
+                      onValueChange={async (m) => {
+                        setHermesSelectedModel(m);
+                        const match = m.match(/^custom_([^:]+):(.+)$/);
+                        if (match) {
+                          const [, providerId, modelId] = match;
+                          try {
+                            await invoke("switchHermesModel", { modelId, providerId });
+                            toast.success(t("hermes.chat.modelSwitched", { model: modelId, provider: providerId, defaultValue: `已切换到 ${modelId} (${providerId})` }));
+                          } catch (e) {
+                            toast.error(t("hermes.chat.modelSwitchFailed", { defaultValue: "模型切换失败" }), { description: String(e) });
+                          }
+                        }
+                      }}
+                      disabled={!hermesChatStatus?.online || hermesChatModels.length === 0}
+                    >
+                      <SelectTrigger className="h-7 w-[220px] text-xs">
+                        <SelectValue placeholder={t("hermes.chat.selectModel")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {hermesChatModels.map((m) => (
+                          <SelectItem key={`${m.provider}/${m.id}`} value={`custom_${m.provider}:${m.id}`} className="text-xs">
+                            <span>{m.id}</span>
+                            <span className="ml-2 text-muted-foreground">({m.provider})</span>
+                            {m.isDefault && <span className="ml-1.5 text-[10px] text-primary font-medium">●</span>}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </>
+                )}
                 {currentView === "prompts" && (
                   <Button
                     variant="ghost"

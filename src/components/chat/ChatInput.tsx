@@ -5,19 +5,14 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { Button } from "@/components/ui/button";
 import { chatApi } from "@/lib/api/chat";
 import { cn } from "@/lib/utils";
+import type { ChatFileRef } from "@/types";
 
 const HERMES_COMMANDS = [
   { cmd: "/clear", desc: "Clear conversation and start fresh" },
 ];
 
-interface FileAttachment {
-  filename: string;
-  content: string;
-  sizeBytes: number;
-}
-
 interface ChatInputProps {
-  onSend: (text: string) => void;
+  onSend: (text: string, files: ChatFileRef[]) => void;
   onStop: () => void;
   isStreaming: boolean;
   disabled?: boolean;
@@ -26,7 +21,7 @@ interface ChatInputProps {
 export function ChatInput({ onSend, onStop, isStreaming, disabled }: ChatInputProps) {
   const { t } = useTranslation();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [files, setFiles] = useState<FileAttachment[]>([]);
+  const [files, setFiles] = useState<ChatFileRef[]>([]);
   const [showCommands, setShowCommands] = useState(false);
   const [commandFilter, setCommandFilter] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -46,17 +41,7 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled }: ChatInputPr
 
     setShowCommands(false);
 
-    let message = value || "";
-    if (files.length > 0) {
-      const fileBlocks = files
-        .map((f) => `<file name="${f.filename}">\n${f.content}\n</file>`)
-        .join("\n\n");
-      message = files.length > 0 && message
-        ? `${fileBlocks}\n\n${message}`
-        : fileBlocks + (message ? `\n\n${message}` : "");
-    }
-
-    onSend(message);
+    onSend(value || "", files);
     setFiles([]);
     if (textareaRef.current) {
       textareaRef.current.value = "";
@@ -135,8 +120,8 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled }: ChatInputPr
     const paths = Array.isArray(selected) ? selected : [selected];
     for (const path of paths) {
       try {
-        const file = await chatApi.readFile(path);
-        setFiles((prev) => [...prev, file]);
+        const { filename, content, sizeBytes } = await chatApi.readFile(path);
+        setFiles((prev) => [...prev, { filename, content, sizeBytes, mimeType: "" }]);
       } catch (err) {
         console.error("Failed to read file:", err);
       }

@@ -8,7 +8,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   chatKeys,
   useChatStatus,
-  useChatModels,
   useChatSessions,
   useChatMessages,
   useCreateChatSession,
@@ -21,7 +20,6 @@ import { chatApi } from "@/lib/api/chat";
 import { compressContext } from "@/lib/contextCompression";
 import { ChatSidebar } from "./ChatSidebar";
 import type { SidebarTab } from "./ChatSidebar";
-import { ChatHeader } from "./ChatHeader";
 import { CronPage } from "@/components/cron/CronPage";
 import { ChatMessageBubble } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
@@ -30,11 +28,14 @@ import { ApprovalCard } from "./ApprovalCard";
 import { ApiServerKeyDialog } from "./ApiServerKeyDialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-export function ChatPage() {
+interface ChatPageProps {
+  selectedModel: string;
+}
+
+export function ChatPage({ selectedModel }: ChatPageProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [selectedModel, setSelectedModel] = useState("");
   const [streamingContent, setStreamingContent] = useState("");
   const [toolActivities, setToolActivities] = useState<ToolActivity[]>([]);
   const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(null);
@@ -45,7 +46,6 @@ export function ChatPage() {
   const scrollBottomRef = useRef<HTMLDivElement>(null);
 
   const { data: status } = useChatStatus(true);
-  const { data: models = [] } = useChatModels();
   const { data: sessions = [] } = useChatSessions();
   const { data: messages = [] } = useChatMessages(activeSessionId);
   const createSession = useCreateChatSession();
@@ -68,14 +68,6 @@ export function ChatPage() {
     });
   }, []);
 
-  // Auto-select default model from models list (isDefault flag)
-  useEffect(() => {
-    if (!selectedModel && models.length > 0) {
-      const defaultModel = models.find((m) => m.isDefault) ?? models[0];
-      setSelectedModel(`custom_${defaultModel.provider}:${defaultModel.id}`);
-    }
-  }, [models, selectedModel]);
-
   // Auto-select first session
   useEffect(() => {
     if (!activeSessionId && sessions.length > 0) {
@@ -83,10 +75,14 @@ export function ChatPage() {
     }
   }, [sessions, activeSessionId]);
 
-  // Reset Hermes session when switching chat sessions
+  // Reset Hermes session when switching chat sessions or model
   useEffect(() => {
     setHermesSessionId(null);
   }, [activeSessionId]);
+
+  useEffect(() => {
+    setHermesSessionId(null);
+  }, [selectedModel]);
 
   // Auto-scroll to bottom when messages load or stream
   useEffect(() => {
@@ -121,13 +117,22 @@ export function ChatPage() {
   );
 
   const doSendToAgent = useCallback(
-    async (text: string) => {
+    async (text: string, files: import("@/types").ChatFileRef[] = []) => {
       if (!isOnline || !activeSessionId) return;
+
+      const fileBlocks = files.length > 0
+        ? files.map((f) => `<file name="${f.filename}">\n${f.content}\n</file>`).join("\n\n")
+        : "";
+      const fullText = fileBlocks && text ? `${fileBlocks}\n\n${text}` : fileBlocks || text;
+
+      const fileRefsForDb = files.length > 0
+        ? JSON.stringify(files.map(({ filename, mimeType, sizeBytes }) => ({ filename, mimeType, sizeBytes })))
+        : null;
 
       const userMsgId = crypto.randomUUID();
       await saveMessage.mutateAsync({
         sessionId: activeSessionId,
-        message: { id: userMsgId, role: "user", content: text },
+        message: { id: userMsgId, role: "user", content: text, fileRefs: fileRefsForDb },
       });
 
       setStreamingContent("");
@@ -138,7 +143,7 @@ export function ChatPage() {
         ? selectedModel.replace(/^custom_[^:]+:/, "")
         : undefined;
 
-      const { compressedInput, wasCompressed, droppedCount } = compressContext(messages, text);
+      const { compressedInput, wasCompressed, droppedCount } = compressContext(messages, fullText);
       if (wasCompressed) {
         toast.info(t("hermes.chat.contextCompressed", { count: droppedCount, defaultValue: `上下文过长，已省略最旧的 ${droppedCount} 条消息` }));
       }
@@ -206,7 +211,8 @@ export function ChatPage() {
             });
 
             if (messages.length === 0) {
-              const title = text.slice(0, 50) + (text.length > 50 ? "..." : "");
+              const titleBase = text || files.map((f) => f.filename).join(", ");
+              const title = titleBase.slice(0, 50) + (titleBase.length > 50 ? "..." : "");
               await chatApi.updateSession(activeSessionId, title);
             }
           },
@@ -229,7 +235,7 @@ export function ChatPage() {
   );
 
   const handleSend = useCallback(
-    async (text: string) => {
+    async (text: string, files: import("@/types").ChatFileRef[] = []) => {
       if (!activeSessionId) return;
 
       if (text.trim().toLowerCase() === "/clear") {
@@ -242,7 +248,7 @@ export function ChatPage() {
         return;
       }
 
-      await doSendToAgent(text);
+      await doSendToAgent(text, files);
     },
     [activeSessionId, queryClient, t, doSendToAgent],
   );
@@ -313,34 +319,6 @@ export function ChatPage() {
         onRenameSession={handleRenameSession}
       />
       <div className="flex-1 flex flex-col min-w-0">
-        <ChatHeader
-          online={isOnline}
-          defaultModel={status?.defaultModel ?? null}
-          provider={status?.provider ?? null}
-          models={models}
-          selectedModel={selectedModel}
-          onModelChange={async (m) => {
-            setSelectedModel(m);
-            setHermesSessionId(null);
-            // m format: "custom_{provider}:{modelId}"
-            const match = m.match(/^custom_([^:]+):(.+)$/);
-            if (match) {
-              const [, providerId, modelId] = match;
-              try {
-                await invoke("switchHermesModel", { modelId, providerId });
-                toast.success(t("hermes.chat.modelSwitched", {
-                  model: modelId,
-                  provider: providerId,
-                  defaultValue: `已切换到 ${modelId} (${providerId})`,
-                }));
-              } catch (e) {
-                toast.error(t("hermes.chat.modelSwitchFailed", {
-                  defaultValue: "模型切换失败",
-                }), { description: String(e) });
-              }
-            }
-          }}
-        />
         <ScrollArea className="flex-1" ref={scrollRef}>
           <div className="py-4">
             {!activeSessionId ? (
