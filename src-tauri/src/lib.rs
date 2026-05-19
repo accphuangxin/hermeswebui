@@ -1319,6 +1319,8 @@ pub fn run() {
             commands::updateCronJob,
             commands::deleteCronJob,
             commands::triggerCronJob,
+            commands::list_cron_outputs,
+            commands::read_cron_output,
             // Global upstream proxy
             commands::get_global_proxy_url,
             commands::set_global_proxy_url,

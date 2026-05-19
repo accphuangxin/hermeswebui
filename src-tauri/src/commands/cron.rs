@@ -218,3 +218,60 @@ pub async fn triggerCronJob(jobId: String) -> Result<serde_json::Value, String> 
     }
     resp.json().await.map_err(|e| format!("parse failed: {e}"))
 }
+
+// ============================================================================
+// Cron output log commands
+// ============================================================================
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CronOutputEntry {
+    pub filename: String,
+    pub size: u64,
+}
+
+/// List output log files for a cron job from ~/.hermes/cron/output/{job_id}/
+#[tauri::command]
+pub fn list_cron_outputs(job_id: String) -> Result<Vec<CronOutputEntry>, String> {
+    let dir = crate::hermes_config::get_hermes_dir()
+        .join("cron")
+        .join("output")
+        .join(&job_id);
+
+    if !dir.exists() {
+        return Ok(vec![]);
+    }
+
+    let mut entries: Vec<CronOutputEntry> = std::fs::read_dir(&dir)
+        .map_err(|e| e.to_string())?
+        .flatten()
+        .filter_map(|e| {
+            let path = e.path();
+            if path.extension().and_then(|s| s.to_str()) != Some("md") {
+                return None;
+            }
+            let filename = path.file_name()?.to_string_lossy().to_string();
+            let size = path.metadata().ok()?.len();
+            Some(CronOutputEntry { filename, size })
+        })
+        .collect();
+
+    // Sort newest first
+    entries.sort_by(|a, b| b.filename.cmp(&a.filename));
+    Ok(entries)
+}
+
+/// Read a single output log file for a cron job
+#[tauri::command]
+pub fn read_cron_output(job_id: String, filename: String) -> Result<String, String> {
+    // Prevent path traversal
+    if filename.contains('/') || filename.contains('\\') || filename.contains("..") {
+        return Err("invalid filename".to_string());
+    }
+    let path = crate::hermes_config::get_hermes_dir()
+        .join("cron")
+        .join("output")
+        .join(&job_id)
+        .join(&filename);
+
+    std::fs::read_to_string(&path).map_err(|e| e.to_string())
+}

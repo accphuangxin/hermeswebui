@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Play, Pencil, Trash2, Power, PowerOff, Clock, RefreshCw } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import { Plus, Play, Pencil, Trash2, Power, PowerOff, Clock, RefreshCw, FileText, ChevronLeft } from "lucide-react";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import { cronApi, type CronJob, type CreateCronJobRequest, type UpdateCronJobRequest } from "@/lib/api/cron";
 import { Button } from "@/components/ui/button";
@@ -221,11 +224,31 @@ interface JobDetailProps {
   isTriggering: boolean;
 }
 
+interface CronOutputEntry {
+  filename: string;
+  size: number;
+}
+
 function JobDetail({ job, onEdit, onDelete, onTrigger, onToggle, isTriggering }: JobDetailProps) {
   const { t } = useTranslation();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [selectedLog, setSelectedLog] = useState<string | null>(null);
   const color = statusColor[job.status ?? ""] ?? "text-muted-foreground";
   const label = statusLabel[job.status ?? ""] ?? job.status ?? "—";
+
+  const { data: logs = [] } = useQuery<CronOutputEntry[]>({
+    queryKey: ["cron_outputs", job.id],
+    queryFn: () => invoke("list_cron_outputs", { jobId: job.id }),
+    refetchInterval: 30000,
+  });
+
+  const { data: logContent } = useQuery<string>({
+    queryKey: ["cron_output_content", job.id, selectedLog],
+    queryFn: () => invoke("read_cron_output", { jobId: job.id, filename: selectedLog }),
+    enabled: !!selectedLog,
+  });
+
+  const formatLogName = (filename: string) => filename.replace(".md", "").replace(/_/g, " ");
 
   return (
     <div className="flex flex-col h-full">
@@ -284,9 +307,9 @@ function JobDetail({ job, onEdit, onDelete, onTrigger, onToggle, isTriggering }:
       </div>
 
       {/* Detail body */}
-      <div className="flex-1 flex flex-col min-h-0 px-6 py-5 gap-5">
-        {/* Meta row — horizontal pills */}
-        <div className="flex flex-wrap gap-x-8 gap-y-3">
+      <div className="flex-1 flex flex-col min-h-0 px-6 py-5 gap-4 overflow-hidden">
+        {/* Meta row */}
+        <div className="flex flex-wrap gap-x-8 gap-y-3 shrink-0">
           <DetailField label={t("cron.lastRun", { defaultValue: "上次执行" })} value={formatTime(job.last_run)} />
           <DetailField label={t("cron.nextRun", { defaultValue: "下次执行" })} value={formatTime(job.next_run)} />
           {job.model && (
@@ -298,14 +321,67 @@ function JobDetail({ job, onEdit, onDelete, onTrigger, onToggle, isTriggering }:
           />
         </div>
 
-        {/* Prompt — fills remaining height */}
-        <div className="flex flex-col flex-1 min-h-0 gap-1.5">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide shrink-0">
+        {/* Prompt — fixed small height */}
+        <div className="flex flex-col shrink-0 gap-1.5">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
             {t("cron.form.prompt", { defaultValue: "Prompt" })}
           </p>
-          <div className="flex-1 rounded-lg bg-muted/30 border px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap overflow-auto">
+          <div className="h-24 rounded-lg bg-muted/30 border px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap overflow-auto">
             {job.prompt}
           </div>
+        </div>
+
+        {/* Execution logs */}
+        <div className="flex flex-col flex-1 min-h-0 gap-1.5">
+          <div className="flex items-center gap-2 shrink-0">
+            {selectedLog && (
+              <button
+                onClick={() => setSelectedLog(null)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              {selectedLog
+                ? formatLogName(selectedLog)
+                : t("cron.executionLogs", { defaultValue: "执行日志" })}
+            </p>
+            {!selectedLog && (
+              <span className="text-xs text-muted-foreground ml-1">({logs.length})</span>
+            )}
+          </div>
+
+          {selectedLog ? (
+            <div className="flex-1 rounded-lg bg-muted/30 border px-4 py-3 text-sm overflow-auto">
+              <div className="prose prose-sm dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                <Markdown remarkPlugins={[remarkGfm]}>{logContent ?? ""}</Markdown>
+              </div>
+            </div>
+          ) : logs.length === 0 ? (
+            <div className="flex-1 rounded-lg bg-muted/30 border flex items-center justify-center text-sm text-muted-foreground">
+              {t("cron.noLogs", { defaultValue: "暂无执行记录" })}
+            </div>
+          ) : (
+            <div className="flex-1 rounded-lg border overflow-auto">
+              {logs.map((log, i) => (
+                <button
+                  key={log.filename}
+                  onClick={() => setSelectedLog(log.filename)}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/50 transition-colors",
+                    i !== logs.length - 1 && "border-b",
+                  )}
+                >
+                  <FileText className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  <span className="text-sm flex-1">{formatLogName(log.filename)}</span>
+                  <span className="text-xs text-muted-foreground shrink-0">
+                    {log.size < 1024 ? `${log.size}B` : `${(log.size / 1024).toFixed(1)}KB`}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
