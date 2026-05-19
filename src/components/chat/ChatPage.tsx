@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { invoke } from "@tauri-apps/api/core";
 import { MessageSquare, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
@@ -25,7 +24,6 @@ import { ChatMessageBubble } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
 import { ToolActivityBlock } from "./ToolActivityBlock";
 import { ApprovalCard } from "./ApprovalCard";
-import { ApiServerKeyDialog } from "./ApiServerKeyDialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface ChatPageProps {
@@ -40,7 +38,6 @@ export function ChatPage({ selectedModel }: ChatPageProps) {
   const [toolActivities, setToolActivities] = useState<ToolActivity[]>([]);
   const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(null);
   const [hermesSessionId, setHermesSessionId] = useState<string | null>(null);
-  const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("chat");
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollBottomRef = useRef<HTMLDivElement>(null);
@@ -61,12 +58,6 @@ export function ChatPage({ selectedModel }: ChatPageProps) {
 
   const isOnline = status?.online ?? false;
 
-  // On mount: check if API_SERVER_KEY is configured; prompt if not found anywhere
-  useEffect(() => {
-    void invoke<string>("getHermesApiServerKey").then((key) => {
-      if (!key) setShowApiKeyDialog(true);
-    });
-  }, []);
 
   // Auto-select first session
   useEffect(() => {
@@ -267,11 +258,6 @@ export function ChatPage({ selectedModel }: ChatPageProps) {
 
   return (
     <div className="flex flex-col h-full">
-      <ApiServerKeyDialog
-        open={showApiKeyDialog}
-        onSaved={() => setShowApiKeyDialog(false)}
-      />
-
       {/* Top tab bar */}
       <div className="flex border-b shrink-0 h-10 bg-muted/30">
         <button
