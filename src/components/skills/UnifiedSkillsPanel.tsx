@@ -388,17 +388,19 @@ const UnifiedSkillsPanel = React.forwardRef<
           <Button
             type="button"
             variant="ghost"
-            size="icon"
-            className="h-7 w-7"
+            size="sm"
+            className="h-7 text-xs gap-1"
             onClick={() => void refetchSkills()}
             disabled={isRefetchingSkills}
-            title={t("common.refresh", { defaultValue: "刷新列表" })}
           >
             {isRefetchingSkills ? (
               <Loader2 size={12} className="animate-spin" />
             ) : (
               <RefreshCw size={12} />
             )}
+            {isRefetchingSkills
+              ? t("skills.reloading", { defaultValue: "加载中..." })
+              : t("skills.reload", { defaultValue: "重新加载" })}
           </Button>
         </div>
       </div>
