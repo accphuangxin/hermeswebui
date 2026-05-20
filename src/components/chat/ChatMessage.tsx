@@ -1,6 +1,6 @@
 import { memo, useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import Markdown from "react-markdown";
+import Markdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { invoke } from "@tauri-apps/api/core";
 import { Copy, Check, User, Bot, Paperclip } from "lucide-react";
@@ -165,6 +165,12 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
             <div className="prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
               <Markdown
                 remarkPlugins={[remarkGfm]}
+                urlTransform={(url) => {
+                  if (url.startsWith("MEDIA:") || url.startsWith("/") || url.startsWith("file://")) {
+                    return url;
+                  }
+                  return defaultUrlTransform(url);
+                }}
                 components={{
                   pre: ({ children }) => (
                     <pre className="bg-background/50 rounded p-2 my-1 overflow-x-auto text-xs">
