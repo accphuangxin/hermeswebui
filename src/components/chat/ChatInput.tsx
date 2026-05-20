@@ -128,6 +128,47 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled }: ChatInputPr
     }
   };
 
+  const addFileFromBlob = (blob: Blob, filename: string): Promise<void> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        // Strip the data URL prefix to get raw base64 content
+        const base64 = dataUrl.split(",")[1] ?? dataUrl;
+        setFiles((prev) => [
+          ...prev,
+          { filename, content: base64, sizeBytes: blob.size, mimeType: blob.type },
+        ]);
+        resolve();
+      };
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = Array.from(e.clipboardData.items);
+
+    const fileItems = items.filter((item) => item.kind === "file");
+    if (fileItems.length === 0) return;
+
+    e.preventDefault();
+    for (const item of fileItems) {
+      const blob = item.getAsFile();
+      if (!blob) continue;
+
+      if (item.type.startsWith("image/")) {
+        const ext = item.type.split("/")[1]?.replace("jpeg", "jpg") ?? "png";
+        const filename = `paste_${Date.now()}.${ext}`;
+        await addFileFromBlob(blob, filename);
+      } else {
+        // Non-image file — read via Tauri if it has a path, else as blob
+        const file = blob as File;
+        const filename = file.name || `paste_${Date.now()}`;
+        await addFileFromBlob(blob, filename);
+      }
+    }
+  }, []);
+
   const removeFile = (index: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
   };
@@ -170,6 +211,13 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled }: ChatInputPr
               key={`${f.filename}-${i}`}
               className="flex items-center gap-1 bg-muted rounded px-2 py-1 text-xs"
             >
+              {f.mimeType?.startsWith("image/") && f.content && (
+                <img
+                  src={`data:${f.mimeType};base64,${f.content}`}
+                  alt={f.filename}
+                  className="h-8 w-8 object-cover rounded flex-shrink-0"
+                />
+              )}
               <span className="truncate max-w-[120px]">{f.filename}</span>
               <span className="text-muted-foreground">({formatSize(f.sizeBytes)})</span>
               <button onClick={() => removeFile(i)} className="hover:text-destructive ml-0.5">
@@ -197,6 +245,7 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled }: ChatInputPr
           disabled={disabled}
           onKeyDown={handleKeyDown}
           onInput={handleInput}
+          onPaste={handlePaste}
           className="flex-1 resize-none rounded-md border bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50 min-h-[36px] max-h-[160px]"
         />
         {isStreaming ? (
