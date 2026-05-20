@@ -2,10 +2,33 @@ import { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { Copy, Check, User, Bot, Paperclip } from "lucide-react";
 import type { ChatMessage as ChatMessageType, ChatToolCall, ChatFileRef } from "@/types";
 import { ToolCallBlock } from "./ToolCallBlock";
 import { cn } from "@/lib/utils";
+
+// Convert bare MEDIA:/path or file:// references in text into Markdown image syntax
+function preprocessMediaLinks(content: string): string {
+  // Match MEDIA:/... or file:///... paths ending in image extensions, not already in []() syntax
+  return content.replace(
+    /(?<!\()(MEDIA:[^\s"'<>]+\.(?:png|jpg|jpeg|gif|webp|svg|bmp))/gi,
+    (_, p) => `![](${p})`,
+  );
+}
+
+function resolveImageSrc(src: string | undefined): string | undefined {
+  if (!src) return src;
+  // MEDIA:/absolute/path — Tauri local file asset
+  if (src.startsWith("MEDIA:")) {
+    return convertFileSrc(src.slice("MEDIA:".length));
+  }
+  // file:// protocol
+  if (src.startsWith("file://")) {
+    return convertFileSrc(decodeURIComponent(src.slice("file://".length)));
+  }
+  return src;
+}
 
 interface ChatMessageProps {
   message: ChatMessageType;
@@ -137,9 +160,21 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
                       {children}
                     </a>
                   ),
+                  img: ({ src, alt }) => {
+                    const resolved = resolveImageSrc(src);
+                    if (!resolved) return null;
+                    return (
+                      <img
+                        src={resolved}
+                        alt={alt ?? ""}
+                        className="max-w-full rounded-lg my-1 cursor-pointer"
+                        onClick={() => window.open(resolved, "_blank")}
+                      />
+                    );
+                  },
                 }}
               >
-                {message.content}
+                {preprocessMediaLinks(message.content)}
               </Markdown>
             </div>
           )}
