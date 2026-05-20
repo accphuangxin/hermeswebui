@@ -1001,3 +1001,42 @@ fn strip_xml_tags(xml: &str) -> String {
         .collect::<Vec<_>>()
         .join("\n")
 }
+
+/// Read a local image file and return it as a base64 data URL.
+/// Only files under the user's home directory are allowed.
+#[tauri::command]
+pub fn read_local_image(path: String) -> Result<String, String> {
+    use base64::Engine;
+
+    let expanded = if path.starts_with("~/") {
+        let home = dirs::home_dir().ok_or("cannot determine home dir")?;
+        home.join(&path[2..])
+    } else {
+        std::path::PathBuf::from(&path)
+    };
+
+    // Security: must be under home dir
+    let home = dirs::home_dir().ok_or("cannot determine home dir")?;
+    if !expanded.starts_with(&home) {
+        return Err("access denied: path outside home directory".to_string());
+    }
+
+    let bytes = std::fs::read(&expanded).map_err(|e| e.to_string())?;
+
+    let ext = expanded
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("png")
+        .to_lowercase();
+    let mime = match ext.as_str() {
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "svg" => "image/svg+xml",
+        "bmp" => "image/bmp",
+        _ => "image/png",
+    };
+
+    let encoded = base64::engine::general_purpose::STANDARD.encode(&bytes);
+    Ok(format!("data:{mime};base64,{encoded}"))
+}

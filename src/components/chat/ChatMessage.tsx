@@ -1,33 +1,53 @@
-import { memo, useState } from "react";
+import { memo, useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
 import { Copy, Check, User, Bot, Paperclip } from "lucide-react";
 import type { ChatMessage as ChatMessageType, ChatToolCall, ChatFileRef } from "@/types";
 import { ToolCallBlock } from "./ToolCallBlock";
 import { cn } from "@/lib/utils";
 
-// Convert bare MEDIA:/path or file:// references in text into Markdown image syntax
+// Convert bare MEDIA:/path references in text into Markdown image syntax
 function preprocessMediaLinks(content: string): string {
-  // Match MEDIA:/... or file:///... paths ending in image extensions, not already in []() syntax
   return content.replace(
     /(?<!\()(MEDIA:[^\s"'<>]+\.(?:png|jpg|jpeg|gif|webp|svg|bmp))/gi,
     (_, p) => `![](${p})`,
   );
 }
 
-function resolveImageSrc(src: string | undefined): string | undefined {
-  if (!src) return src;
-  // MEDIA:/absolute/path — Tauri local file asset
-  if (src.startsWith("MEDIA:")) {
-    return convertFileSrc(src.slice("MEDIA:".length));
-  }
-  // file:// protocol
-  if (src.startsWith("file://")) {
-    return convertFileSrc(decodeURIComponent(src.slice("file://".length)));
-  }
+function isLocalPath(src: string): boolean {
+  return src.startsWith("MEDIA:") || src.startsWith("file://") || src.startsWith("/");
+}
+
+function extractLocalPath(src: string): string {
+  if (src.startsWith("MEDIA:")) return src.slice("MEDIA:".length);
+  if (src.startsWith("file://")) return decodeURIComponent(src.slice("file://".length));
   return src;
+}
+
+// Async component that loads a local file via Tauri and renders as base64
+function LocalImage({ src, alt }: { src: string; alt: string }) {
+  const [dataUrl, setDataUrl] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    const path = extractLocalPath(src);
+    invoke<string>("read_local_image", { path })
+      .then(setDataUrl)
+      .catch(() => setError(true));
+  }, [src]);
+
+  if (error) return <span className="text-xs text-muted-foreground italic">[图片加载失败: {extractLocalPath(src)}]</span>;
+  if (!dataUrl) return <span className="text-xs text-muted-foreground animate-pulse">加载图片中...</span>;
+  return (
+    <img
+      src={dataUrl}
+      alt={alt}
+      className="max-w-full rounded-lg my-1 cursor-pointer"
+      onClick={() => window.open(dataUrl, "_blank")}
+    />
+  );
 }
 
 interface ChatMessageProps {
@@ -161,14 +181,15 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
                     </a>
                   ),
                   img: ({ src, alt }) => {
-                    const resolved = resolveImageSrc(src);
-                    if (!resolved) return null;
+                    if (!src) return null;
+                    if (isLocalPath(src)) {
+                      return <LocalImage src={src} alt={alt ?? ""} />;
+                    }
                     return (
                       <img
-                        src={resolved}
+                        src={src}
                         alt={alt ?? ""}
-                        className="max-w-full rounded-lg my-1 cursor-pointer"
-                        onClick={() => window.open(resolved, "_blank")}
+                        className="max-w-full rounded-lg my-1"
                       />
                     );
                   },

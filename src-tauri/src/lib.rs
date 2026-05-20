@@ -1307,6 +1307,7 @@ pub fn run() {
             commands::switchHermesModel,
             commands::getHermesApiServerKey,
             commands::setHermesApiServerKey,
+            commands::read_local_image,
             commands::startChatRun,
             commands::stopChatRun,
             commands::approveChatRun,
