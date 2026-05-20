@@ -80,7 +80,7 @@ const UnifiedSkillsPanel = React.forwardRef<
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
 
-  const { data: skills, isLoading } = useInstalledSkills();
+  const { data: skills, isLoading, refetch: refetchSkills, isFetching: isRefetchingSkills } = useInstalledSkills();
   const {
     data: skillBackups = [],
     refetch: refetchSkillBackups,
@@ -384,6 +384,21 @@ const UnifiedSkillsPanel = React.forwardRef<
             {isCheckingUpdates
               ? t("skills.checkingUpdates")
               : t("skills.checkUpdates")}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => void refetchSkills()}
+            disabled={isRefetchingSkills}
+            title={t("common.refresh", { defaultValue: "刷新列表" })}
+          >
+            {isRefetchingSkills ? (
+              <Loader2 size={12} className="animate-spin" />
+            ) : (
+              <RefreshCw size={12} />
+            )}
           </Button>
         </div>
       </div>
