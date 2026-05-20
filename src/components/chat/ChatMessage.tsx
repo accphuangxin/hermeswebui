@@ -31,14 +31,16 @@ function LocalImage({ src, alt }: { src: string; alt: string }) {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
 
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
   useEffect(() => {
     const path = extractLocalPath(src);
     invoke<string>("read_local_image", { path })
       .then(setDataUrl)
-      .catch(() => setError(true));
+      .catch((e) => { setError(true); setErrorMsg(String(e)); console.error("[LocalImage] failed:", path, e); });
   }, [src]);
 
-  if (error) return <span className="text-xs text-muted-foreground italic">[图片加载失败: {extractLocalPath(src)}]</span>;
+  if (error) return <span className="text-xs text-muted-foreground italic">[图片加载失败: {errorMsg ?? extractLocalPath(src)}]</span>;
   if (!dataUrl) return <span className="text-xs text-muted-foreground animate-pulse">加载图片中...</span>;
   return (
     <img
