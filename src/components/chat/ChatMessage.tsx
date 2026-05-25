@@ -155,7 +155,7 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
           className={cn(
             "rounded-lg px-3 py-2 text-sm max-w-[85%] inline-block",
             isUser
-              ? "bg-primary text-primary-foreground"
+              ? "bg-primary text-primary-foreground user-bubble"
               : "bg-muted",
           )}
         >
