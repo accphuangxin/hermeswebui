@@ -211,11 +211,8 @@ input[type="password"]::-ms-clear {
 }
 
 /* User chat bubble: white selection highlight on blue background */
-.user-bubble ::selection {
-  background-color: rgba(255, 255, 255, 0.35);
-  color: #fff;
-}
-.user-bubble ::-moz-selection {
-  background-color: rgba(255, 255, 255, 0.35);
+.user-bubble ::selection,
+.user-bubble::selection {
+  background-color: rgba(255, 255, 255, 0.4);
   color: #fff;
 }
