@@ -2,6 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Allow text selection throughout the app by default */
+* {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Restore non-selectable behavior for interactive controls */
+button, [role="button"], label, [data-tauri-drag-region] {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Inputs and textareas stay selectable/editable */
+input, textarea, select {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;
