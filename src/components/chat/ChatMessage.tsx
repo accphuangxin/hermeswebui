@@ -110,7 +110,8 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
   };
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(message.content);
+    const text = isUser ? displayContent : message.content;
+    await navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
