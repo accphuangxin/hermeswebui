@@ -1040,3 +1040,22 @@ pub fn read_local_image(path: String) -> Result<String, String> {
     let encoded = base64::engine::general_purpose::STANDARD.encode(&bytes);
     Ok(format!("data:{mime};base64,{encoded}"))
 }
+
+/// Read a local HTML file and return its content as a string.
+/// Only files under the user's home directory are allowed.
+#[tauri::command]
+pub fn read_local_html(path: String) -> Result<String, String> {
+    let expanded = if path.starts_with("~/") {
+        let home = dirs::home_dir().ok_or("cannot determine home dir")?;
+        home.join(&path[2..])
+    } else {
+        std::path::PathBuf::from(&path)
+    };
+
+    let home = dirs::home_dir().ok_or("cannot determine home dir")?;
+    if !expanded.starts_with(&home) {
+        return Err("access denied: path outside home directory".to_string());
+    }
+
+    std::fs::read_to_string(&expanded).map_err(|e| e.to_string())
+}

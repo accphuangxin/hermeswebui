@@ -8,12 +8,22 @@ import type { ChatMessage as ChatMessageType, ChatToolCall, ChatFileRef } from "
 import { ToolCallBlock } from "./ToolCallBlock";
 import { cn } from "@/lib/utils";
 
-// Convert bare MEDIA:/path references in text into Markdown image syntax
+// Convert bare MEDIA:/path references in text into Markdown image or link syntax
 function preprocessMediaLinks(content: string): string {
-  return content.replace(
+  // Images → ![](MEDIA:...)
+  let result = content.replace(
     /(?<!\()(MEDIA:[^\s"'<>]+\.(?:png|jpg|jpeg|gif|webp|svg|bmp))/gi,
     (_, p) => `![](${p})`,
   );
+  // HTML files → [filename](MEDIA:...)
+  result = result.replace(
+    /(?<!\()(MEDIA:[^\s"'<>]+\.html?)/gi,
+    (_, p) => {
+      const name = p.split("/").pop() ?? "HTML";
+      return `[${name}](${p})`;
+    },
+  );
+  return result;
 }
 
 function isLocalPath(src: string): boolean {
@@ -49,6 +59,48 @@ function LocalImage({ src, alt }: { src: string; alt: string }) {
       className="max-w-full rounded-lg my-1 cursor-pointer"
       onClick={() => window.open(dataUrl, "_blank")}
     />
+  );
+}
+
+// Renders a local HTML file inside a sandboxed iframe
+function LocalHtml({ path }: { path: string }) {
+  const [html, setHtml] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(true);
+
+  useEffect(() => {
+    invoke<string>("read_local_html", { path })
+      .then(setHtml)
+      .catch((e) => setError(String(e)));
+  }, [path]);
+
+  const filename = path.split("/").pop() ?? "HTML";
+
+  if (error) return (
+    <span className="text-xs text-muted-foreground italic">[HTML 加载失败: {error}]</span>
+  );
+
+  return (
+    <div className="my-2 rounded-lg border overflow-hidden">
+      <div
+        className="flex items-center justify-between px-3 py-1.5 bg-muted/50 cursor-pointer select-none"
+        onClick={() => setExpanded((v) => !v)}
+      >
+        <span className="text-xs font-medium text-muted-foreground">{filename}</span>
+        <span className="text-xs text-muted-foreground">{expanded ? "▲ 收起" : "▼ 展开"}</span>
+      </div>
+      {expanded && (
+        html === null
+          ? <div className="p-3 text-xs text-muted-foreground animate-pulse">加载中...</div>
+          : <iframe
+              srcDoc={html}
+              sandbox="allow-scripts allow-same-origin"
+              className="w-full border-0"
+              style={{ height: "400px" }}
+              title={filename}
+            />
+      )}
+    </div>
   );
 }
 
@@ -186,11 +238,16 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
                     ) : (
                       <code className="bg-background/50 rounded px-1 py-0.5 text-xs">{children}</code>
                     ),
-                  a: ({ href, children }) => (
-                    <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline">
-                      {children}
-                    </a>
-                  ),
+                  a: ({ href, children }) => {
+                    if (href && /MEDIA:[^\s"'<>]+\.html?$/i.test(href)) {
+                      return <LocalHtml path={extractLocalPath(href)} />;
+                    }
+                    return (
+                      <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                        {children}
+                      </a>
+                    );
+                  },
                   img: ({ src, alt }) => {
                     if (!src) return null;
                     if (isLocalPath(src)) {
