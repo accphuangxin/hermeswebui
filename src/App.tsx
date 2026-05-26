@@ -93,6 +93,7 @@ import AgentsDefaultsPanel from "@/components/openclaw/AgentsDefaultsPanel";
 import OpenClawHealthBanner from "@/components/openclaw/OpenClawHealthBanner";
 import HermesMemoryPanel from "@/components/hermes/HermesMemoryPanel";
 import { ChatPage } from "@/components/chat/ChatPage";
+import { HermesServerConfigButton } from "@/components/chat/HermesServerConfigButton";
 import { useChatStatus, useChatModels } from "@/hooks/useHermesChat";
 import {
   Select,
@@ -1342,6 +1343,7 @@ function App() {
               >
                 {currentView === "hermesChat" && (
                   <>
+                    <HermesServerConfigButton />
                     <div className="flex items-center gap-1.5 shrink-0">
                       {hermesChatStatus?.online ? (
                         <Wifi className="w-3.5 h-3.5 text-green-500" />

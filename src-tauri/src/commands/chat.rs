@@ -176,22 +176,56 @@ pub(crate) struct ApiServerConfig {
 }
 
 fn read_hermes_env_key() -> String {
+    read_hermes_env_var("API_SERVER_KEY").unwrap_or_default()
+}
+
+fn read_hermes_env_var(key: &str) -> Option<String> {
     let env_path = hermes_config::get_hermes_dir().join(".env");
-    if let Ok(content) = std::fs::read_to_string(&env_path) {
-        for line in content.lines() {
-            let line = line.trim();
-            if line.starts_with('#') || line.is_empty() {
-                continue;
-            }
-            if let Some(val) = line.strip_prefix("API_SERVER_KEY=") {
-                let val = val.trim().trim_matches('"').trim_matches('\'');
-                if !val.is_empty() {
-                    return val.to_string();
-                }
+    let content = std::fs::read_to_string(&env_path).ok()?;
+    let prefix = format!("{key}=");
+    for line in content.lines() {
+        let line = line.trim();
+        if line.starts_with('#') || line.is_empty() {
+            continue;
+        }
+        if let Some(val) = line.strip_prefix(&prefix) {
+            let val = val.trim().trim_matches('"').trim_matches('\'');
+            if !val.is_empty() {
+                return Some(val.to_string());
             }
         }
     }
-    String::new()
+    None
+}
+
+fn write_hermes_env_vars(updates: &[(&str, Option<&str>)]) -> Result<(), String> {
+    let env_path = hermes_config::get_hermes_dir().join(".env");
+    let existing = std::fs::read_to_string(&env_path).unwrap_or_default();
+    let keys_to_remove: std::collections::HashSet<String> =
+        updates.iter().map(|(k, _)| format!("{k}=")).collect();
+    let mut lines: Vec<String> = existing
+        .lines()
+        .filter(|l| {
+            let t = l.trim_start();
+            !keys_to_remove.iter().any(|k| t.starts_with(k.as_str()))
+        })
+        .map(str::to_string)
+        .collect();
+    for (key, val) in updates {
+        if let Some(v) = val {
+            if !v.is_empty() {
+                lines.push(format!("{key}={v}"));
+            }
+        }
+    }
+    let mut content = lines.join("\n");
+    if !content.is_empty() {
+        content.push('\n');
+    }
+    if let Some(parent) = env_path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(&env_path, content).map_err(|e| e.to_string())
 }
 
 /// Read the current API_SERVER_KEY from ~/.hermes/.env
@@ -203,29 +237,33 @@ pub fn getHermesApiServerKey() -> String {
 /// Write (or clear) API_SERVER_KEY in ~/.hermes/.env, preserving all other lines.
 #[tauri::command]
 pub fn setHermesApiServerKey(key: String) -> Result<(), String> {
-    let env_path = hermes_config::get_hermes_dir().join(".env");
+    let val = if key.is_empty() { None } else { Some(key.as_str()) };
+    write_hermes_env_vars(&[("API_SERVER_KEY", val)])
+}
 
-    let existing = std::fs::read_to_string(&env_path).unwrap_or_default();
-    let mut lines: Vec<String> = existing
-        .lines()
-        .filter(|l| !l.trim_start().starts_with("API_SERVER_KEY="))
-        .map(str::to_string)
-        .collect();
+#[derive(serde::Serialize)]
+pub struct HermesApiServerConfig {
+    pub host: String,
+    pub port: u16,
+    pub key: String,
+}
 
-    if !key.is_empty() {
-        lines.push(format!("API_SERVER_KEY={key}"));
-    }
+/// Get the effective API server connection config (host/port/key).
+#[tauri::command]
+pub fn getHermesApiServerConfig() -> HermesApiServerConfig {
+    let cfg = read_api_server_config();
+    HermesApiServerConfig { host: cfg.host, port: cfg.port, key: cfg.key }
+}
 
-    // Ensure trailing newline
-    let mut content = lines.join("\n");
-    if !content.is_empty() {
-        content.push('\n');
-    }
-
-    if let Some(parent) = env_path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    std::fs::write(&env_path, content).map_err(|e| e.to_string())
+/// Persist host/port/key overrides to ~/.hermes/.env.
+/// Pass empty string to clear a value (revert to config.yaml default).
+#[tauri::command]
+pub fn setHermesApiServerConfig(host: String, port: String, key: String) -> Result<(), String> {
+    write_hermes_env_vars(&[
+        ("HERMES_API_HOST", if host.is_empty() { None } else { Some(host.as_str()) }),
+        ("HERMES_API_PORT", if port.is_empty() { None } else { Some(port.as_str()) }),
+        ("API_SERVER_KEY",  if key.is_empty()  { None } else { Some(key.as_str()) }),
+    ])
 }
 
 pub(crate) fn read_api_server_config() -> ApiServerConfig {
@@ -234,16 +272,14 @@ pub(crate) fn read_api_server_config() -> ApiServerConfig {
     let api_server = platforms.and_then(|p| p.get("api_server"));
     let extra = api_server.and_then(|a| a.get("extra"));
 
-    let host = extra
-        .and_then(|e| e.get("host"))
-        .and_then(|v| v.as_str())
-        .unwrap_or("127.0.0.1")
-        .to_string();
+    let host = read_hermes_env_var("HERMES_API_HOST")
+        .or_else(|| extra.and_then(|e| e.get("host")).and_then(|v| v.as_str()).map(str::to_string))
+        .unwrap_or_else(|| "127.0.0.1".to_string());
 
-    let port = extra
-        .and_then(|e| e.get("port"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(8643) as u16;
+    let port = read_hermes_env_var("HERMES_API_PORT")
+        .and_then(|v| v.parse::<u16>().ok())
+        .or_else(|| extra.and_then(|e| e.get("port")).and_then(|v| v.as_u64()).map(|p| p as u16))
+        .unwrap_or(8643);
 
     // Key resolution order (mirrors Hermes gateway/platforms/api_server.py):
     //   1. platforms.api_server.extra.key  (runtime injection)
