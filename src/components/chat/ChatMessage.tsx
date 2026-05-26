@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import Markdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { invoke } from "@tauri-apps/api/core";
-import { Copy, Check, User, Bot, Paperclip } from "lucide-react";
+import { Copy, Check, User, Bot, Paperclip, Trash2 } from "lucide-react";
 import type { ChatMessage as ChatMessageType, ChatToolCall, ChatFileRef } from "@/types";
 import { ToolCallBlock } from "./ToolCallBlock";
 import { cn } from "@/lib/utils";
@@ -55,11 +55,13 @@ function LocalImage({ src, alt }: { src: string; alt: string }) {
 interface ChatMessageProps {
   message: ChatMessageType;
   toolResults?: Map<string, string>;
+  onDelete?: (messageId: string) => void;
 }
 
 export const ChatMessageBubble = memo(function ChatMessageBubble({
   message,
   toolResults,
+  onDelete,
 }: ChatMessageProps) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
@@ -234,6 +236,15 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
             >
               {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
             </button>
+            {onDelete && (
+              <button
+                onClick={() => onDelete(message.id)}
+                className="text-muted-foreground hover:text-destructive p-1"
+                title={t("hermes.chat.deleteMessage", { defaultValue: "删除消息" })}
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            )}
           </div>
         )}
       </div>

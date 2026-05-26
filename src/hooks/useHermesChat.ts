@@ -103,6 +103,20 @@ export function useSaveChatMessage() {
   });
 }
 
+export function useDeleteChatMessage(sessionId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (messageId: string) => chatApi.deleteMessage(messageId),
+    onSuccess: () => {
+      if (sessionId) {
+        void queryClient.invalidateQueries({
+          queryKey: chatKeys.messages(sessionId),
+        });
+      }
+    },
+  });
+}
+
 export function useSaveChatMessagesBatch() {
   const queryClient = useQueryClient();
   return useMutation({

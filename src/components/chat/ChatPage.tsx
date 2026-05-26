@@ -13,6 +13,7 @@ import {
   useDeleteChatSession,
   useUpdateChatSession,
   useSaveChatMessage,
+  useDeleteChatMessage,
 } from "@/hooks/useHermesChat";
 import { useChatStream, type ToolActivity, type ApprovalRequest } from "@/hooks/useChatStream";
 import { chatApi } from "@/lib/api/chat";
@@ -49,6 +50,7 @@ export function ChatPage({ selectedModel }: ChatPageProps) {
   const deleteSession = useDeleteChatSession();
   const updateSession = useUpdateChatSession();
   const saveMessage = useSaveChatMessage();
+  const deleteMessage = useDeleteChatMessage(activeSessionId);
   const userCancelledRef = useRef(false);
   const { sendRun, isStreaming, stop } = useChatStream();
   const handleStop = useCallback(() => {
@@ -316,7 +318,7 @@ export function ChatPage({ selectedModel }: ChatPageProps) {
                 {messages
                   .filter((m) => m.role !== "tool")
                   .map((msg) => (
-                    <ChatMessageBubble key={msg.id} message={msg} />
+                    <ChatMessageBubble key={msg.id} message={msg} onDelete={(id) => deleteMessage.mutate(id)} />
                   ))}
                 {/* Tool activities during streaming */}
                 {toolActivities.length > 0 && (
