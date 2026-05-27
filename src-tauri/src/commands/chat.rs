@@ -477,6 +477,25 @@ pub async fn getHermesChatModels() -> Result<Vec<HermesChatModel>, String> {
         }
     }
 
+    // Also fetch models from the configured API server (may be a remote machine)
+    let api_cfg = read_api_server_config();
+    let api_base = format!("http://{}:{}", api_cfg.host, api_cfg.port);
+    let api_server_models = fetch_remote_models(&api_base, &api_cfg.key).await;
+    // Only add models not already listed (deduplicate by id)
+    let existing_ids: std::collections::HashSet<String> =
+        models.iter().map(|m| m.id.clone()).collect();
+    for id in api_server_models {
+        if !existing_ids.contains(&id) {
+            let is_default = id == default_model && default_provider == "api_server";
+            models.push(HermesChatModel {
+                id,
+                provider: "api_server".to_string(),
+                context_length: None,
+                is_default,
+            });
+        }
+    }
+
     // Sort: default first, then alphabetically by provider+model
     models.sort_by(|a, b| {
         b.is_default

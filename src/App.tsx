@@ -8,6 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   Plus,
   Settings,
+  Settings2,
   ArrowLeft,
   Minus,
   Maximize2,
@@ -93,7 +94,6 @@ import AgentsDefaultsPanel from "@/components/openclaw/AgentsDefaultsPanel";
 import OpenClawHealthBanner from "@/components/openclaw/OpenClawHealthBanner";
 import HermesMemoryPanel from "@/components/hermes/HermesMemoryPanel";
 import { ChatPage } from "@/components/chat/ChatPage";
-import { HermesServerConfigButton } from "@/components/chat/HermesServerConfigButton";
 import { useChatStatus, useChatModels } from "@/hooks/useHermesChat";
 import {
   Select,
@@ -1215,6 +1215,15 @@ function App() {
                 >
                   <Sparkles className="w-4 h-4" />
                 </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => openSettings("general")}
+                  title={t("settings.title")}
+                  className="hover:bg-black/5 dark:hover:bg-white/5 shrink-0"
+                >
+                  <Settings2 className="w-4 h-4" />
+                </Button>
                 <UpdateBadge onClick={() => openSettings("general")} />
               </div>
             ) : currentView !== "providers" ? (
@@ -1343,7 +1352,6 @@ function App() {
               >
                 {currentView === "hermesChat" && (
                   <>
-                    <HermesServerConfigButton />
                     <div className="flex items-center gap-1.5 shrink-0">
                       {hermesChatStatus?.online ? (
                         <Wifi className="w-3.5 h-3.5 text-green-500" />

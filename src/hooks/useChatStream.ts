@@ -43,10 +43,12 @@ interface StreamOptions {
 export function useChatStream() {
   const [isStreaming, setIsStreaming] = useState(false);
   const runIdRef = useRef<string | null>(null);
+  const stopRequestedRef = useRef(false);
 
   const sendRun = useCallback(async (options: StreamOptions) => {
     const { input, model, sessionId, onDelta, onToolStarted, onToolCompleted, onApprovalRequired, onCompleted, onError } = options;
 
+    stopRequestedRef.current = false;
     setIsStreaming(true);
 
     try {
@@ -96,6 +98,10 @@ export function useChatStream() {
         })
           .then((result) => {
             runIdRef.current = result.runId;
+            // Stop was requested before the run ID was available — send it now
+            if (stopRequestedRef.current) {
+              void import("@/lib/api/chat").then(({ chatApi }) => chatApi.stopRun(result.runId));
+            }
           })
           .catch((err) => {
             reject(err);
@@ -106,10 +112,12 @@ export function useChatStream() {
     } finally {
       setIsStreaming(false);
       runIdRef.current = null;
+      stopRequestedRef.current = false;
     }
   }, []);
 
   const stop = useCallback(async () => {
+    stopRequestedRef.current = true;
     if (runIdRef.current) {
       const { chatApi } = await import("@/lib/api/chat");
       await chatApi.stopRun(runIdRef.current);

@@ -42,6 +42,7 @@ import { ProxyTabContent } from "@/components/settings/ProxyTabContent";
 import { ModelTestConfigPanel } from "@/components/usage/ModelTestConfigPanel";
 import { UsageDashboard } from "@/components/usage/UsageDashboard";
 import { LogConfigPanel } from "@/components/settings/LogConfigPanel";
+import { HermesServerConfigSection } from "@/components/settings/HermesServerConfigSection";
 import { useInstalledSkills } from "@/hooks/useSkills";
 import { useSettings } from "@/hooks/useSettings";
 import { useImportExport } from "@/hooks/useImportExport";
@@ -191,7 +192,7 @@ export function SettingsPage({
           onValueChange={setActiveTab}
           className="flex flex-col h-full"
         >
-          <TabsList className="grid w-full grid-cols-6 mb-6 glass rounded-lg">
+          <TabsList className="grid w-full grid-cols-4 mb-6 glass rounded-lg">
             <TabsTrigger value="general">
               {t("settings.tabGeneral")}
             </TabsTrigger>
@@ -244,6 +245,7 @@ export function SettingsPage({
                         handleAutoSave({ preferredTerminal: terminal })
                       }
                     />
+                    <HermesServerConfigSection />
                   </motion.div>
                 ) : null}
               </TabsContent>
