@@ -627,6 +627,7 @@ impl SkillService {
                         installed_at: 0,
                         content_hash: None,
                         updated_at: 0,
+                        is_favorite: false,
                     },
                 );
             } else {
@@ -834,6 +835,7 @@ impl SkillService {
             installed_at: chrono::Utc::now().timestamp(),
             content_hash,
             updated_at: 0,
+            is_favorite: false,
         };
 
         // 保存到数据库
@@ -1172,6 +1174,7 @@ impl SkillService {
             installed_at: skill.installed_at,
             content_hash: new_hash,
             updated_at: chrono::Utc::now().timestamp(),
+            is_favorite: skill.is_favorite,
         };
 
         db.save_skill(&updated_skill)?;
@@ -1606,6 +1609,7 @@ impl SkillService {
                 installed_at: chrono::Utc::now().timestamp(),
                 content_hash,
                 updated_at: 0,
+                is_favorite: false,
             };
 
             // 保存到数据库
@@ -2664,6 +2668,7 @@ impl SkillService {
                 installed_at: chrono::Utc::now().timestamp(),
                 content_hash,
                 updated_at: 0,
+                is_favorite: false,
             };
 
             // 保存到数据库
@@ -3051,6 +3056,7 @@ pub fn migrate_skills_to_ssot(db: &Arc<Database>) -> Result<usize> {
             installed_at: chrono::Utc::now().timestamp(),
             content_hash,
             updated_at: 0,
+            is_favorite: false,
         };
 
         db.save_skill(&skill)?;

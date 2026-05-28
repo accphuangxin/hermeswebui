@@ -1,7 +1,7 @@
 [package]
-name = "cc-switch"
+name = "hermes-agent"
 version = "3.14.1"
-description = "All-in-One Assistant for Claude Code, Codex & Gemini CLI"
+description = "111 Hermes Autonomous Agent System"
 authors = ["Jason Young"]
 license = "MIT"
 repository = "https://github.com/farion1231/cc-switch"
@@ -11,7 +11,7 @@ rust-version = "1.85.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-name = "cc_switch_lib"
+name = "hermes_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 doctest = false
 

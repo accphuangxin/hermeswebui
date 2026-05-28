@@ -198,6 +198,9 @@ pub struct InstalledSkill {
     /// 最近更新时间（Unix 时间戳，0 = 从未更新）
     #[serde(default)]
     pub updated_at: i64,
+    /// 是否为常用标记
+    #[serde(default)]
+    pub is_favorite: bool,
 }
 
 /// 未管理的 Skill（在应用目录中发现但未被 CC Switch 管理）

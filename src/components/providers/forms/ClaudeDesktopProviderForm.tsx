@@ -65,8 +65,6 @@ import {
 export type ClaudeDesktopProviderFormValues = ProviderFormData & {
   presetId?: string;
   presetCategory?: ProviderCategory;
-  isPartner?: boolean;
-  partnerPromotionKey?: string;
   meta?: ProviderMeta;
   providerKey?: string;
   suggestedDefaults?: OpenClawSuggestedDefaults;
@@ -198,8 +196,6 @@ export function ClaudeDesktopProviderForm({
   const [activePreset, setActivePreset] = useState<{
     id: string;
     category?: ProviderCategory;
-    isPartner?: boolean;
-    partnerPromotionKey?: string;
   } | null>(null);
   const [routes, setRoutes] = useState<RouteRow[]>(() =>
     initialRouteRows(initialData?.meta?.claudeDesktopModelRoutes),
@@ -346,8 +342,6 @@ export function ClaudeDesktopProviderForm({
     setActivePreset({
       id: value,
       category: entry.preset.category,
-      isPartner: entry.preset.isPartner,
-      partnerPromotionKey: entry.preset.partnerPromotionKey,
     });
     applyDesktopPreset(entry.preset);
   };
@@ -531,8 +525,6 @@ export function ClaudeDesktopProviderForm({
       meta,
       presetId: activePreset?.id,
       presetCategory: activePreset?.category,
-      isPartner: activePreset?.isPartner,
-      partnerPromotionKey: activePreset?.partnerPromotionKey,
     });
   };
 

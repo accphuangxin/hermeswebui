@@ -406,103 +406,25 @@ async fn fetch_remote_models(base_url: &str, api_key: &str) -> Vec<String> {
 
 #[tauri::command]
 pub async fn getHermesChatModels() -> Result<Vec<HermesChatModel>, String> {
-    let config = hermes_config::read_hermes_config().map_err(|e| e.to_string())?;
+    let api_cfg = read_api_server_config();
+    let api_base = format!("http://{}:{}", api_cfg.host, api_cfg.port);
 
-    // Current active model & provider from model: section
     let model_config = hermes_config::get_model_config().ok().flatten();
     let default_model = model_config.as_ref().and_then(|m| m.default.as_deref()).unwrap_or("");
     let default_provider = model_config.as_ref().and_then(|m| m.provider.as_deref()).unwrap_or("");
 
-    let mut models: Vec<HermesChatModel> = Vec::new();
+    let remote_models = fetch_remote_models(&api_base, &api_cfg.key).await;
 
-    let Some(seq) = config.get("custom_providers").and_then(|v| v.as_sequence()) else {
-        return Ok(models);
-    };
-
-    for item in seq {
-        let provider_name = item
-            .get("name")
-            .and_then(|n| n.as_str())
-            .unwrap_or("unknown")
-            .to_string();
-
-        let base_url = item
-            .get("base_url")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-
-        let api_key = item
-            .get("api_key")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-
-        // 1. Static models from config.yaml
-        let mut provider_model_ids: Vec<(String, Option<u64>)> = Vec::new();
-
-        if let Some(models_map) = item.get("models").and_then(|v| v.as_mapping()) {
-            for (k, v) in models_map {
-                if let Some(model_id) = k.as_str() {
-                    let context_length = v.get("context_length").and_then(|c| c.as_u64());
-                    provider_model_ids.push((model_id.to_string(), context_length));
-                }
-            }
-        }
-
-        // 2. If no static models declared, fetch dynamically from provider's /v1/models
-        if provider_model_ids.is_empty() && !base_url.is_empty() {
-            let remote = fetch_remote_models(&base_url, &api_key).await;
-            for id in remote {
-                provider_model_ids.push((id, None));
-            }
-        }
-
-        // 3. Fallback: singular model: field
-        if provider_model_ids.is_empty() {
-            if let Some(singular) = item.get("model").and_then(|m| m.as_str()) {
-                provider_model_ids.push((singular.to_string(), None));
-            }
-        }
-
-        for (id, context_length) in provider_model_ids {
-            let is_default =
-                id == default_model && provider_name == default_provider;
-            models.push(HermesChatModel {
-                id,
-                provider: provider_name.clone(),
-                context_length,
-                is_default,
-            });
-        }
-    }
-
-    // Also fetch models from the configured API server (may be a remote machine)
-    let api_cfg = read_api_server_config();
-    let api_base = format!("http://{}:{}", api_cfg.host, api_cfg.port);
-    let api_server_models = fetch_remote_models(&api_base, &api_cfg.key).await;
-    // Only add models not already listed (deduplicate by id)
-    let existing_ids: std::collections::HashSet<String> =
-        models.iter().map(|m| m.id.clone()).collect();
-    for id in api_server_models {
-        if !existing_ids.contains(&id) {
+    let mut models: Vec<HermesChatModel> = remote_models
+        .into_iter()
+        .map(|id| {
             let is_default = id == default_model && default_provider == "api_server";
-            models.push(HermesChatModel {
-                id,
-                provider: "api_server".to_string(),
-                context_length: None,
-                is_default,
-            });
-        }
-    }
+            HermesChatModel { id, provider: "api_server".to_string(), context_length: None, is_default }
+        })
+        .collect();
 
-    // Sort: default first, then alphabetically by provider+model
-    models.sort_by(|a, b| {
-        b.is_default
-            .cmp(&a.is_default)
-            .then(a.provider.cmp(&b.provider))
-            .then(a.id.cmp(&b.id))
-    });
+    // Default first, then alphabetically
+    models.sort_by(|a, b| b.is_default.cmp(&a.is_default).then(a.id.cmp(&b.id)));
 
     Ok(models)
 }

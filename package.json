@@ -1,7 +1,7 @@
 {
-  "name": "cc-switch",
+  "name": "111-hermes",
   "version": "3.14.1",
-  "description": "All-in-One Assistant for Claude Code, Codex & Gemini CLI",
+  "description": "111 Hermes Autonomous Agent System",
   "type": "module",
   "scripts": {
     "dev": "pnpm tauri dev",

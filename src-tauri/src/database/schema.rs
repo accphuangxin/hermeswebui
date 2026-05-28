@@ -480,6 +480,11 @@ impl Database {
                         Self::migrate_v10_to_v11(conn)?;
                         Self::set_user_version(conn, 11)?;
                     }
+                    11 => {
+                        log::info!("迁移数据库从 v11 到 v12（Skills 常用标记支持）");
+                        Self::migrate_v11_to_v12(conn)?;
+                        Self::set_user_version(conn, 12)?;
+                    }
                     _ => {
                         return Err(AppError::Database(format!(
                             "未知的数据库版本 {version}，无法迁移到 {SCHEMA_VERSION}"
@@ -1295,6 +1300,12 @@ impl Database {
         .map_err(|e| AppError::Database(format!("创建 chat_messages 索引失败: {e}")))?;
 
         log::info!("v10 -> v11 迁移完成：已添加 Hermes Chat 表");
+        Ok(())
+    }
+
+    fn migrate_v11_to_v12(conn: &Connection) -> Result<(), AppError> {
+        Self::add_column_if_missing(conn, "skills", "is_favorite", "BOOLEAN NOT NULL DEFAULT 0")?;
+        log::info!("v11 -> v12 迁移完成：skills 表添加 is_favorite 字段");
         Ok(())
     }
 

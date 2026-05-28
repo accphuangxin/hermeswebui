@@ -36,6 +36,7 @@ export interface InstalledSkill {
   installedAt: number;
   contentHash?: string;
   updatedAt: number;
+  isFavorite: boolean;
 }
 
 export interface SkillUninstallResult {
@@ -175,6 +176,11 @@ export const skillsApi = {
   /** 切换 Skill 的应用启用状态 */
   async toggleApp(id: string, app: AppId, enabled: boolean): Promise<boolean> {
     return await invoke("toggle_skill_app", { id, app, enabled });
+  },
+
+  /** 切换 Skill 的常用标记 */
+  async toggleFavorite(id: string, isFavorite: boolean): Promise<boolean> {
+    return await invoke("toggle_skill_favorite", { id, isFavorite });
   },
 
   /** 扫描未管理的 Skills */

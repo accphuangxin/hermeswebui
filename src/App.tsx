@@ -8,7 +8,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   Plus,
   Settings,
-  Settings2,
   ArrowLeft,
   Minus,
   Maximize2,
@@ -33,7 +32,6 @@ import {
 } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Provider, VisibleApps } from "@/types";
-import type { EnvConflict } from "@/types/env";
 import { useProvidersQuery, useSettingsQuery } from "@/lib/query";
 import {
   providersApi,
@@ -41,7 +39,6 @@ import {
   type AppId,
   type ProviderSwitchEvent,
 } from "@/lib/api";
-import { checkAllEnvConflicts, checkEnvConflicts } from "@/lib/api/env";
 import { useProviderActions } from "@/hooks/useProviderActions";
 import { openclawKeys, useOpenClawHealth } from "@/hooks/useOpenClaw";
 import { hermesKeys, useOpenHermesWebUI } from "@/hooks/useHermes";
@@ -53,6 +50,7 @@ import { useLastValidValue } from "@/hooks/useLastValidValue";
 import { extractErrorMessage } from "@/utils/errorUtils";
 import { isTextEditableTarget } from "@/utils/domUtils";
 import { cn } from "@/lib/utils";
+import hermesBrandLogo from "@/assets/icons/hermes-brand.png";
 import {
   isWindows,
   isLinux,
@@ -66,7 +64,6 @@ import { EditProviderDialog } from "@/components/providers/EditProviderDialog";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { SettingsPage } from "@/components/settings/SettingsPage";
 import { UpdateBadge } from "@/components/UpdateBadge";
-import { EnvWarningBanner } from "@/components/env/EnvWarningBanner";
 import { ProxyToggle } from "@/components/proxy/ProxyToggle";
 import { ClaudeDesktopRouteToggle } from "@/components/proxy/ClaudeDesktopRouteToggle";
 import { FailoverToggle } from "@/components/proxy/FailoverToggle";
@@ -80,8 +77,9 @@ import { FirstRunNoticeDialog } from "@/components/FirstRunNoticeDialog";
 import { AgentsPanel } from "@/components/agents/AgentsPanel";
 import { UniversalProviderPanel } from "@/components/universal";
 import { McpIcon } from "@/components/BrandIcons";
-import { ProviderIcon } from "@/components/ProviderIcon";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Input } from "@/components/ui/input";
 import { SessionManagerPage } from "@/components/sessions/SessionManagerPage";
 import {
   useDisableCurrentOmo,
@@ -102,7 +100,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Wifi, WifiOff } from "lucide-react";
+import { Wifi, WifiOff, Server } from "lucide-react";
 
 type View =
   | "providers"
@@ -130,7 +128,7 @@ interface WebDavSyncStatusUpdatedPayload {
 const DEFAULT_DRAG_BAR_HEIGHT = isWindows() || isLinux() ? 0 : 28; // px
 const HEADER_HEIGHT = 64; // px
 
-const STORAGE_KEY = "cc-switch-last-app";
+const STORAGE_KEY = "111hermes-last-app";
 const VALID_APPS: AppId[] = [
   "claude",
   "claude-desktop",
@@ -149,7 +147,7 @@ const getInitialApp = (): AppId => {
   return "claude";
 };
 
-const VIEW_STORAGE_KEY = "cc-switch-last-view";
+const VIEW_STORAGE_KEY = "111hermes-last-view";
 const VALID_VIEWS: View[] = [
   "providers",
   "settings",
@@ -199,15 +197,50 @@ function App() {
   const { data: settingsData } = useSettingsQuery();
 
   // Hermes chat status & model selector (hoisted to title bar)
-  const { data: hermesChatStatus } = useChatStatus(currentView === "hermesChat");
+  const { data: hermesChatStatus } = useChatStatus(true);
   const { data: hermesChatModels = [] } = useChatModels();
   const [hermesSelectedModel, setHermesSelectedModel] = useState("");
+  const prevApiHostRef = useRef<string>("");
   useEffect(() => {
-    if (!hermesSelectedModel && hermesChatModels.length > 0) {
+    const host = hermesChatStatus?.host ?? "127.0.0.1";
+    const hostChanged = prevApiHostRef.current !== "" && prevApiHostRef.current !== host;
+    prevApiHostRef.current = host;
+
+    if ((!hermesSelectedModel || hostChanged) && hermesChatModels.length > 0) {
       const def = hermesChatModels.find((m) => m.isDefault) ?? hermesChatModels[0];
       setHermesSelectedModel(`custom_${def.provider}:${def.id}`);
     }
-  }, [hermesChatModels, hermesSelectedModel]);
+  }, [hermesChatModels, hermesSelectedModel, hermesChatStatus]);
+
+  // API Server quick-config popover state
+  const [apiConfigOpen, setApiConfigOpen] = useState(false);
+  const [apiConfigHost, setApiConfigHost] = useState("");
+  const [apiConfigPort, setApiConfigPort] = useState("");
+  const [apiConfigKey, setApiConfigKey] = useState("");
+  useEffect(() => {
+    if (apiConfigOpen) {
+      invoke<{ host: string; port: number; key: string }>("getHermesApiServerConfig")
+        .then((cfg) => {
+          setApiConfigHost(cfg.host);
+          setApiConfigPort(String(cfg.port));
+          setApiConfigKey(cfg.key);
+        })
+        .catch(console.error);
+    }
+  }, [apiConfigOpen]);
+  const handleApiConfigSave = async () => {
+    try {
+      await invoke("setHermesApiServerConfig", { host: apiConfigHost, port: apiConfigPort, key: apiConfigKey });
+      setApiConfigOpen(false);
+      setHermesSelectedModel(""); // reset model selection for new host
+      void queryClient.invalidateQueries({ queryKey: ["hermesChat", "status"] });
+      void queryClient.invalidateQueries({ queryKey: ["hermesChat", "models"] });
+      toast.success(t("hermes.serverConfig.saved", { defaultValue: "连接配置已保存" }));
+    } catch (e) {
+      toast.error(t("hermes.serverConfig.saveFailed", { defaultValue: "保存失败" }), { description: String(e) });
+    }
+  };
+
   const useAppWindowControls =
     isLinux() && (settingsData?.useAppWindowControls ?? false);
   const dragBarHeight = useAppWindowControls ? 32 : DEFAULT_DRAG_BAR_HEIGHT;
@@ -260,9 +293,6 @@ function App() {
     provider: Provider;
     action: "remove" | "delete";
   } | null>(null);
-  const [envConflicts, setEnvConflicts] = useState<EnvConflict[]>([]);
-  const [showEnvBanner, setShowEnvBanner] = useState(false);
-
   const effectiveEditingProvider = useLastValidValue(editingProvider);
   const effectiveUsageProvider = useLastValidValue(usageProvider);
 
@@ -528,29 +558,6 @@ function App() {
     void syncWindowDecorations();
   }, [useAppWindowControls, settingsData]);
 
-  useEffect(() => {
-    const checkEnvOnStartup = async () => {
-      try {
-        const allConflicts = await checkAllEnvConflicts();
-        const flatConflicts = Object.values(allConflicts).flat();
-
-        if (flatConflicts.length > 0) {
-          setEnvConflicts(flatConflicts);
-          const dismissed = sessionStorage.getItem("env_banner_dismissed");
-          if (!dismissed) {
-            setShowEnvBanner(true);
-          }
-        }
-      } catch (error) {
-        console.error(
-          "[App] Failed to check environment conflicts on startup:",
-          error,
-        );
-      }
-    };
-
-    checkEnvOnStartup();
-  }, []);
 
   useEffect(() => {
     const checkMigration = async () => {
@@ -598,36 +605,6 @@ function App() {
     checkSkillsMigration();
   }, [t, queryClient]);
 
-  useEffect(() => {
-    const checkEnvOnSwitch = async () => {
-      try {
-        const conflicts = await checkEnvConflicts(activeApp);
-
-        if (conflicts.length > 0) {
-          setEnvConflicts((prev) => {
-            const existingKeys = new Set(
-              prev.map((c) => `${c.varName}:${c.sourcePath}`),
-            );
-            const newConflicts = conflicts.filter(
-              (c) => !existingKeys.has(`${c.varName}:${c.sourcePath}`),
-            );
-            return [...prev, ...newConflicts];
-          });
-          const dismissed = sessionStorage.getItem("env_banner_dismissed");
-          if (!dismissed) {
-            setShowEnvBanner(true);
-          }
-        }
-      } catch (error) {
-        console.error(
-          "[App] Failed to check environment conflicts on app switch:",
-          error,
-        );
-      }
-    };
-
-    checkEnvOnSwitch();
-  }, [activeApp]);
 
   const currentViewRef = useRef(currentView);
 
@@ -1144,30 +1121,6 @@ function App() {
           )}
         </div>
       )}
-      {showEnvBanner && envConflicts.length > 0 && (
-        <EnvWarningBanner
-          conflicts={envConflicts}
-          onDismiss={() => {
-            setShowEnvBanner(false);
-            sessionStorage.setItem("env_banner_dismissed", "true");
-          }}
-          onDeleted={async () => {
-            try {
-              const allConflicts = await checkAllEnvConflicts();
-              const flatConflicts = Object.values(allConflicts).flat();
-              setEnvConflicts(flatConflicts);
-              if (flatConflicts.length === 0) {
-                setShowEnvBanner(false);
-              }
-            } catch (error) {
-              console.error(
-                "[App] Failed to re-check conflicts after deletion:",
-                error,
-              );
-            }
-          }}
-        />
-      )}
 
       <header
         className="fixed z-50 w-full transition-all duration-300 bg-background/80 backdrop-blur-md"
@@ -1191,11 +1144,12 @@ function App() {
           >
             {currentView === "hermesChat" ? (
               <div className="flex items-center gap-2">
-                <div className="relative inline-flex items-center gap-1.5 shrink-0">
-                  <ProviderIcon icon="hermes" name="Hermes" size={22} />
-                  <span className="text-xl font-semibold text-foreground">
-                    Hermes
-                  </span>
+                <div className="relative inline-flex items-center shrink-0">
+                  <img
+                    src={hermesBrandLogo}
+                    alt="Hermes"
+                    className="h-12 w-auto object-contain"
+                  />
                 </div>
                 <Button
                   variant="ghost"
@@ -1214,15 +1168,6 @@ function App() {
                   className="hover:bg-black/5 dark:hover:bg-white/5 shrink-0"
                 >
                   <Sparkles className="w-4 h-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => openSettings("general")}
-                  title={t("settings.title")}
-                  className="hover:bg-black/5 dark:hover:bg-white/5 shrink-0"
-                >
-                  <Settings2 className="w-4 h-4" />
                 </Button>
                 <UpdateBadge onClick={() => openSettings("general")} />
               </div>
@@ -1282,7 +1227,7 @@ function App() {
                         : "text-blue-500 dark:text-blue-400",
                     )}
                   >
-                    Hermes Web
+                    111 Hermes
                   </span>
                 </div>
                 <Button
@@ -1352,6 +1297,59 @@ function App() {
               >
                 {currentView === "hermesChat" && (
                   <>
+                    <Popover open={apiConfigOpen} onOpenChange={setApiConfigOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 shrink-0 hover:bg-black/5 dark:hover:bg-white/5"
+                          title={t("hermes.serverConfig.title", { defaultValue: "API Server 配置" })}
+                        >
+                          <Server className="w-3.5 h-3.5" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-72 p-3" align="end">
+                        <div className="space-y-3">
+                          <div>
+                            <p className="text-sm font-medium">{t("hermes.serverConfig.title", { defaultValue: "API Server 配置" })}</p>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <label className="text-xs text-muted-foreground">Host</label>
+                              <Input
+                                value={apiConfigHost}
+                                onChange={(e) => setApiConfigHost(e.target.value)}
+                                placeholder="127.0.0.1"
+                                className="h-7 text-xs"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-xs text-muted-foreground">Port</label>
+                              <Input
+                                value={apiConfigPort}
+                                onChange={(e) => setApiConfigPort(e.target.value)}
+                                placeholder="8643"
+                                className="h-7 text-xs"
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs text-muted-foreground">API Key</label>
+                            <Input
+                              type="password"
+                              value={apiConfigKey}
+                              onChange={(e) => setApiConfigKey(e.target.value)}
+                              placeholder={t("hermes.serverConfig.keyPlaceholder", { defaultValue: "留空则不验证" })}
+                              className="h-7 text-xs"
+                              onKeyDown={(e) => { if (e.key === "Enter") void handleApiConfigSave(); }}
+                            />
+                          </div>
+                          <Button size="sm" className="w-full h-7 text-xs" onClick={() => void handleApiConfigSave()}>
+                            {t("common.save", { defaultValue: "保存" })}
+                          </Button>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                     <div className="flex items-center gap-1.5 shrink-0">
                       {hermesChatStatus?.online ? (
                         <Wifi className="w-3.5 h-3.5 text-green-500" />

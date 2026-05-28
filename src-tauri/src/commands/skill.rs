@@ -97,6 +97,19 @@ pub fn toggle_skill_app(
     Ok(true)
 }
 
+/// 切换 Skill 的常用标记
+#[tauri::command]
+pub fn toggle_skill_favorite(
+    id: String,
+    is_favorite: bool,
+    app_state: State<'_, AppState>,
+) -> Result<bool, String> {
+    app_state
+        .db
+        .toggle_skill_favorite(&id, is_favorite)
+        .map_err(|e| e.to_string())
+}
+
 /// 扫描未管理的 Skills
 #[tauri::command]
 pub fn scan_unmanaged_skills(

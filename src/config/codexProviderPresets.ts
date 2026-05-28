@@ -13,8 +13,6 @@ export interface CodexProviderPreset {
   auth: Record<string, any>; // 将写入 ~/.codex/auth.json
   config: string; // 将写入 ~/.codex/config.toml（TOML 字符串）
   isOfficial?: boolean; // 标识是否为官方预设
-  isPartner?: boolean; // 标识是否为商业合作伙伴
-  partnerPromotionKey?: string; // 合作伙伴促销信息的 i18n key
   category?: ProviderCategory; // 新增：分类
   isCustomTemplate?: boolean; // 标识是否为自定义模板
   // 新增：请求地址候选列表（用于地址管理/测速）
@@ -90,8 +88,6 @@ export const codexProviderPresets: CodexProviderPreset[] = [
       "gpt-5.4",
     ),
     category: "aggregator",
-    isPartner: true,
-    partnerPromotionKey: "shengsuanyun",
     icon: "shengsuanyun",
   },
   {
@@ -148,13 +144,11 @@ requires_openai_auth = true`,
       "gpt-5.4",
     ),
     endpointCandidates: ["https://www.dmxapi.cn/v1"],
-    isPartner: true, // 合作伙伴
-    partnerPromotionKey: "dmxapi", // 促销信息 i18n key
   },
   {
     name: "PackyCode",
     websiteUrl: "https://www.packyapi.com",
-    apiKeyUrl: "https://www.packyapi.com/register?aff=cc-switch",
+    apiKeyUrl: "https://www.packyapi.com/register",
     category: "third_party",
     auth: generateThirdPartyAuth(""),
     config: generateThirdPartyConfig(
@@ -166,8 +160,6 @@ requires_openai_auth = true`,
       "https://www.packyapi.com/v1",
       "https://api-slb.packyapi.com/v1",
     ],
-    isPartner: true, // 合作伙伴
-    partnerPromotionKey: "packycode", // 促销信息 i18n key
     icon: "packycode",
   },
   {
@@ -187,8 +179,6 @@ requires_openai_auth = true`,
       "https://api-bwg.cubence.com/v1",
     ],
     category: "third_party",
-    isPartner: true, // 合作伙伴
-    partnerPromotionKey: "cubence", // 促销信息 i18n key
     icon: "cubence",
     iconColor: "#000000",
   },
@@ -204,8 +194,6 @@ requires_openai_auth = true`,
       "gpt-5.4",
     ),
     endpointCandidates: ["https://api.aigocode.com"],
-    isPartner: true, // 合作伙伴
-    partnerPromotionKey: "aigocode", // 促销信息 i18n key
     icon: "aigocode",
     iconColor: "#5B7FFF",
   },
@@ -220,8 +208,6 @@ requires_openai_auth = true`,
       "gpt-5.4",
     ),
     category: "third_party",
-    isPartner: true,
-    partnerPromotionKey: "rightcode",
     icon: "rc",
     iconColor: "#E96B2C",
   },
@@ -239,8 +225,6 @@ requires_openai_auth = true`,
       "https://api.aicodemirror.com/api/codex/backend-api/codex",
       "https://api.claudecode.net.cn/api/codex/backend-api/codex",
     ],
-    isPartner: true,
-    partnerPromotionKey: "aicodemirror",
     icon: "aicodemirror",
     iconColor: "#000000",
   },
@@ -255,15 +239,13 @@ requires_openai_auth = true`,
       "gpt-5.4",
     ),
     endpointCandidates: ["https://api.aicoding.sh"],
-    isPartner: true,
-    partnerPromotionKey: "aicoding",
     icon: "aicoding",
     iconColor: "#000000",
   },
   {
     name: "CrazyRouter",
     websiteUrl: "https://www.crazyrouter.com",
-    apiKeyUrl: "https://www.crazyrouter.com/register?aff=OZcm&ref=cc-switch",
+    apiKeyUrl: "https://www.crazyrouter.com/register",
     auth: generateThirdPartyAuth(""),
     config: generateThirdPartyConfig(
       "crazyrouter",
@@ -271,8 +253,6 @@ requires_openai_auth = true`,
       "gpt-5.4",
     ),
     endpointCandidates: ["https://crazyrouter.com/v1"],
-    isPartner: true,
-    partnerPromotionKey: "crazyrouter",
     icon: "crazyrouter",
     iconColor: "#000000",
   },
@@ -292,8 +272,6 @@ requires_openai_auth = true`,
       "https://anti.sssaicode.com/api/v1",
     ],
     category: "third_party",
-    isPartner: true, // 合作伙伴
-    partnerPromotionKey: "sssaicode", // 促销信息 i18n key
     icon: "sssaicode",
     iconColor: "#000000",
   },
@@ -302,7 +280,7 @@ requires_openai_auth = true`,
     nameKey: "providerForm.presets.ucloud",
     websiteUrl: "https://www.compshare.cn",
     apiKeyUrl:
-      "https://www.compshare.cn/coding-plan?ytag=GPU_YY_YX_git_cc-switch",
+      "https://www.compshare.cn/coding-plan",
     auth: generateThirdPartyAuth(""),
     config: generateThirdPartyConfig(
       "compshare",
@@ -311,8 +289,6 @@ requires_openai_auth = true`,
     ),
     endpointCandidates: ["https://api.modelverse.cn/v1"],
     category: "aggregator",
-    isPartner: true, // 合作伙伴
-    partnerPromotionKey: "ucloud", // 促销信息 i18n key
     icon: "ucloud",
     iconColor: "#000000",
   },
@@ -321,7 +297,7 @@ requires_openai_auth = true`,
     nameKey: "providerForm.presets.ucloudCoding",
     websiteUrl: "https://www.compshare.cn",
     apiKeyUrl:
-      "https://www.compshare.cn/coding-plan?ytag=GPU_YY_YX_git_cc-switch",
+      "https://www.compshare.cn/coding-plan",
     auth: generateThirdPartyAuth(""),
     config: generateThirdPartyConfig(
       "compshare_coding",
@@ -330,8 +306,6 @@ requires_openai_auth = true`,
     ),
     endpointCandidates: ["https://cp.compshare.cn/v1"],
     category: "aggregator",
-    isPartner: true, // 合作伙伴
-    partnerPromotionKey: "ucloud", // 促销信息 i18n key（复用）
     icon: "ucloud",
     iconColor: "#000000",
   },
@@ -347,8 +321,6 @@ requires_openai_auth = true`,
     ),
     endpointCandidates: ["https://www.openclaudecode.cn/v1"],
     category: "third_party",
-    isPartner: true, // 合作伙伴
-    partnerPromotionKey: "micu", // 促销信息 i18n key
     icon: "micu",
     iconColor: "#000000",
   },
@@ -364,8 +336,6 @@ requires_openai_auth = true`,
     ),
     endpointCandidates: ["https://api.ctok.ai/v1"],
     category: "third_party",
-    isPartner: true, // 合作伙伴
-    partnerPromotionKey: "ctok", // 促销信息 i18n key
     icon: "ctok",
     iconColor: "#000000",
   },
@@ -379,8 +349,6 @@ requires_openai_auth = true`,
       "gpt-5.4",
     ),
     category: "third_party",
-    isPartner: true,
-    partnerPromotionKey: "lionccapi",
     icon: "lioncc",
   },
   {
@@ -395,8 +363,6 @@ requires_openai_auth = true`,
       "gpt-5.4",
     ),
     endpointCandidates: ["https://www.ddshub.cc"],
-    isPartner: true,
-    partnerPromotionKey: "ddshub",
     icon: "dds",
     iconColor: "#000000",
   },
@@ -437,8 +403,6 @@ model_auto_compact_token_limit = 9000000`,
       "gpt-5.4",
     ),
     endpointCandidates: ["https://api.lemondata.cc/v1"],
-    isPartner: true,
-    partnerPromotionKey: "lemondata",
     icon: "lemondata",
   },
   {

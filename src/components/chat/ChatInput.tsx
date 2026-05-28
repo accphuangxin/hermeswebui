@@ -1,11 +1,12 @@
 import { useCallback, useRef, useState, KeyboardEvent, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Send, Square, Paperclip, X } from "lucide-react";
+import { Send, Square, Paperclip, X, Sparkles } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Button } from "@/components/ui/button";
 import { chatApi } from "@/lib/api/chat";
 import { cn } from "@/lib/utils";
 import type { ChatFileRef } from "@/types";
+import type { InstalledSkill } from "@/lib/api/skills";
 
 const HERMES_COMMANDS = [
   { cmd: "/clear", desc: "Clear conversation and start fresh" },
@@ -16,30 +17,57 @@ interface ChatInputProps {
   onStop: () => void;
   isStreaming: boolean;
   disabled?: boolean;
+  favoriteSkills?: InstalledSkill[];
 }
 
-export function ChatInput({ onSend, onStop, isStreaming, disabled }: ChatInputProps) {
+export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkills = [] }: ChatInputProps) {
   const { t } = useTranslation();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [files, setFiles] = useState<ChatFileRef[]>([]);
+
+  // slash command state
   const [showCommands, setShowCommands] = useState(false);
   const [commandFilter, setCommandFilter] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // @mention state
+  const [showMentions, setShowMentions] = useState(false);
+  const [mentionFilter, setMentionFilter] = useState("");
+  const [mentionSelectedIndex, setMentionSelectedIndex] = useState(0);
+  const [mentionTriggerPos, setMentionTriggerPos] = useState(-1);
+  const mentionMenuRef = useRef<HTMLDivElement>(null);
+
   const filteredCommands = HERMES_COMMANDS.filter((c) =>
     c.cmd.startsWith(commandFilter || "/"),
+  );
+
+  const filteredSkills = favoriteSkills.filter((s) =>
+    s.name.toLowerCase().includes(mentionFilter.toLowerCase()) ||
+    s.directory.toLowerCase().includes(mentionFilter.toLowerCase()),
   );
 
   useEffect(() => {
     setSelectedIndex(0);
   }, [commandFilter]);
 
+  useEffect(() => {
+    setMentionSelectedIndex(0);
+  }, [mentionFilter]);
+
+  // scroll the highlighted mention item into view
+  useEffect(() => {
+    if (!showMentions || !mentionMenuRef.current) return;
+    const el = mentionMenuRef.current.querySelectorAll<HTMLButtonElement>("button")[mentionSelectedIndex];
+    el?.scrollIntoView({ block: "nearest" });
+  }, [mentionSelectedIndex, showMentions]);
+
   const handleSend = useCallback(() => {
     const value = textareaRef.current?.value.trim();
     if (!value && files.length === 0) return;
 
     setShowCommands(false);
+    setShowMentions(false);
 
     onSend(value || "", files);
     setFiles([]);
@@ -58,7 +86,53 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled }: ChatInputPr
     setCommandFilter("");
   };
 
+  const insertMention = (skill: InstalledSkill) => {
+    const el = textareaRef.current;
+    if (!el) return;
+    const value = el.value;
+    // replace from @ trigger position to current cursor
+    const before = value.slice(0, mentionTriggerPos);
+    const after = value.slice(el.selectionStart);
+    const inserted = `使用技能: ${skill.name}, `;
+    el.value = before + inserted + after;
+    // move cursor after the inserted mention
+    const newPos = mentionTriggerPos + inserted.length;
+    el.setSelectionRange(newPos, newPos);
+    el.focus();
+    // resize
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 160) + "px";
+
+    setShowMentions(false);
+    setMentionFilter("");
+    setMentionTriggerPos(-1);
+  };
+
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // @mention popup takes priority
+    if (showMentions && filteredSkills.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setMentionSelectedIndex((i) => (i + 1) % filteredSkills.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setMentionSelectedIndex((i) => (i - 1 + filteredSkills.length) % filteredSkills.length);
+        return;
+      }
+      if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
+        e.preventDefault();
+        insertMention(filteredSkills[mentionSelectedIndex]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setShowMentions(false);
+        return;
+      }
+    }
+
     if (showCommands && filteredCommands.length > 0) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -97,6 +171,25 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled }: ChatInputPr
     el.style.height = Math.min(el.scrollHeight, 160) + "px";
 
     const value = el.value;
+    const cursor = el.selectionStart;
+
+    // detect @mention: scan backwards from cursor for '@'
+    const textBeforeCursor = value.slice(0, cursor);
+    const atIndex = textBeforeCursor.lastIndexOf("@");
+    if (atIndex !== -1 && favoriteSkills.length > 0) {
+      const fragment = textBeforeCursor.slice(atIndex + 1);
+      // only show if no space in the fragment (still typing the mention)
+      if (!fragment.includes(" ") && !fragment.includes("\n")) {
+        setMentionTriggerPos(atIndex);
+        setMentionFilter(fragment);
+        setShowMentions(true);
+        setShowCommands(false);
+        return;
+      }
+    }
+    setShowMentions(false);
+
+    // slash command detection
     if (value.startsWith("/")) {
       const firstSpace = value.indexOf(" ");
       const partial = firstSpace === -1 ? value : value.slice(0, firstSpace);
@@ -133,7 +226,6 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled }: ChatInputPr
       const reader = new FileReader();
       reader.onload = () => {
         const dataUrl = reader.result as string;
-        // Strip the data URL prefix to get raw base64 content
         const base64 = dataUrl.split(",")[1] ?? dataUrl;
         setFiles((prev) => [
           ...prev,
@@ -161,7 +253,6 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled }: ChatInputPr
         const filename = `paste_${Date.now()}.${ext}`;
         await addFileFromBlob(blob, filename);
       } else {
-        // Non-image file — read via Tauri if it has a path, else as blob
         const file = blob as File;
         const filename = file.name || `paste_${Date.now()}`;
         await addFileFromBlob(blob, filename);
@@ -181,7 +272,32 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled }: ChatInputPr
 
   return (
     <div className="border-t bg-background relative">
-      {/* Command autocomplete menu */}
+      {/* @mention popup */}
+      {showMentions && filteredSkills.length > 0 && (
+        <div
+          ref={mentionMenuRef}
+          className="absolute bottom-full left-3 right-3 mb-1 bg-popover border rounded-md shadow-md max-h-[240px] overflow-y-auto z-50"
+        >
+          {filteredSkills.map((s, i) => (
+            <button
+              key={s.id}
+              onClick={() => insertMention(s)}
+              className={cn(
+                "w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-muted transition-colors",
+                i === mentionSelectedIndex && "bg-muted",
+              )}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+              <span className="font-medium flex-shrink-0">{s.name}</span>
+              {s.description && (
+                <span className="text-muted-foreground text-xs min-w-0 truncate">{s.description}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* slash command popup */}
       {showCommands && filteredCommands.length > 0 && (
         <div
           ref={menuRef}
@@ -204,6 +320,7 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled }: ChatInputPr
           ))}
         </div>
       )}
+
       {files.length > 0 && (
         <div className="flex flex-wrap gap-1.5 px-3 pt-2">
           {files.map((f, i) => (

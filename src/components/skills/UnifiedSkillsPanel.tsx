@@ -7,6 +7,7 @@ import {
   RefreshCw,
   Loader2,
   Search,
+  Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +20,7 @@ import {
   useSkillBackups,
   useRestoreSkillBackup,
   useToggleSkillApp,
+  useToggleSkillFavorite,
   useUninstallSkill,
   useScanUnmanagedSkills,
   useImportSkillsFromApps,
@@ -88,6 +90,7 @@ const UnifiedSkillsPanel = React.forwardRef<
   } = useSkillBackups();
   const deleteBackupMutation = useDeleteSkillBackup();
   const toggleAppMutation = useToggleSkillApp();
+  const toggleFavoriteMutation = useToggleSkillFavorite();
   const uninstallMutation = useUninstallSkill();
   const restoreBackupMutation = useRestoreSkillBackup();
   const { data: unmanagedSkills, refetch: scanUnmanaged } =
@@ -128,6 +131,14 @@ const UnifiedSkillsPanel = React.forwardRef<
   const handleToggleApp = async (id: string, app: AppId, enabled: boolean) => {
     try {
       await toggleAppMutation.mutateAsync({ id, app, enabled });
+    } catch (error) {
+      toast.error(t("common.error"), { description: String(error) });
+    }
+  };
+
+  const handleToggleFavorite = async (id: string, isFavorite: boolean) => {
+    try {
+      await toggleFavoriteMutation.mutateAsync({ id, isFavorite });
     } catch (error) {
       toast.error(t("common.error"), { description: String(error) });
     }
@@ -452,6 +463,7 @@ const UnifiedSkillsPanel = React.forwardRef<
                     updateSkillMutation.variables === skill.id
                   }
                   onToggleApp={handleToggleApp}
+                  onToggleFavorite={handleToggleFavorite}
                   onUninstall={() => handleUninstall(skill)}
                   onUpdate={() => handleUpdateSkill(skill)}
                   isLast={index === filteredSkills.length - 1}
@@ -505,6 +517,7 @@ interface InstalledSkillListItemProps {
   hasUpdate?: boolean;
   isUpdating?: boolean;
   onToggleApp: (id: string, app: AppId, enabled: boolean) => void;
+  onToggleFavorite: (id: string, isFavorite: boolean) => void;
   onUninstall: () => void;
   onUpdate?: () => void;
   isLast?: boolean;
@@ -515,6 +528,7 @@ const InstalledSkillListItem: React.FC<InstalledSkillListItemProps> = ({
   hasUpdate,
   isUpdating,
   onToggleApp,
+  onToggleFavorite,
   onUninstall,
   onUpdate,
   isLast,
@@ -580,6 +594,21 @@ const InstalledSkillListItem: React.FC<InstalledSkillListItemProps> = ({
         onToggle={(app, enabled) => onToggleApp(skill.id, app, enabled)}
         appIds={SKILLS_APP_IDS}
       />
+
+      <div
+        className="flex-shrink-0 flex items-center gap-0.5"
+      >
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className={`h-7 w-7 transition-opacity ${skill.isFavorite ? "opacity-100 text-amber-500" : "opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-amber-500"}`}
+          onClick={() => onToggleFavorite(skill.id, !skill.isFavorite)}
+          title={skill.isFavorite ? t("skills.unfavorite", { defaultValue: "取消常用" }) : t("skills.favorite", { defaultValue: "标记常用" })}
+        >
+          <Star size={14} fill={skill.isFavorite ? "currentColor" : "none"} />
+        </Button>
+      </div>
 
       <div
         className="flex-shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"

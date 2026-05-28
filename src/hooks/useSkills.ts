@@ -186,6 +186,32 @@ export function useToggleSkillApp() {
 }
 
 /**
+ * 切换 Skill 的常用标记
+ * 成功后直接更新缓存，收藏的排前面
+ */
+export function useToggleSkillFavorite() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, isFavorite }: { id: string; isFavorite: boolean }) =>
+      skillsApi.toggleFavorite(id, isFavorite),
+    onSuccess: (_result, { id, isFavorite }) => {
+      queryClient.setQueryData<InstalledSkill[]>(
+        ["skills", "installed"],
+        (oldData) => {
+          if (!oldData) return oldData;
+          return oldData
+            .map((s) => (s.id === id ? { ...s, isFavorite } : s))
+            .sort((a, b) => {
+              if (a.isFavorite === b.isFavorite) return a.name.localeCompare(b.name);
+              return a.isFavorite ? -1 : 1;
+            });
+        },
+      );
+    },
+  });
+}
+
+/**
  * 扫描未管理的 Skills
  */
 export function useScanUnmanagedSkills() {

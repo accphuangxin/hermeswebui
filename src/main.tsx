@@ -14,6 +14,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { message } from "@tauri-apps/plugin-dialog";
 import { exit } from "@tauri-apps/plugin-process";
 
+// Disable native WebView context menu globally
+document.addEventListener("contextmenu", (e) => e.preventDefault());
+
 // 根据平台添加 body class，便于平台特定样式
 try {
   const ua = navigator.userAgent || "";
@@ -89,7 +92,7 @@ async function bootstrap() {
   ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
       <QueryClientProvider client={queryClient}>
-        <ThemeProvider defaultTheme="system" storageKey="cc-switch-theme">
+        <ThemeProvider defaultTheme="system" storageKey="111hermes-theme">
           <UpdateProvider>
             <App />
             <Toaster />

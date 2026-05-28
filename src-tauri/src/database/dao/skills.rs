@@ -23,8 +23,9 @@ impl Database {
             .prepare(
                 "SELECT id, name, description, directory, repo_owner, repo_name, repo_branch,
                         readme_url, enabled_claude, enabled_codex, enabled_gemini, enabled_opencode,
-                        enabled_hermes, installed_at, content_hash, updated_at
-                 FROM skills ORDER BY name ASC",
+                        enabled_hermes, installed_at, content_hash, updated_at,
+                        COALESCE(is_favorite, 0)
+                 FROM skills ORDER BY is_favorite DESC, name ASC",
             )
             .map_err(|e| AppError::Database(e.to_string()))?;
 
@@ -49,6 +50,7 @@ impl Database {
                     installed_at: row.get(13)?,
                     content_hash: row.get(14)?,
                     updated_at: row.get::<_, i64>(15).unwrap_or(0),
+                    is_favorite: row.get::<_, bool>(16).unwrap_or(false),
                 })
             })
             .map_err(|e| AppError::Database(e.to_string()))?;
@@ -68,7 +70,8 @@ impl Database {
             .prepare(
                 "SELECT id, name, description, directory, repo_owner, repo_name, repo_branch,
                         readme_url, enabled_claude, enabled_codex, enabled_gemini, enabled_opencode,
-                        enabled_hermes, installed_at, content_hash, updated_at
+                        enabled_hermes, installed_at, content_hash, updated_at,
+                        COALESCE(is_favorite, 0)
                  FROM skills WHERE id = ?1",
             )
             .map_err(|e| AppError::Database(e.to_string()))?;
@@ -93,6 +96,7 @@ impl Database {
                 installed_at: row.get(13)?,
                 content_hash: row.get(14)?,
                 updated_at: row.get::<_, i64>(15).unwrap_or(0),
+                is_favorite: row.get::<_, bool>(16).unwrap_or(false),
             })
         });
 
@@ -110,8 +114,8 @@ impl Database {
             "INSERT OR REPLACE INTO skills
              (id, name, description, directory, repo_owner, repo_name, repo_branch,
               readme_url, enabled_claude, enabled_codex, enabled_gemini, enabled_opencode, enabled_hermes,
-              installed_at, content_hash, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+              installed_at, content_hash, updated_at, is_favorite)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
             params![
                 skill.id,
                 skill.name,
@@ -129,10 +133,23 @@ impl Database {
                 skill.installed_at,
                 skill.content_hash,
                 skill.updated_at,
+                skill.is_favorite,
             ],
         )
         .map_err(|e| AppError::Database(e.to_string()))?;
         Ok(())
+    }
+
+    /// 切换 Skill 的常用标记
+    pub fn toggle_skill_favorite(&self, id: &str, is_favorite: bool) -> Result<bool, AppError> {
+        let conn = lock_conn!(self.conn);
+        let affected = conn
+            .execute(
+                "UPDATE skills SET is_favorite = ?1 WHERE id = ?2",
+                params![is_favorite, id],
+            )
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        Ok(affected > 0)
     }
 
     /// 删除 Skill

@@ -39,6 +39,9 @@ vi.mock("@/hooks/useSkills", () => ({
   useToggleSkillApp: () => ({
     mutateAsync: toggleSkillAppMock,
   }),
+  useToggleSkillFavorite: () => ({
+    mutateAsync: vi.fn(),
+  }),
   useRestoreSkillBackup: () => ({
     mutateAsync: restoreSkillBackupMock,
     isPending: false,

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { MessageSquare, Clock } from "lucide-react";
+import { MessageSquare, Clock, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -15,6 +15,7 @@ import {
   useSaveChatMessage,
   useDeleteChatMessage,
 } from "@/hooks/useHermesChat";
+import { useInstalledSkills } from "@/hooks/useSkills";
 import { useChatStream, type ToolActivity, type ApprovalRequest } from "@/hooks/useChatStream";
 import { chatApi } from "@/lib/api/chat";
 import { compressContext } from "@/lib/contextCompression";
@@ -40,10 +41,14 @@ export function ChatPage({ selectedModel }: ChatPageProps) {
   const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(null);
   const [hermesSessionId, setHermesSessionId] = useState<string | null>(null);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("chat");
+  const [areaMenu, setAreaMenu] = useState<{ x: number; y: number } | null>(null);
+  const areaMenuRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollBottomRef = useRef<HTMLDivElement>(null);
 
   const { data: status } = useChatStatus(true);
+  const { data: installedSkills = [] } = useInstalledSkills();
+  const favoriteSkills = installedSkills.filter((s) => s.isFavorite);
   const { data: sessions = [] } = useChatSessions();
   const { data: messages = [] } = useChatMessages(activeSessionId);
   const createSession = useCreateChatSession();
@@ -227,17 +232,32 @@ export function ChatPage({ selectedModel }: ChatPageProps) {
     [isOnline, activeSessionId, messages, selectedModel, hermesSessionId, sendRun, saveMessage, t],
   );
 
+  const handleClearMessages = useCallback(async () => {
+    if (!activeSessionId) return;
+    setHermesSessionId(null);
+    await chatApi.clearMessages(activeSessionId);
+    void queryClient.invalidateQueries({ queryKey: chatKeys.messages(activeSessionId) });
+    toast.success(t("hermes.chat.newSession"));
+  }, [activeSessionId, queryClient, t]);
+
+  // Close area context menu on outside click
+  useEffect(() => {
+    if (!areaMenu) return;
+    const handle = (e: MouseEvent) => {
+      if (areaMenuRef.current && !areaMenuRef.current.contains(e.target as Node)) {
+        setAreaMenu(null);
+      }
+    };
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [areaMenu]);
+
   const handleSend = useCallback(
     async (text: string, files: import("@/types").ChatFileRef[] = []) => {
       if (!activeSessionId) return;
 
       if (text.trim().toLowerCase() === "/clear") {
-        setHermesSessionId(null);
-        await chatApi.clearMessages(activeSessionId);
-        void queryClient.invalidateQueries({
-          queryKey: chatKeys.messages(activeSessionId),
-        });
-        toast.success(t("hermes.chat.newSession"));
+        await handleClearMessages();
         return;
       }
 
@@ -306,7 +326,15 @@ export function ChatPage({ selectedModel }: ChatPageProps) {
         onDeleteSession={handleDeleteSession}
         onRenameSession={handleRenameSession}
       />
-      <div className="flex-1 flex flex-col min-w-0">
+      <div
+        className="flex-1 flex flex-col min-w-0"
+        onContextMenu={(e) => {
+          const bubble = (e.target as HTMLElement).closest("[data-message-bubble]");
+          if (bubble) return;
+          e.preventDefault();
+          setAreaMenu({ x: e.clientX, y: e.clientY });
+        }}
+      >
         <ScrollArea className="flex-1" ref={scrollRef}>
           <div className="py-4">
             {!activeSessionId ? (
@@ -318,7 +346,12 @@ export function ChatPage({ selectedModel }: ChatPageProps) {
                 {messages
                   .filter((m) => m.role !== "tool")
                   .map((msg) => (
-                    <ChatMessageBubble key={msg.id} message={msg} onDelete={(id) => deleteMessage.mutate(id)} />
+                    <ChatMessageBubble
+                      key={msg.id}
+                      message={msg}
+                      onDelete={(id) => deleteMessage.mutate(id)}
+                      onResend={(content) => void doSendToAgent(content)}
+                    />
                   ))}
                 {/* Tool activities during streaming */}
                 {toolActivities.length > 0 && (
@@ -368,10 +401,29 @@ export function ChatPage({ selectedModel }: ChatPageProps) {
             onStop={handleStop}
             isStreaming={isStreaming}
             disabled={!isOnline || !activeSessionId}
+            favoriteSkills={favoriteSkills}
           />
         </div>
         </div>
       </div>
+
+      {/* Chat area context menu */}
+      {areaMenu && (
+        <div
+          ref={areaMenuRef}
+          className="fixed z-50 min-w-[160px] rounded-md border bg-popover shadow-md py-1 text-sm"
+          style={{ left: areaMenu.x, top: areaMenu.y }}
+        >
+          <button
+            className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-muted transition-colors text-left text-destructive"
+            onClick={() => { void handleClearMessages(); setAreaMenu(null); }}
+            disabled={!activeSessionId || messages.length === 0}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            {t("hermes.chat.clearMessages", { defaultValue: "清除所有消息" })}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

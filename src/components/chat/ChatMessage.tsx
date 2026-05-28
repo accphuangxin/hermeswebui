@@ -1,21 +1,19 @@
-import { memo, useState, useEffect } from "react";
+import { memo, useState, useEffect, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import Markdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { invoke } from "@tauri-apps/api/core";
-import { Copy, Check, User, Bot, Paperclip, Trash2 } from "lucide-react";
+import { Copy, Check, User, Bot, Paperclip, Trash2, RotateCcw } from "lucide-react";
 import type { ChatMessage as ChatMessageType, ChatToolCall, ChatFileRef } from "@/types";
 import { ToolCallBlock } from "./ToolCallBlock";
 import { cn } from "@/lib/utils";
 
 // Convert bare MEDIA:/path references in text into Markdown image or link syntax
 function preprocessMediaLinks(content: string): string {
-  // Images → ![](MEDIA:...)
   let result = content.replace(
     /(?<!\()(MEDIA:[^\s"'<>]+\.(?:png|jpg|jpeg|gif|webp|svg|bmp))/gi,
     (_, p) => `![](${p})`,
   );
-  // HTML files → [filename](MEDIA:...)
   result = result.replace(
     /(?<!\()(MEDIA:[^\s"'<>]+\.html?)/gi,
     (_, p) => {
@@ -36,11 +34,9 @@ function extractLocalPath(src: string): string {
   return src;
 }
 
-// Async component that loads a local file via Tauri and renders as base64
 function LocalImage({ src, alt }: { src: string; alt: string }) {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
-
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
@@ -62,7 +58,6 @@ function LocalImage({ src, alt }: { src: string; alt: string }) {
   );
 }
 
-// Renders a local HTML file inside a sandboxed iframe
 function LocalHtml({ path }: { path: string }) {
   const [html, setHtml] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -104,46 +99,41 @@ function LocalHtml({ path }: { path: string }) {
   );
 }
 
+interface ContextMenuState {
+  x: number;
+  y: number;
+}
+
 interface ChatMessageProps {
   message: ChatMessageType;
   toolResults?: Map<string, string>;
   onDelete?: (messageId: string) => void;
+  onResend?: (content: string) => void;
 }
 
 export const ChatMessageBubble = memo(function ChatMessageBubble({
   message,
   toolResults,
   onDelete,
+  onResend,
 }: ChatMessageProps) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const isUser = message.role === "user";
   const isAssistant = message.role === "assistant";
   const isTool = message.role === "tool";
 
   const toolCalls: ChatToolCall[] = message.toolCalls
-    ? (() => {
-        try {
-          return JSON.parse(message.toolCalls);
-        } catch {
-          return [];
-        }
-      })()
+    ? (() => { try { return JSON.parse(message.toolCalls); } catch { return []; } })()
     : [];
 
   const fileRefs: ChatFileRef[] = message.fileRefs
-    ? (() => {
-        try {
-          return JSON.parse(message.fileRefs);
-        } catch {
-          return [];
-        }
-      })()
+    ? (() => { try { return JSON.parse(message.fileRefs); } catch { return []; } })()
     : [];
 
-  // Strip legacy inline <file name="...">...</file> blocks from content for display,
-  // extracting filenames to show as chips (for messages saved before fileRefs was used).
   const FILE_BLOCK_RE = /<file name="([^"]+)">([\s\S]*?)<\/file>/g;
   const legacyFileChips: { filename: string }[] = [];
   let displayContent = message.content;
@@ -163,17 +153,45 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
     return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
   };
 
-  const handleCopy = async () => {
+  const handleCopy = useCallback(async () => {
     const text = isUser ? displayContent : message.content;
     await navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
-  };
+  }, [isUser, displayContent, message.content]);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    if (!isUser && !isAssistant) return;
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  }, [isUser, isAssistant]);
+
+  const closeMenu = useCallback(() => setContextMenu(null), []);
+
+  // Close menu on outside click or scroll
+  useEffect(() => {
+    if (!contextMenu) return;
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        closeMenu();
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("scroll", closeMenu, true);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("scroll", closeMenu, true);
+    };
+  }, [contextMenu, closeMenu]);
 
   if (isTool) return null;
 
   return (
-    <div className={cn("group flex gap-2 px-3 py-2", isUser && "flex-row-reverse")}>
+    <div
+      className={cn("group flex gap-2 px-3 py-2", isUser && "flex-row-reverse")}
+      data-message-bubble
+      onContextMenu={(e) => e.stopPropagation()}
+    >
       <div
         className={cn(
           "flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center mt-0.5",
@@ -208,11 +226,12 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
         )}
         <div
           className={cn(
-            "rounded-lg px-3 py-2 text-sm max-w-[85%] inline-block",
+            "rounded-lg px-3 py-2 text-sm max-w-[85%] inline-block cursor-default",
             isUser
               ? "bg-primary text-primary-foreground user-bubble"
               : "bg-muted",
           )}
+          onContextMenu={handleContextMenu}
         >
           {isUser ? (
             <div className="whitespace-pre-wrap break-words">{displayContent || <span className="opacity-50">{t("hermes.chat.fileOnly", { defaultValue: "(附件)" })}</span>}</div>
@@ -254,11 +273,7 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
                       return <LocalImage src={src} alt={alt ?? ""} />;
                     }
                     return (
-                      <img
-                        src={src}
-                        alt={alt ?? ""}
-                        className="max-w-full rounded-lg my-1"
-                      />
+                      <img src={src} alt={alt ?? ""} className="max-w-full rounded-lg my-1" />
                     );
                   },
                 }}
@@ -268,6 +283,13 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
             </div>
           )}
         </div>
+        {(isAssistant || isUser) && message.createdAt > 0 && (
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+            <span className="text-[10px] text-muted-foreground select-none px-1">
+              {new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          </div>
+        )}
         {isAssistant && toolCalls.length > 0 && (
           <div className="max-w-[85%]">
             {toolCalls.map((tc) => (
@@ -279,32 +301,45 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
             ))}
           </div>
         )}
-        {(isAssistant || isUser) && (
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            {message.createdAt > 0 && (
-              <span className="text-[10px] text-muted-foreground select-none">
-                {new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-              </span>
-            )}
-            <button
-              onClick={handleCopy}
-              className="text-muted-foreground hover:text-foreground p-1"
-              title={copied ? t("hermes.chat.copied") : t("hermes.chat.copy")}
-            >
-              {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-            </button>
-            {onDelete && (
-              <button
-                onClick={() => onDelete(message.id)}
-                className="text-muted-foreground hover:text-destructive p-1"
-                title={t("hermes.chat.deleteMessage", { defaultValue: "删除消息" })}
-              >
-                <Trash2 className="w-3 h-3" />
-              </button>
-            )}
-          </div>
-        )}
       </div>
+
+      {/* Right-click context menu */}
+      {contextMenu && (
+        <div
+          ref={menuRef}
+          className="fixed z-50 min-w-[140px] rounded-md border bg-popover shadow-md py-1 text-sm"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          <button
+            className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-muted transition-colors text-left"
+            onClick={() => { void handleCopy(); closeMenu(); }}
+          >
+            {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+            {t("hermes.chat.copy", { defaultValue: "复制" })}
+          </button>
+          {isUser && onResend && (
+            <button
+              className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-muted transition-colors text-left"
+              onClick={() => { onResend(displayContent); closeMenu(); }}
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              {t("hermes.chat.resend", { defaultValue: "重发" })}
+            </button>
+          )}
+          {onDelete && (
+            <>
+              <div className="my-1 border-t" />
+              <button
+                className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-muted transition-colors text-left text-destructive"
+                onClick={() => { onDelete(message.id); closeMenu(); }}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                {t("hermes.chat.deleteMessage", { defaultValue: "删除" })}
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 });
