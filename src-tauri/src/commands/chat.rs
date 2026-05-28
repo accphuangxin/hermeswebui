@@ -371,8 +371,8 @@ pub async fn getHermesChatStatus() -> Result<HermesChatStatus, String> {
 }
 
 /// Fetch the model list from a provider's /v1/models endpoint.
-/// Returns model ids on success, empty vec on any failure (non-fatal).
-async fn fetch_remote_models(base_url: &str, api_key: &str) -> Vec<String> {
+/// Returns (id, owned_by) pairs on success, empty vec on any failure (non-fatal).
+async fn fetch_remote_models(base_url: &str, api_key: &str) -> Vec<(String, String)> {
     let url = format!("{}/v1/models", base_url.trim_end_matches('/'));
     let client = match reqwest::Client::builder()
         .timeout(Duration::from_secs(5))
@@ -398,7 +398,15 @@ async fn fetch_remote_models(base_url: &str, api_key: &str) -> Vec<String> {
         .and_then(|d| d.as_array())
         .map(|arr| {
             arr.iter()
-                .filter_map(|m| m.get("id").and_then(|id| id.as_str()).map(str::to_string))
+                .filter_map(|m| {
+                    let id = m.get("id").and_then(|v| v.as_str())?.to_string();
+                    let owned_by = m
+                        .get("owned_by")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("api_server")
+                        .to_string();
+                    Some((id, owned_by))
+                })
                 .collect()
         })
         .unwrap_or_default()
@@ -417,9 +425,9 @@ pub async fn getHermesChatModels() -> Result<Vec<HermesChatModel>, String> {
 
     let mut models: Vec<HermesChatModel> = remote_models
         .into_iter()
-        .map(|id| {
-            let is_default = id == default_model && default_provider == "api_server";
-            HermesChatModel { id, provider: "api_server".to_string(), context_length: None, is_default }
+        .map(|(id, owned_by)| {
+            let is_default = id == default_model && owned_by == default_provider;
+            HermesChatModel { id, provider: owned_by, context_length: None, is_default }
         })
         .collect();
 
