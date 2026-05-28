@@ -27,8 +27,9 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-apple-darwin
+
+      - name: Add Intel target
+        run: rustup target add x86_64-apple-darwin
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
