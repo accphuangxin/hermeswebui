@@ -57,6 +57,7 @@ export interface UnifiedSkillsPanelHandle {
   openInstallFromZip: () => void;
   openRestoreFromBackup: () => void;
   checkUpdates: () => void;
+  scrollToTop: () => void;
 }
 
 function formatSkillBackupDate(unixSeconds: number): string {
@@ -105,6 +106,7 @@ const UnifiedSkillsPanel = React.forwardRef<
   const updateSkillMutation = useUpdateSkill();
   const [isUpdatingAll, setIsUpdatingAll] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const listScrollRef = React.useRef<HTMLDivElement>(null);
 
   const updatesMap = useMemo(() => {
     const map: Record<string, SkillUpdateInfo> = {};
@@ -347,6 +349,7 @@ const UnifiedSkillsPanel = React.forwardRef<
     openInstallFromZip: handleInstallFromZip,
     openRestoreFromBackup: handleOpenRestoreFromBackup,
     checkUpdates: handleCheckUpdates,
+    scrollToTop: () => listScrollRef.current?.scrollTo({ top: 0 }),
   }));
 
   return (
@@ -429,7 +432,7 @@ const UnifiedSkillsPanel = React.forwardRef<
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto overflow-x-hidden pb-24">
+      <div ref={listScrollRef} className="flex-1 overflow-y-auto overflow-x-hidden pb-24">
         {isLoading ? (
           <div className="text-center py-12 text-muted-foreground">
             {t("skills.loading")}

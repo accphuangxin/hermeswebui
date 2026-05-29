@@ -183,6 +183,7 @@ function App() {
   const mainScrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     mainScrollRef.current?.scrollTo({ top: 0 });
+    unifiedSkillsPanelRef.current?.scrollToTop();
   }, [currentView]);
   const [settingsDefaultTab, setSettingsDefaultTab] = useState("general");
   const [settingsKey, setSettingsKey] = useState(0);
