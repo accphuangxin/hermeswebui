@@ -259,10 +259,12 @@ pub fn getHermesApiServerConfig() -> HermesApiServerConfig {
 /// Pass empty string to clear a value (revert to config.yaml default).
 #[tauri::command]
 pub fn setHermesApiServerConfig(host: String, port: String, key: String) -> Result<(), String> {
+    // Use HERMES_CLIENT_HOST/PORT so we don't overwrite the server-side
+    // HERMES_API_HOST/PORT that Python uses to decide its bind address.
     write_hermes_env_vars(&[
-        ("HERMES_API_HOST", if host.is_empty() { None } else { Some(host.as_str()) }),
-        ("HERMES_API_PORT", if port.is_empty() { None } else { Some(port.as_str()) }),
-        ("API_SERVER_KEY",  if key.is_empty()  { None } else { Some(key.as_str()) }),
+        ("HERMES_CLIENT_HOST", if host.is_empty() { None } else { Some(host.as_str()) }),
+        ("HERMES_CLIENT_PORT", if port.is_empty() { None } else { Some(port.as_str()) }),
+        ("API_SERVER_KEY",     if key.is_empty()  { None } else { Some(key.as_str()) }),
     ])
 }
 
@@ -272,11 +274,12 @@ pub(crate) fn read_api_server_config() -> ApiServerConfig {
     let api_server = platforms.and_then(|p| p.get("api_server"));
     let extra = api_server.and_then(|a| a.get("extra"));
 
-    let host = read_hermes_env_var("HERMES_API_HOST")
+    // Read client-specific override first, then fall back to config.yaml extra.host
+    let host = read_hermes_env_var("HERMES_CLIENT_HOST")
         .or_else(|| extra.and_then(|e| e.get("host")).and_then(|v| v.as_str()).map(str::to_string))
         .unwrap_or_else(|| "127.0.0.1".to_string());
 
-    let port = read_hermes_env_var("HERMES_API_PORT")
+    let port = read_hermes_env_var("HERMES_CLIENT_PORT")
         .and_then(|v| v.parse::<u16>().ok())
         .or_else(|| extra.and_then(|e| e.get("port")).and_then(|v| v.as_u64()).map(|p| p as u16))
         .unwrap_or(8643);
