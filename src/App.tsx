@@ -180,6 +180,10 @@ function App() {
 
   const [activeApp, setActiveApp] = useState<AppId>(getInitialApp);
   const [currentView, setCurrentView] = useState<View>(getInitialView);
+  const mainScrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    mainScrollRef.current?.scrollTo({ top: 0 });
+  }, [currentView]);
   const [settingsDefaultTab, setSettingsDefaultTab] = useState("general");
   const [settingsKey, setSettingsKey] = useState(0);
   const openSettings = useCallback((tab = "general") => {
@@ -960,7 +964,7 @@ function App() {
         default:
           return (
             <div className="px-6 flex flex-col flex-1 min-h-0 overflow-hidden">
-              <div className="flex-1 overflow-y-auto overflow-x-hidden pb-12 px-1">
+              <div ref={mainScrollRef} className="flex-1 overflow-y-auto overflow-x-hidden pb-12 px-1">
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={activeApp}
