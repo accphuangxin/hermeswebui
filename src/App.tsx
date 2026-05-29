@@ -1034,18 +1034,18 @@ function App() {
     return (
       <>
         {/* Always-mounted hermes views — hidden via CSS to preserve streaming state */}
-        <div className={cn("flex-1 min-h-0", !isHermesView && "hidden")}>
-          <div className={cn("contents", currentView !== "hermesChat" && "hidden")}>
+        <div className={cn("flex-1 min-h-0 overflow-hidden", !isHermesView && "hidden")}>
+          <div className={cn("flex-1 min-h-0 flex flex-col overflow-hidden h-full", currentView !== "hermesChat" && "hidden")}>
             <ChatPage selectedModel={hermesSelectedModel} />
           </div>
-          <div className={cn("contents", currentView !== "skills" && "hidden")}>
+          <div className={cn("flex-1 min-h-0 flex flex-col overflow-hidden h-full", currentView !== "skills" && "hidden")}>
             <UnifiedSkillsPanel
               ref={unifiedSkillsPanelRef}
               onOpenDiscovery={() => setCurrentView("skillsDiscovery")}
               currentApp={activeApp === "openclaw" ? "claude" : activeApp}
             />
           </div>
-          <div className={cn("contents", currentView !== "skillsDiscovery" && "hidden")}>
+          <div className={cn("flex-1 min-h-0 flex flex-col overflow-hidden h-full", currentView !== "skillsDiscovery" && "hidden")}>
             <SkillsPage
               ref={skillsPageRef}
               initialApp={activeApp === "openclaw" ? "claude" : activeApp}
