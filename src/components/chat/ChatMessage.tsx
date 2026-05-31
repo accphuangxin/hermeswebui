@@ -246,16 +246,36 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
                   return defaultUrlTransform(url);
                 }}
                 components={{
-                  pre: ({ children }) => (
-                    <pre className="bg-background/50 rounded p-2 my-1 overflow-x-auto text-xs">
-                      {children}
-                    </pre>
-                  ),
+                  pre: ({ children }) => {
+                    const [copied, setCopied] = useState(false);
+                    const preRef = useRef<HTMLPreElement>(null);
+                    const handleCopy = () => {
+                      const text = preRef.current?.innerText ?? "";
+                      void navigator.clipboard.writeText(text).then(() => {
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 1500);
+                      });
+                    };
+                    return (
+                      <div className="relative group my-1.5">
+                        <pre ref={preRef} className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded p-3 overflow-x-auto text-xs border border-zinc-200 dark:border-zinc-700">
+                          {children}
+                        </pre>
+                        <button
+                          type="button"
+                          onClick={handleCopy}
+                          className="absolute top-1.5 right-1.5 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-zinc-600 dark:text-zinc-300"
+                        >
+                          {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                        </button>
+                      </div>
+                    );
+                  },
                   code: ({ children, className }) =>
                     className ? (
                       <code className="text-xs">{children}</code>
                     ) : (
-                      <code className="bg-background/50 rounded px-1 py-0.5 text-xs">{children}</code>
+                      <code className="bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-700 rounded px-1 py-0.5 text-xs">{children}</code>
                     ),
                   a: ({ href, children }) => {
                     if (href && /MEDIA:[^\s"'<>]+\.html?$/i.test(href)) {

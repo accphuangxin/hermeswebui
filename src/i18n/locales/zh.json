@@ -1842,7 +1842,7 @@
     }
   },
   "skills": {
-    "manage": "Skills",
+    "manage": "本地 Skills",
     "title": "Skills 管理",
     "description": "从流行的仓库发现并安装技能，扩展 Claude Code/Codex/Gemini 的能力",
     "refresh": "刷新",
@@ -1931,7 +1931,7 @@
     "search": "搜索技能",
     "searchPlaceholder": "搜索技能名称或仓库名称...",
     "searchSource": {
-      "repos": "仓库",
+      "repos": "局域网仓库",
       "skillssh": "skills.sh"
     },
     "skillssh": {
@@ -1999,6 +1999,21 @@
       "successSingle": "技能 {{name}} 已安装",
       "successMultiple": "成功安装 {{count}} 个技能",
       "noSkillsFound": "ZIP 文件中未找到技能（需包含 SKILL.md 文件）"
+    },
+    "clawhub": {
+      "searchPlaceholder": "搜索 ClawHub...",
+      "empty": "暂无技能",
+      "loadFailed": "ClawHub 加载失败",
+      "publish": "发布到 ClawHub",
+      "publishing": "发布中...",
+      "publishDescription": "将技能 {{name}} 发布到 ClawHub 公共目录",
+      "publishSuccess": "发布成功！",
+      "publishFailed": "发布失败",
+      "apiToken": "API Token",
+      "tokenPlaceholder": "从 clawhub.ai 获取",
+      "tokenRequired": "请输入 ClawHub API Token",
+      "changelog": "更新说明",
+      "changelogPlaceholder": "描述此次发布的内容..."
     }
   },
   "deeplink": {

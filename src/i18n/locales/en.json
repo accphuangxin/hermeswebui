@@ -1842,7 +1842,7 @@
     }
   },
   "skills": {
-    "manage": "Skills",
+    "manage": "Local Skills",
     "title": "Skills Management",
     "description": "Discover and install skills from popular repositories to extend Claude Code/Codex/Gemini capabilities",
     "refresh": "Refresh",
@@ -1931,7 +1931,7 @@
     "search": "Search Skills",
     "searchPlaceholder": "Search skill name or repo...",
     "searchSource": {
-      "repos": "Repos",
+      "repos": "Local Repos",
       "skillssh": "skills.sh"
     },
     "skillssh": {
@@ -1999,6 +1999,21 @@
       "successSingle": "Skill {{name}} installed",
       "successMultiple": "Successfully installed {{count}} skills",
       "noSkillsFound": "No skills found in ZIP file (requires SKILL.md file)"
+    },
+    "clawhub": {
+      "searchPlaceholder": "Search ClawHub...",
+      "empty": "No skills found",
+      "loadFailed": "Failed to load ClawHub",
+      "publish": "Publish to ClawHub",
+      "publishing": "Publishing...",
+      "publishDescription": "Publish skill {{name}} to ClawHub public directory",
+      "publishSuccess": "Published successfully!",
+      "publishFailed": "Failed to publish",
+      "apiToken": "API Token",
+      "tokenPlaceholder": "Get from clawhub.ai",
+      "tokenRequired": "Please enter a ClawHub API Token",
+      "changelog": "Changelog",
+      "changelogPlaceholder": "Describe what's in this release..."
     }
   },
   "deeplink": {

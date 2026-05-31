@@ -1192,6 +1192,8 @@ pub fn run() {
             commands::add_skill_repo,
             commands::remove_skill_repo,
             commands::install_skills_from_zip,
+            commands::install_skill_from_url,
+            commands::read_skill_files,
             // Auto launch
             commands::set_auto_launch,
             commands::get_auto_launch_status,

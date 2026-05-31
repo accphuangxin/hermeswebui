@@ -2578,7 +2578,11 @@ impl SkillService {
 
         for skill_dir in skill_dirs {
             // 解析元数据（提前解析，用于确定安装名）
-            let skill_md = skill_dir.join("SKILL.md");
+            let skill_md = ["SKILL.md", "skill.md", "Skill.md"]
+                .iter()
+                .map(|n| skill_dir.join(n))
+                .find(|p| p.exists())
+                .unwrap_or_else(|| skill_dir.join("SKILL.md"));
             let meta = if skill_md.exists() {
                 Self::parse_skill_metadata_static(&skill_md).ok()
             } else {
@@ -2623,52 +2627,55 @@ impl SkillService {
             };
 
             // 检查是否已有同名 directory 的 skill
-            let conflict = existing_skills
+            let existing = existing_skills
                 .values()
-                .find(|s| s.directory.eq_ignore_ascii_case(&install_name));
+                .find(|s| s.directory.eq_ignore_ascii_case(&install_name))
+                .cloned();
 
-            if let Some(existing) = conflict {
-                log::warn!(
-                    "Skill directory '{}' already exists (from {}), skipping",
-                    install_name,
-                    existing.id
+            let skill = if let Some(mut prev) = existing {
+                // 已存在于 SSOT：只需确保 current_app 启用并同步到 app 目录，无需重新解压
+                log::info!(
+                    "Skill '{}' already in SSOT, enabling {:?} and syncing",
+                    install_name, current_app
                 );
+                prev.apps.set_enabled_for(current_app, true);
+                db.save_skill(&prev)?;
+                Self::sync_to_app_dir(&install_name, current_app)?;
+                installed.push(prev.clone());
                 continue;
-            }
+            } else {
+                let (name, description) = match meta {
+                    Some(m) => (
+                        m.name.unwrap_or_else(|| install_name.clone()),
+                        m.description,
+                    ),
+                    None => (install_name.clone(), None),
+                };
 
-            let (name, description) = match meta {
-                Some(m) => (
-                    m.name.unwrap_or_else(|| install_name.clone()),
-                    m.description,
-                ),
-                None => (install_name.clone(), None),
-            };
+                // 复制到 SSOT
+                let dest = ssot_dir.join(&install_name);
+                if dest.exists() {
+                    let _ = fs::remove_dir_all(&dest);
+                }
+                Self::copy_dir_recursive(&skill_dir, &dest)?;
 
-            // 复制到 SSOT
-            let dest = ssot_dir.join(&install_name);
-            if dest.exists() {
-                let _ = fs::remove_dir_all(&dest);
-            }
-            Self::copy_dir_recursive(&skill_dir, &dest)?;
+                let content_hash = Self::compute_dir_hash(&dest).ok();
 
-            // 计算内容哈希
-            let content_hash = Self::compute_dir_hash(&dest).ok();
-
-            // 创建 InstalledSkill 记录
-            let skill = InstalledSkill {
-                id: format!("local:{install_name}"),
-                name,
-                description,
-                directory: install_name.clone(),
-                repo_owner: None,
-                repo_name: None,
-                repo_branch: None,
-                readme_url: None,
-                apps: SkillApps::only(current_app),
-                installed_at: chrono::Utc::now().timestamp(),
-                content_hash,
-                updated_at: 0,
-                is_favorite: false,
+                InstalledSkill {
+                    id: format!("local:{install_name}"),
+                    name,
+                    description,
+                    directory: install_name.clone(),
+                    repo_owner: None,
+                    repo_name: None,
+                    repo_branch: None,
+                    readme_url: None,
+                    apps: SkillApps::only(current_app),
+                    installed_at: chrono::Utc::now().timestamp(),
+                    content_hash,
+                    updated_at: 0,
+                    is_favorite: false,
+                }
             };
 
             // 保存到数据库
@@ -2752,9 +2759,9 @@ impl SkillService {
 
     /// 递归扫描辅助函数
     fn scan_skills_recursive(current: &Path, results: &mut Vec<PathBuf>) -> Result<()> {
-        // 检查当前目录是否包含 SKILL.md
-        let skill_md = current.join("SKILL.md");
-        if skill_md.exists() {
+        // 检查当前目录是否包含 SKILL.md（大小写均接受）
+        let has_skill_md = ["SKILL.md", "skill.md", "Skill.md"].iter().any(|name| current.join(name).exists());
+        if has_skill_md {
             results.push(current.to_path_buf());
             // 找到后不再递归子目录（一个 skill 目录）
             return Ok(());

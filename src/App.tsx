@@ -16,12 +16,10 @@ import {
   Book,
   Brain,
   Wrench,
-  RefreshCw,
   History,
   BarChart2,
   Download,
   FolderArchive,
-  Search,
   FolderOpen,
   KeyRound,
   Shield,
@@ -70,7 +68,6 @@ import { FailoverToggle } from "@/components/proxy/FailoverToggle";
 import UsageScriptModal from "@/components/UsageScriptModal";
 import UnifiedMcpPanel from "@/components/mcp/UnifiedMcpPanel";
 import PromptPanel from "@/components/prompts/PromptPanel";
-import { SkillsPage } from "@/components/skills/SkillsPage";
 import UnifiedSkillsPanel from "@/components/skills/UnifiedSkillsPanel";
 import { DeepLinkImportDialog } from "@/components/DeepLinkImportDialog";
 import { FirstRunNoticeDialog } from "@/components/FirstRunNoticeDialog";
@@ -107,7 +104,6 @@ type View =
   | "settings"
   | "prompts"
   | "skills"
-  | "skillsDiscovery"
   | "mcp"
   | "agents"
   | "universal"
@@ -153,7 +149,6 @@ const VALID_VIEWS: View[] = [
   "settings",
   "prompts",
   "skills",
-  "skillsDiscovery",
   "mcp",
   "agents",
   "universal",
@@ -308,7 +303,6 @@ function App() {
 
   const promptPanelRef = useRef<any>(null);
   const mcpPanelRef = useRef<any>(null);
-  const skillsPageRef = useRef<any>(null);
   const unifiedSkillsPanelRef = useRef<any>(null);
   const addActionButtonClass =
     "bg-orange-500 hover:bg-orange-600 dark:bg-orange-500 dark:hover:bg-orange-600 text-white shadow-lg shadow-orange-500/30 dark:shadow-orange-500/40 rounded-full w-8 h-8";
@@ -635,7 +629,7 @@ function App() {
       if (isTextEditableTarget(event.target)) return;
 
       event.preventDefault();
-      setCurrentView(view === "skillsDiscovery" ? "skills" : "hermesChat");
+      setCurrentView("hermesChat");
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -909,7 +903,7 @@ function App() {
   };
 
   const renderContent = () => {
-    const isHermesView = currentView === "hermesChat" || currentView === "skills" || currentView === "skillsDiscovery";
+    const isHermesView = currentView === "hermesChat" || currentView === "skills";
 
     const content = (() => {
       switch (currentView) {
@@ -1041,14 +1035,8 @@ function App() {
           <div className={cn("flex-1 min-h-0 flex flex-col overflow-hidden h-full", currentView !== "skills" && "hidden")}>
             <UnifiedSkillsPanel
               ref={unifiedSkillsPanelRef}
-              onOpenDiscovery={() => setCurrentView("skillsDiscovery")}
+              onOpenDiscovery={() => setCurrentView("skills")}
               currentApp={activeApp === "openclaw" ? "claude" : activeApp}
-            />
-          </div>
-          <div className={cn("flex-1 min-h-0 flex flex-col overflow-hidden h-full", currentView !== "skillsDiscovery" && "hidden")}>
-            <SkillsPage
-              ref={skillsPageRef}
-              initialApp={activeApp === "openclaw" ? "claude" : activeApp}
             />
           </div>
         </div>
@@ -1181,13 +1169,7 @@ function App() {
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() =>
-                    setCurrentView(
-                      currentView === "skillsDiscovery"
-                        ? "skills"
-                        : "hermesChat",
-                    )
-                  }
+                  onClick={() => setCurrentView("hermesChat")}
                   className="mr-2 rounded-lg"
                 >
                   <ArrowLeft className="w-4 h-4" />
@@ -1197,7 +1179,6 @@ function App() {
                   {currentView === "prompts" &&
                     t("prompts.title", { appName: t(`apps.${activeApp}`) })}
                   {currentView === "skills" && t("skills.title")}
-                  {currentView === "skillsDiscovery" && t("skills.title")}
                   {currentView === "mcp" && t("mcp.unifiedPanel.title")}
                   {currentView === "agents" && t("agents.title")}
                   {currentView === "universal" &&
@@ -1366,11 +1347,9 @@ function App() {
                       </span>
                       {hermesChatStatus && (
                         <span className="text-xs text-muted-foreground ml-1">
-                          {hermesSelectedModel
-                            ? hermesSelectedModel.replace(/^custom_/, "").replace(":", " / ")
-                            : hermesChatStatus.provider
-                              ? `${hermesChatStatus.provider} / ${hermesChatStatus.defaultModel}`
-                              : hermesChatStatus.defaultModel || ""}
+                          {!hermesSelectedModel || hermesSelectedModel === "__default__"
+                            ? t("hermes.chat.defaultModel", { defaultValue: "默认" })
+                            : hermesSelectedModel.replace(/^custom_/, "").replace(":", " / ")}
                         </span>
                       )}
                     </div>
@@ -1395,6 +1374,10 @@ function App() {
                         <SelectValue placeholder={t("hermes.chat.selectModel")} />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="__default__" className="text-xs">
+                          <span>{t("hermes.chat.defaultModel", { defaultValue: "默认" })}</span>
+                          <span className="ml-2 text-muted-foreground">{t("hermes.chat.defaultModelHint", { defaultValue: "(由服务端决定)" })}</span>
+                        </SelectItem>
                         {hermesChatModels.map((m) => (
                           <SelectItem key={`${m.provider}/${m.id}`} value={`custom_${m.provider}:${m.id}`} className="text-xs">
                             <span>{m.id}</span>
@@ -1473,37 +1456,6 @@ function App() {
                     >
                       <Download className="w-4 h-4 mr-2" />
                       {t("skills.import")}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setCurrentView("skillsDiscovery")}
-                      className="hover:bg-black/5 dark:hover:bg-white/5"
-                    >
-                      <Search className="w-4 h-4 mr-2" />
-                      {t("skills.discover")}
-                    </Button>
-                  </>
-                )}
-                {currentView === "skillsDiscovery" && (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => skillsPageRef.current?.refresh()}
-                      className="hover:bg-black/5 dark:hover:bg-white/5"
-                    >
-                      <RefreshCw className="w-4 h-4 mr-2" />
-                      {t("skills.refresh")}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => skillsPageRef.current?.openRepoManager()}
-                      className="hover:bg-black/5 dark:hover:bg-white/5"
-                    >
-                      <Settings className="w-4 h-4 mr-2" />
-                      {t("skills.repoManager")}
                     </Button>
                   </>
                 )}

@@ -335,6 +335,44 @@ pub fn remove_skill_repo(
     Ok(true)
 }
 
+/// 从 URL 下载 ZIP 并安装 Skills（用于局域网仓库）
+#[tauri::command]
+pub async fn install_skill_from_url(
+    url: String,
+    current_app: String,
+    app_state: State<'_, AppState>,
+) -> Result<Vec<InstalledSkill>, String> {
+    use std::io::Write;
+
+    let app_type = parse_app_type(&current_app)?;
+
+    // 下载 ZIP 到临时文件
+    let resp = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| e.to_string())?
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if !resp.status().is_success() {
+        return Err(format!("Download failed: HTTP {}", resp.status()));
+    }
+
+    let bytes = resp.bytes().await.map_err(|e| e.to_string())?;
+
+    let mut tmp = tempfile::NamedTempFile::new().map_err(|e| e.to_string())?;
+    tmp.write_all(&bytes).map_err(|e| e.to_string())?;
+    let tmp_path = tmp.path().to_path_buf();
+    let _ = tmp.keep();
+
+    let result = SkillService::install_from_zip(&app_state.db, &tmp_path, &app_type)
+        .map_err(|e| e.to_string());
+    let _ = std::fs::remove_file(&tmp_path);
+    result
+}
+
 /// 从 ZIP 文件安装 Skills
 #[tauri::command]
 pub fn install_skills_from_zip(
@@ -346,4 +384,70 @@ pub fn install_skills_from_zip(
     let path = std::path::Path::new(&file_path);
 
     SkillService::install_from_zip(&app_state.db, path, &app_type).map_err(|e| e.to_string())
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillFileEntry {
+    pub path: String,
+    pub content_base64: String,
+    pub size: u64,
+    pub content_type: String,
+    pub sha256: String,
+}
+
+fn collect_skill_files(
+    root: &std::path::Path,
+    dir: &std::path::Path,
+    out: &mut Vec<SkillFileEntry>,
+) -> Result<(), String> {
+    use base64::Engine;
+    use sha2::{Digest, Sha256};
+
+    for entry in std::fs::read_dir(dir).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let path = entry.path();
+        if path.is_dir() {
+            collect_skill_files(root, &path, out)?;
+        } else {
+            let rel = path.strip_prefix(root).map_err(|e| e.to_string())?;
+            let rel_str = rel.to_string_lossy().replace('\\', "/");
+            let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+            let size = bytes.len() as u64;
+            let sha256 = format!("{:x}", Sha256::digest(&bytes));
+            let content_base64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+            let content_type = if rel_str.ends_with(".md") {
+                "text/markdown"
+            } else if rel_str.ends_with(".json") {
+                "application/json"
+            } else if rel_str.ends_with(".ts") || rel_str.ends_with(".js") {
+                "text/javascript"
+            } else if rel_str.ends_with(".sh") {
+                "text/x-sh"
+            } else {
+                "application/octet-stream"
+            };
+            out.push(SkillFileEntry {
+                path: rel_str,
+                content_base64,
+                size,
+                content_type: content_type.to_string(),
+                sha256,
+            });
+        }
+    }
+    Ok(())
+}
+
+/// 读取指定 skill 目录下所有文件，用于发布到 ClawHub
+#[tauri::command]
+pub fn read_skill_files(directory: String) -> Result<Vec<SkillFileEntry>, String> {
+    let ssot_dir = SkillService::get_ssot_dir().map_err(|e| e.to_string())?;
+    let skill_dir = ssot_dir.join(&directory);
+    if !skill_dir.exists() {
+        return Err(format!("Skill directory not found: {directory}"));
+    }
+    let mut entries = Vec::new();
+    collect_skill_files(&skill_dir, &skill_dir, &mut entries)?;
+    Ok(entries)
 }

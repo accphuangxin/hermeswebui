@@ -57,7 +57,7 @@ export function ChatPage({ selectedModel }: ChatPageProps) {
   const saveMessage = useSaveChatMessage();
   const deleteMessage = useDeleteChatMessage(activeSessionId);
   const userCancelledRef = useRef(false);
-  const { sendRun, isStreaming, stop } = useChatStream();
+  const { sendRun, isStreaming, isWaiting, stop } = useChatStream();
   const handleStop = useCallback(() => {
     userCancelledRef.current = true;
     void stop();
@@ -137,9 +137,10 @@ export function ChatPage({ selectedModel }: ChatPageProps) {
       setToolActivities([]);
       setPendingApproval(null);
 
-      const hermesModel = selectedModel
-        ? selectedModel.replace(/^custom_[^:]+:/, "")
-        : undefined;
+      const hermesModel =
+        selectedModel && selectedModel !== "__default__"
+          ? selectedModel.replace(/^custom_[^:]+:/, "")
+          : undefined;
 
       const { compressedInput, wasCompressed, droppedCount } = compressContext(messages, fullText);
       if (wasCompressed) {
@@ -226,7 +227,11 @@ export function ChatPage({ selectedModel }: ChatPageProps) {
       setStreamingContent("");
       setToolActivities([]);
       if (!userCancelledRef.current && lastError) {
-        toast.error("Chat error", { description: lastError });
+        const errMsgId = crypto.randomUUID();
+        await saveMessage.mutateAsync({
+          sessionId: activeSessionId,
+          message: { id: errMsgId, role: "assistant", content: `**错误**: ${lastError}` },
+        });
       }
     },
     [isOnline, activeSessionId, messages, selectedModel, hermesSessionId, sendRun, saveMessage, t],
@@ -378,7 +383,7 @@ export function ChatPage({ selectedModel }: ChatPageProps) {
                   />
                 )}
                 {/* Thinking indicator */}
-                {isStreaming && !streamingContent && toolActivities.length === 0 && (
+                {(isWaiting || (isStreaming && !streamingContent && toolActivities.length === 0)) && (
                   <div className="px-3 py-2 text-sm text-muted-foreground animate-pulse">
                     {t("hermes.chat.thinking")}
                   </div>
