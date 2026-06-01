@@ -12,6 +12,7 @@ import {
   Globe,
   Package,
   X,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -407,10 +408,17 @@ function ClawHubSkillRow({ skill, installed, installing, onInstall }: ClawHubSki
             {skill.ownerHandle && (
               <span className="text-[10px] text-muted-foreground/60 shrink-0">@{skill.ownerHandle}</span>
             )}
+            {typeof skill.stars === "number" && skill.stars > 0 && (
+              <span className="flex items-center gap-0.5 text-[10px] text-amber-500 shrink-0">
+                <Star className="w-2.5 h-2.5 fill-amber-500" />
+                {skill.stars.toLocaleString()}
+              </span>
+            )}
             {typeof skill.installs === "number" && skill.installs > 0 && (
-              <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3.5 shrink-0">
+              <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground shrink-0">
+                <Download className="w-2.5 h-2.5" />
                 {skill.installs.toLocaleString()}
-              </Badge>
+              </span>
             )}
             {skill.latestVersion && (
               <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 shrink-0 text-muted-foreground">
@@ -521,10 +529,10 @@ function PublishDialog({ skill, onClose }: PublishDialogProps) {
         <DialogHeader className="pb-2">
           <DialogTitle className="flex items-center gap-2 text-lg">
             <Upload className="w-5 h-5" />
-            {t("skills.clawhub.publish", { defaultValue: "发布到 ClawHub" })}
+            {t("skills.clawhub.publish", { defaultValue: "发布到 Local ClawHub" })}
           </DialogTitle>
           <DialogDescription className="text-sm">
-            {t("skills.clawhub.publishDescription", { defaultValue: "将技能 {{name}} 发布到 ClawHub 公共目录", name: skill.name })}
+            {t("skills.clawhub.publishDescription", { defaultValue: "将技能 {{name}} 发布到 Local ClawHub", name: skill.name })}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-5 px-6 py-4">
@@ -576,7 +584,7 @@ function PublishDialog({ skill, onClose }: PublishDialogProps) {
             {publishing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
             {publishing
               ? (publishStatus || t("skills.clawhub.publishing", { defaultValue: "发布中..." }))
-              : t("skills.clawhub.publish", { defaultValue: "发布" })}
+              : t("skills.clawhub.publish", { defaultValue: "发布到 Local ClawHub" })}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -993,7 +1001,7 @@ const InstalledSkillListItem: React.FC<InstalledSkillListItemProps> = ({
 
       <div className="flex-shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" style={hasUpdate ? { opacity: 1 } : undefined}>
         {onPublish && (
-          <Button type="button" variant="ghost" size="icon" className="h-7 w-7 hover:text-blue-500 hover:bg-blue-100 dark:hover:text-blue-400 dark:hover:bg-blue-500/10 opacity-0 group-hover:opacity-100" onClick={onPublish} title={t("skills.clawhub.publish", { defaultValue: "发布到 ClawHub" })}>
+          <Button type="button" variant="ghost" size="icon" className="h-7 w-7 hover:text-blue-500 hover:bg-blue-100 dark:hover:text-blue-400 dark:hover:bg-blue-500/10 opacity-0 group-hover:opacity-100" onClick={onPublish} title={t("skills.clawhub.publish", { defaultValue: "发布到 Local ClawHub" })}>
             <Upload size={13} />
           </Button>
         )}

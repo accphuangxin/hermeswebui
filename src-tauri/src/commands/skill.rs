@@ -442,11 +442,26 @@ fn collect_skill_files(
 /// 读取指定 skill 目录下所有文件，用于发布到 ClawHub
 #[tauri::command]
 pub fn read_skill_files(directory: String) -> Result<Vec<SkillFileEntry>, String> {
+    // 优先 SSOT，找不到再找 ~/.hermes/skills/
     let ssot_dir = SkillService::get_ssot_dir().map_err(|e| e.to_string())?;
     let skill_dir = ssot_dir.join(&directory);
-    if !skill_dir.exists() {
-        return Err(format!("Skill directory not found: {directory}"));
-    }
+
+    let skill_dir = if skill_dir.exists() {
+        skill_dir
+    } else {
+        // 解析 symlink，尝试 ~/.hermes/skills/
+        let hermes_dir = SkillService::get_app_skills_dir(
+            &crate::app_config::AppType::Hermes,
+        ).map_err(|e| e.to_string())?;
+        let hermes_skill = hermes_dir.join(&directory);
+        if hermes_skill.exists() {
+            // 如果是 symlink，跟随到真实路径
+            std::fs::canonicalize(&hermes_skill).unwrap_or(hermes_skill)
+        } else {
+            return Err(format!("Skill directory not found: {directory}"));
+        }
+    };
+
     let mut entries = Vec::new();
     collect_skill_files(&skill_dir, &skill_dir, &mut entries)?;
     Ok(entries)

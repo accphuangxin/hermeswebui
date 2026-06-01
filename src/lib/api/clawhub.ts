@@ -11,6 +11,7 @@ export interface ClawHubSkill {
   description?: string;
   latestVersion?: string;
   installs?: number;
+  stars?: number;
   ownerHandle?: string;
   tags?: string[];
   repoOwner?: string;
@@ -63,6 +64,7 @@ function normalizeSkill(raw: Record<string, unknown>): ClawHubSkill {
     description: skill.summary ? String(skill.summary) : (skill.description ? String(skill.description) : undefined),
     latestVersion: latestVersion?.version ? String(latestVersion.version) : undefined,
     installs: typeof installs === "number" ? installs : undefined,
+    stars: typeof stats?.stars === "number" ? stats.stars : undefined,
     ownerHandle,
     tags: Array.isArray(skill.tags) ? Object.keys(skill.tags as object) : undefined,
     repoOwner: ownerHandle,
