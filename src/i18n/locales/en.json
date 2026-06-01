@@ -1931,7 +1931,7 @@
     "search": "Search Skills",
     "searchPlaceholder": "Search skill name or repo...",
     "searchSource": {
-      "repos": "Local Repos",
+      "repos": "Local ClawHub",
       "skillssh": "skills.sh"
     },
     "skillssh": {
@@ -2004,9 +2004,9 @@
       "searchPlaceholder": "Search ClawHub...",
       "empty": "No skills found",
       "loadFailed": "Failed to load ClawHub",
-      "publish": "Publish to ClawHub",
+      "publish": "Publish to Local ClawHub",
       "publishing": "Publishing...",
-      "publishDescription": "Publish skill {{name}} to ClawHub public directory",
+      "publishDescription": "Publish skill {{name}} to Local ClawHub",
       "publishSuccess": "Published successfully!",
       "publishFailed": "Failed to publish",
       "apiToken": "API Token",

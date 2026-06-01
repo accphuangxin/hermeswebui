@@ -1931,7 +1931,7 @@
     "search": "搜索技能",
     "searchPlaceholder": "搜索技能名称或仓库名称...",
     "searchSource": {
-      "repos": "局域网仓库",
+      "repos": "Local ClawHub",
       "skillssh": "skills.sh"
     },
     "skillssh": {
@@ -2004,9 +2004,9 @@
       "searchPlaceholder": "搜索 ClawHub...",
       "empty": "暂无技能",
       "loadFailed": "ClawHub 加载失败",
-      "publish": "发布到 ClawHub",
+      "publish": "发布到 Local ClawHub",
       "publishing": "发布中...",
-      "publishDescription": "将技能 {{name}} 发布到 ClawHub 公共目录",
+      "publishDescription": "将技能 {{name}} 发布到 Local ClawHub",
       "publishSuccess": "发布成功！",
       "publishFailed": "发布失败",
       "apiToken": "API Token",

@@ -2568,7 +2568,12 @@ impl SkillService {
             )));
         }
 
-        let ssot_dir = Self::get_ssot_dir()?;
+        // hermes アプリへのインストールは直接 ~/.hermes/skills/ に配置する
+        let install_dir = if matches!(current_app, AppType::Hermes) {
+            Self::get_app_skills_dir(current_app)?
+        } else {
+            Self::get_ssot_dir()?
+        };
         let mut installed = Vec::new();
         let existing_skills = db.get_all_installed_skills()?;
         let zip_stem = zip_path
@@ -2633,14 +2638,16 @@ impl SkillService {
                 .cloned();
 
             let skill = if let Some(mut prev) = existing {
-                // 已存在于 SSOT：只需确保 current_app 启用并同步到 app 目录，无需重新解压
+                // 已存在：确保 current_app 启用并同步
                 log::info!(
-                    "Skill '{}' already in SSOT, enabling {:?} and syncing",
+                    "Skill '{}' already exists, enabling {:?} and syncing",
                     install_name, current_app
                 );
                 prev.apps.set_enabled_for(current_app, true);
                 db.save_skill(&prev)?;
-                Self::sync_to_app_dir(&install_name, current_app)?;
+                if !matches!(current_app, AppType::Hermes) {
+                    Self::sync_to_app_dir(&install_name, current_app)?;
+                }
                 installed.push(prev.clone());
                 continue;
             } else {
@@ -2652,11 +2659,12 @@ impl SkillService {
                     None => (install_name.clone(), None),
                 };
 
-                // 复制到 SSOT
-                let dest = ssot_dir.join(&install_name);
+                // 复制到目标目录（hermes 直接用 app dir，其他用 SSOT）
+                let dest = install_dir.join(&install_name);
                 if dest.exists() {
                     let _ = fs::remove_dir_all(&dest);
                 }
+                fs::create_dir_all(&install_dir).ok();
                 Self::copy_dir_recursive(&skill_dir, &dest)?;
 
                 let content_hash = Self::compute_dir_hash(&dest).ok();
@@ -2681,8 +2689,10 @@ impl SkillService {
             // 保存到数据库
             db.save_skill(&skill)?;
 
-            // 同步到当前应用目录
-            Self::sync_to_app_dir(&install_name, current_app)?;
+            // 非 hermes 时同步到应用目录
+            if !matches!(current_app, AppType::Hermes) {
+                Self::sync_to_app_dir(&install_name, current_app)?;
+            }
 
             log::info!(
                 "Skill {} installed from ZIP, enabled for {:?}",

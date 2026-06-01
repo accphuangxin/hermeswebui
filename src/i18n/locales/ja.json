@@ -1931,7 +1931,7 @@
     "search": "スキルを検索",
     "searchPlaceholder": "スキル名またはリポジトリで検索...",
     "searchSource": {
-      "repos": "ローカルリポジトリ",
+      "repos": "Local ClawHub",
       "skillssh": "skills.sh"
     },
     "skillssh": {
@@ -2004,9 +2004,9 @@
       "searchPlaceholder": "ClawHub を検索...",
       "empty": "スキルが見つかりません",
       "loadFailed": "ClawHub の読み込みに失敗しました",
-      "publish": "ClawHub に公開",
+      "publish": "Local ClawHub に公開",
       "publishing": "公開中...",
-      "publishDescription": "スキル {{name}} を ClawHub の公開ディレクトリに公開します",
+      "publishDescription": "スキル {{name}} を Local ClawHub に公開します",
       "publishSuccess": "公開しました！",
       "publishFailed": "公開に失敗しました",
       "apiToken": "API トークン",
