@@ -1174,6 +1174,10 @@ function App() {
                 >
                   <Sparkles className="w-4 h-4" />
                 </Button>
+                <AgentsButton
+                  isActive={false}
+                  onClick={() => setCurrentView("hermesAgents")}
+                />
                 <UpdateBadge onClick={() => openSettings("general")} />
               </div>
             ) : currentView !== "providers" ? (
@@ -1293,12 +1297,6 @@ function App() {
                 className="flex shrink-0 items-center gap-1.5 ml-auto"
                 style={{ WebkitAppRegion: "no-drag" } as any}
               >
-                {(currentView === "hermesChat" || currentView === "hermesAgents") && (
-                  <AgentsButton
-                    isActive={currentView === "hermesAgents"}
-                    onClick={() => setCurrentView(currentView === "hermesAgents" ? "hermesChat" : "hermesAgents")}
-                  />
-                )}
                 {currentView === "hermesChat" && (
                   <>
                     <Popover open={apiConfigOpen} onOpenChange={setApiConfigOpen}>
