@@ -14,7 +14,7 @@ interface HermesAgentsPageProps {
 
 export function HermesAgentsPage({ isOnline, selectedAgentId, onSelectAgent, onBack }: HermesAgentsPageProps) {
   const { t } = useTranslation();
-  const { data: agents = [], isLoading, isError, refetch, isFetching } = useHermesAgents(isOnline);
+  const { data: agents = [], isLoading, isError, error, refetch, isFetching } = useHermesAgents(isOnline);
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -58,6 +58,9 @@ export function HermesAgentsPage({ isOnline, selectedAgentId, onSelectAgent, onB
             <p className="text-sm text-muted-foreground">
               {t("hermes.agents.loadError", { defaultValue: "加载失败" })}
             </p>
+            {error && (
+              <p className="text-xs text-destructive/80 max-w-xs break-all font-mono">{String(error)}</p>
+            )}
             <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => void refetch()}>
               {t("hermes.agents.retry", { defaultValue: "重试" })}
             </Button>

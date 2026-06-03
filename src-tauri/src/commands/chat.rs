@@ -508,7 +508,18 @@ pub async fn getHermesAgents() -> Result<Vec<HermesAgent>, String> {
         return Err(format!("HTTP {}", resp.status()));
     }
 
-    resp.json::<Vec<HermesAgent>>().await.map_err(|e| format!("parse failed: {e}"))
+    let body: serde_json::Value = resp.json().await.map_err(|e| format!("parse failed: {e}"))?;
+
+    // Support both array response and wrapped {"agents": [...]} / {"data": [...]}
+    let arr = if body.is_array() {
+        body
+    } else if let Some(v) = body.get("agents").or_else(|| body.get("data")).or_else(|| body.get("items")) {
+        v.clone()
+    } else {
+        return Err(format!("unexpected response shape: {body}"));
+    };
+
+    serde_json::from_value::<Vec<HermesAgent>>(arr).map_err(|e| format!("deserialize failed: {e}"))
 }
 
 #[derive(Serialize)]
