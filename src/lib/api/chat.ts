@@ -18,6 +18,7 @@ export const chatApi = {
     model?: string | null,
     systemPrompt?: string | null,
     projectDir?: string | null,
+    agentId?: string | null,
   ): Promise<ChatSession> {
     return await invoke("createChatSession", {
       id,
@@ -25,11 +26,12 @@ export const chatApi = {
       model: model ?? null,
       systemPrompt: systemPrompt ?? null,
       projectDir: projectDir ?? null,
+      agentId: agentId ?? null,
     });
   },
 
-  async listSessions(): Promise<ChatSession[]> {
-    return await invoke("listChatSessions");
+  async listSessions(agentId?: string | null): Promise<ChatSession[]> {
+    return await invoke("listChatSessions", { agentId: agentId ?? null });
   },
 
   async getSession(sessionId: string): Promise<ChatSession | null> {

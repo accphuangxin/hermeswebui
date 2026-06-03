@@ -7,7 +7,7 @@ export const chatKeys = {
   status: ["hermesChat", "status"] as const,
   models: ["hermesChat", "models"] as const,
   agents: ["hermesChat", "agents"] as const,
-  sessions: ["hermesChat", "sessions"] as const,
+  sessions: (agentId: string | null) => ["hermesChat", "sessions", agentId] as const,
   session: (id: string) => ["hermesChat", "session", id] as const,
   messages: (sessionId: string) => ["hermesChat", "messages", sessionId] as const,
 };
@@ -25,23 +25,25 @@ export function useChatModels() {
   return useQuery({
     queryKey: chatKeys.models,
     queryFn: () => chatApi.getModels(),
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
 }
 
-export function useHermesAgents(enabled: boolean) {
+export function useHermesAgents() {
   return useQuery({
     queryKey: chatKeys.agents,
     queryFn: () => agentsApi.getAgents(),
-    enabled,
     refetchInterval: 30_000,
     staleTime: 20_000,
+    retry: 1,
   });
 }
 
-export function useChatSessions() {
+export function useChatSessions(agentId: string | null) {
   return useQuery({
-    queryKey: chatKeys.sessions,
-    queryFn: () => chatApi.listSessions(),
+    queryKey: chatKeys.sessions(agentId),
+    queryFn: () => chatApi.listSessions(agentId),
   });
 }
 
@@ -62,6 +64,7 @@ export function useCreateChatSession() {
       model?: string | null;
       systemPrompt?: string | null;
       projectDir?: string | null;
+      agentId?: string | null;
     }) =>
       chatApi.createSession(
         params.id,
@@ -69,12 +72,15 @@ export function useCreateChatSession() {
         params.model,
         params.systemPrompt,
         params.projectDir,
+        params.agentId,
       ),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: chatKeys.sessions });
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({ queryKey: chatKeys.sessions(variables.agentId ?? null) });
     },
   });
 }
+
+const sessionsBaseKey = ["hermesChat", "sessions"] as const;
 
 export function useUpdateChatSession() {
   const queryClient = useQueryClient();
@@ -86,7 +92,7 @@ export function useUpdateChatSession() {
       systemPrompt?: string | null;
     }) => chatApi.updateSession(params.sessionId, params.title, params.model, params.systemPrompt),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: chatKeys.sessions });
+      void queryClient.invalidateQueries({ queryKey: sessionsBaseKey });
     },
   });
 }
@@ -96,7 +102,7 @@ export function useDeleteChatSession() {
   return useMutation({
     mutationFn: (sessionId: string) => chatApi.deleteSession(sessionId),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: chatKeys.sessions });
+      void queryClient.invalidateQueries({ queryKey: sessionsBaseKey });
     },
   });
 }
@@ -110,7 +116,7 @@ export function useSaveChatMessage() {
       void queryClient.invalidateQueries({
         queryKey: chatKeys.messages(variables.sessionId),
       });
-      void queryClient.invalidateQueries({ queryKey: chatKeys.sessions });
+      void queryClient.invalidateQueries({ queryKey: sessionsBaseKey });
     },
   });
 }
@@ -138,7 +144,7 @@ export function useSaveChatMessagesBatch() {
       void queryClient.invalidateQueries({
         queryKey: chatKeys.messages(variables.sessionId),
       });
-      void queryClient.invalidateQueries({ queryKey: chatKeys.sessions });
+      void queryClient.invalidateQueries({ queryKey: sessionsBaseKey });
     },
   });
 }

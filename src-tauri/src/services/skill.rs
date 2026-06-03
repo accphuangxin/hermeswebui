@@ -551,15 +551,32 @@ impl SkillService {
             AppType::Gemini => home.join(".gemini").join("skills"),
             AppType::OpenCode => home.join(".config").join("opencode").join("skills"),
             AppType::OpenClaw => home.join(".openclaw").join("skills"),
-            AppType::Hermes => crate::hermes_config::get_hermes_dir().join("skills"),
+            AppType::Hermes => {
+                let hermes_dir = crate::hermes_config::get_hermes_dir();
+                // If an agent is active, use its profile-specific skills dir
+                if let Some(agent_id) = crate::store::get_active_hermes_agent() {
+                    hermes_dir.join("profiles").join(agent_id).join("skills")
+                } else {
+                    hermes_dir.join("skills")
+                }
+            }
         })
     }
 
     // ========== 统一管理方法 ==========
 
     /// 获取所有已安装的 Skills（含 ~/.hermes/skills/ 目录下未被管理的技能）
-    pub fn get_all_installed(db: &Arc<Database>) -> Result<Vec<InstalledSkill>> {
+    /// 当传入 agent_id 时，isFavorite 由 skill_agent_favorites 表决定（agent 级别隔离）
+    pub fn get_all_installed(db: &Arc<Database>, agent_id: Option<&str>) -> Result<Vec<InstalledSkill>> {
         let mut skills = db.get_all_installed_skills()?;
+
+        // 如果指定了 agent，用 agent 级别收藏覆盖全局 is_favorite
+        if let Some(aid) = agent_id {
+            let agent_favs = db.get_agent_favorite_skill_ids(aid)?;
+            for skill in skills.values_mut() {
+                skill.is_favorite = agent_favs.contains(&skill.id);
+            }
+        }
 
         // 递归扫描 ~/.hermes/skills/ 目录，把不在数据库中的技能以 local: 形式补充进去
         if let Ok(hermes_dir) = Self::get_app_skills_dir(&AppType::Hermes) {

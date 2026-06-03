@@ -1,12 +1,13 @@
 import { useCallback, useRef, useState, KeyboardEvent, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Send, Square, Paperclip, X, Sparkles } from "lucide-react";
+import { Send, Square, Paperclip, X, Sparkles, Bot } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Button } from "@/components/ui/button";
 import { chatApi } from "@/lib/api/chat";
 import { cn } from "@/lib/utils";
 import type { ChatFileRef } from "@/types";
 import type { InstalledSkill } from "@/lib/api/skills";
+import type { HermesAgent } from "@/lib/api/agents";
 
 const HERMES_COMMANDS = [
   { cmd: "/clear", desc: "Clear conversation and start fresh" },
@@ -18,9 +19,12 @@ interface ChatInputProps {
   isStreaming: boolean;
   disabled?: boolean;
   favoriteSkills?: InstalledSkill[];
+  agents?: HermesAgent[];
+  selectedAgentId?: string | null;
+  onSelectAgent?: (agentId: string | null, port?: number, key?: string) => void;
 }
 
-export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkills = [] }: ChatInputProps) {
+export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkills = [], agents = [], selectedAgentId, onSelectAgent }: ChatInputProps) {
   const { t } = useTranslation();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [files, setFiles] = useState<ChatFileRef[]>([]);
@@ -38,6 +42,13 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkill
   const [mentionTriggerPos, setMentionTriggerPos] = useState(-1);
   const mentionMenuRef = useRef<HTMLDivElement>(null);
 
+  // ~agent state
+  const [showAgents, setShowAgents] = useState(false);
+  const [agentFilter, setAgentFilter] = useState("");
+  const [agentSelectedIndex, setAgentSelectedIndex] = useState(0);
+  const [agentTriggerPos, setAgentTriggerPos] = useState(-1);
+  const agentMenuRef = useRef<HTMLDivElement>(null);
+
   const filteredCommands = HERMES_COMMANDS.filter((c) =>
     c.cmd.startsWith(commandFilter || "/"),
   );
@@ -47,6 +58,13 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkill
     s.directory.toLowerCase().includes(mentionFilter.toLowerCase()),
   );
 
+  const filteredAgents = agents.filter((a) => {
+    const name = (a.name ?? a.alias ?? a.id).toLowerCase();
+    const desc = (a.description ?? "").toLowerCase();
+    const q = agentFilter.toLowerCase();
+    return name.includes(q) || desc.includes(q);
+  });
+
   useEffect(() => {
     setSelectedIndex(0);
   }, [commandFilter]);
@@ -55,6 +73,10 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkill
     setMentionSelectedIndex(0);
   }, [mentionFilter]);
 
+  useEffect(() => {
+    setAgentSelectedIndex(0);
+  }, [agentFilter]);
+
   // scroll the highlighted mention item into view
   useEffect(() => {
     if (!showMentions || !mentionMenuRef.current) return;
@@ -62,12 +84,20 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkill
     el?.scrollIntoView({ block: "nearest" });
   }, [mentionSelectedIndex, showMentions]);
 
+  // scroll the highlighted agent item into view
+  useEffect(() => {
+    if (!showAgents || !agentMenuRef.current) return;
+    const el = agentMenuRef.current.querySelectorAll<HTMLButtonElement>("button")[agentSelectedIndex];
+    el?.scrollIntoView({ block: "nearest" });
+  }, [agentSelectedIndex, showAgents]);
+
   const handleSend = useCallback(() => {
     const value = textareaRef.current?.value.trim();
     if (!value && files.length === 0) return;
 
     setShowCommands(false);
     setShowMentions(false);
+    setShowAgents(false);
 
     onSend(value || "", files);
     setFiles([]);
@@ -90,16 +120,13 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkill
     const el = textareaRef.current;
     if (!el) return;
     const value = el.value;
-    // replace from @ trigger position to current cursor
     const before = value.slice(0, mentionTriggerPos);
     const after = value.slice(el.selectionStart);
     const inserted = `使用技能: ${skill.name}, `;
     el.value = before + inserted + after;
-    // move cursor after the inserted mention
     const newPos = mentionTriggerPos + inserted.length;
     el.setSelectionRange(newPos, newPos);
     el.focus();
-    // resize
     el.style.height = "auto";
     el.style.height = Math.min(el.scrollHeight, 160) + "px";
 
@@ -108,7 +135,53 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkill
     setMentionTriggerPos(-1);
   };
 
+  const selectAgent = (agent: HermesAgent) => {
+    const el = textareaRef.current;
+    if (!el) return;
+    // remove the ~fragment from the input
+    const before = el.value.slice(0, agentTriggerPos);
+    const after = el.value.slice(el.selectionStart);
+    el.value = before + after;
+    el.setSelectionRange(before.length, before.length);
+    el.focus();
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 160) + "px";
+
+    setShowAgents(false);
+    setAgentFilter("");
+    setAgentTriggerPos(-1);
+
+    if (onSelectAgent) {
+      const agentId = agent.isDefault ? null : agent.id;
+      onSelectAgent(agentId, agent.apiServerPort, agent.apiServerKey);
+    }
+  };
+
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // ~agent popup takes highest priority
+    if (showAgents && filteredAgents.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setAgentSelectedIndex((i) => (i + 1) % filteredAgents.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setAgentSelectedIndex((i) => (i - 1 + filteredAgents.length) % filteredAgents.length);
+        return;
+      }
+      if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
+        e.preventDefault();
+        selectAgent(filteredAgents[agentSelectedIndex]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setShowAgents(false);
+        return;
+      }
+    }
+
     // @mention popup takes priority
     if (showMentions && filteredSkills.length > 0) {
       if (e.key === "ArrowDown") {
@@ -172,13 +245,27 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkill
 
     const value = el.value;
     const cursor = el.selectionStart;
+    const textBeforeCursor = value.slice(0, cursor);
+
+    // detect ~agent: scan backwards from cursor for '~'
+    const tildeIndex = textBeforeCursor.lastIndexOf("~");
+    if (tildeIndex !== -1 && agents.length > 0) {
+      const fragment = textBeforeCursor.slice(tildeIndex + 1);
+      if (!fragment.includes(" ") && !fragment.includes("\n")) {
+        setAgentTriggerPos(tildeIndex);
+        setAgentFilter(fragment);
+        setShowAgents(true);
+        setShowMentions(false);
+        setShowCommands(false);
+        return;
+      }
+    }
+    setShowAgents(false);
 
     // detect @mention: scan backwards from cursor for '@'
-    const textBeforeCursor = value.slice(0, cursor);
     const atIndex = textBeforeCursor.lastIndexOf("@");
     if (atIndex !== -1 && favoriteSkills.length > 0) {
       const fragment = textBeforeCursor.slice(atIndex + 1);
-      // only show if no space in the fragment (still typing the mention)
       if (!fragment.includes(" ") && !fragment.includes("\n")) {
         setMentionTriggerPos(atIndex);
         setMentionFilter(fragment);
@@ -272,6 +359,40 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkill
 
   return (
     <div className="border-t bg-background relative">
+      {/* ~agent popup */}
+      {showAgents && filteredAgents.length > 0 && (
+        <div
+          ref={agentMenuRef}
+          className="absolute bottom-full left-3 right-3 mb-1 bg-popover border rounded-md shadow-md max-h-[240px] overflow-y-auto z-50"
+        >
+          {filteredAgents.map((a, i) => {
+            const name = a.name ?? a.alias ?? a.id;
+            const isSelected = a.isDefault ? selectedAgentId === null : a.id === selectedAgentId;
+            return (
+              <button
+                key={a.id}
+                onMouseEnter={() => setAgentSelectedIndex(i)}
+                onClick={() => selectAgent(a)}
+                className={cn(
+                  "w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-muted transition-colors",
+                  i === agentSelectedIndex && "bg-muted",
+                )}
+              >
+                <Bot className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+                <span className="font-medium flex-shrink-0">{name}</span>
+                {isSelected && <span className="text-[10px] text-primary font-medium ml-0.5">●</span>}
+                {a.description && (
+                  <span className="text-muted-foreground text-xs min-w-0 truncate">{a.description}</span>
+                )}
+                {a.model && (
+                  <span className="text-muted-foreground/50 text-[10px] font-mono ml-auto flex-shrink-0">{a.model}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* @mention popup */}
       {showMentions && filteredSkills.length > 0 && (
         <div
@@ -281,6 +402,7 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkill
           {filteredSkills.map((s, i) => (
             <button
               key={s.id}
+              onMouseEnter={() => setMentionSelectedIndex(i)}
               onClick={() => insertMention(s)}
               className={cn(
                 "w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-muted transition-colors",
@@ -306,6 +428,7 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkill
           {filteredCommands.map((c, i) => (
             <button
               key={c.cmd}
+              onMouseEnter={() => setSelectedIndex(i)}
               onClick={() => insertCommand(c.cmd)}
               className={cn(
                 "w-full flex items-center gap-3 px-3 py-1.5 text-left text-sm hover:bg-muted transition-colors",

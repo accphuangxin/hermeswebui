@@ -18,6 +18,7 @@ pub struct ChatSession {
     pub updated_at: i64,
     pub message_count: i64,
     pub project_dir: Option<String>,
+    pub agent_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -53,13 +54,14 @@ impl Database {
         model: Option<&str>,
         system_prompt: Option<&str>,
         project_dir: Option<&str>,
+        agent_id: Option<&str>,
     ) -> Result<ChatSession, AppError> {
         let conn = lock_conn!(self.conn);
         let now = chrono::Utc::now().timestamp_millis();
         conn.execute(
-            "INSERT INTO chat_sessions (id, title, model, system_prompt, created_at, updated_at, message_count, project_dir)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?5, 0, ?6)",
-            params![id, title, model, system_prompt, now, project_dir],
+            "INSERT INTO chat_sessions (id, title, model, system_prompt, created_at, updated_at, message_count, project_dir, agent_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?5, 0, ?6, ?7)",
+            params![id, title, model, system_prompt, now, project_dir, agent_id],
         )
         .map_err(|e| AppError::Database(format!("创建 chat session 失败: {e}")))?;
 
@@ -72,32 +74,43 @@ impl Database {
             updated_at: now,
             message_count: 0,
             project_dir: project_dir.map(|s| s.to_string()),
+            agent_id: agent_id.map(|s| s.to_string()),
         })
     }
 
-    pub fn list_chat_sessions(&self) -> Result<Vec<ChatSession>, AppError> {
+    pub fn list_chat_sessions(&self, agent_id: Option<&str>) -> Result<Vec<ChatSession>, AppError> {
         let conn = lock_conn!(self.conn);
+        let sql = if agent_id.is_some() {
+            "SELECT id, title, model, system_prompt, created_at, updated_at, message_count, project_dir, agent_id
+             FROM chat_sessions WHERE agent_id = ?1 ORDER BY updated_at DESC"
+        } else {
+            "SELECT id, title, model, system_prompt, created_at, updated_at, message_count, project_dir, agent_id
+             FROM chat_sessions WHERE agent_id IS NULL ORDER BY updated_at DESC"
+        };
         let mut stmt = conn
-            .prepare(
-                "SELECT id, title, model, system_prompt, created_at, updated_at, message_count, project_dir
-                 FROM chat_sessions ORDER BY updated_at DESC",
-            )
+            .prepare(sql)
             .map_err(|e| AppError::Database(format!("准备 chat sessions 查询失败: {e}")))?;
 
-        let rows = stmt
-            .query_map([], |row| {
-                Ok(ChatSession {
-                    id: row.get(0)?,
-                    title: row.get(1)?,
-                    model: row.get(2)?,
-                    system_prompt: row.get(3)?,
-                    created_at: row.get(4)?,
-                    updated_at: row.get(5)?,
-                    message_count: row.get(6)?,
-                    project_dir: row.get(7)?,
-                })
+        let map_row = |row: &rusqlite::Row<'_>| {
+            Ok(ChatSession {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                model: row.get(2)?,
+                system_prompt: row.get(3)?,
+                created_at: row.get(4)?,
+                updated_at: row.get(5)?,
+                message_count: row.get(6)?,
+                project_dir: row.get(7)?,
+                agent_id: row.get(8)?,
             })
-            .map_err(|e| AppError::Database(format!("查询 chat sessions 失败: {e}")))?;
+        };
+
+        let rows = if let Some(aid) = agent_id {
+            stmt.query_map(params![aid], map_row)
+        } else {
+            stmt.query_map([], map_row)
+        }
+        .map_err(|e| AppError::Database(format!("查询 chat sessions 失败: {e}")))?;
 
         let mut sessions = Vec::new();
         for row in rows {
@@ -109,7 +122,7 @@ impl Database {
     pub fn get_chat_session(&self, id: &str) -> Result<Option<ChatSession>, AppError> {
         let conn = lock_conn!(self.conn);
         let result = conn.query_row(
-            "SELECT id, title, model, system_prompt, created_at, updated_at, message_count, project_dir
+            "SELECT id, title, model, system_prompt, created_at, updated_at, message_count, project_dir, agent_id
              FROM chat_sessions WHERE id = ?1",
             params![id],
             |row| {
@@ -122,6 +135,7 @@ impl Database {
                     updated_at: row.get(5)?,
                     message_count: row.get(6)?,
                     project_dir: row.get(7)?,
+                    agent_id: row.get(8)?,
                 })
             },
         );

@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { CronJobForm } from "./CronJobForm";
 import { cn } from "@/lib/utils";
 
-const cronKeys = {
+export const cronKeys = {
   all: ["cron"] as const,
   list: ["cron", "list"] as const,
 };

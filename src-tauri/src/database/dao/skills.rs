@@ -140,7 +140,7 @@ impl Database {
         Ok(())
     }
 
-    /// 切换 Skill 的常用标记
+    /// 切换 Skill 的常用标记（全局，无 agent 隔离）
     pub fn toggle_skill_favorite(&self, id: &str, is_favorite: bool) -> Result<bool, AppError> {
         let conn = lock_conn!(self.conn);
         let affected = conn
@@ -150,6 +150,49 @@ impl Database {
             )
             .map_err(|e| AppError::Database(e.to_string()))?;
         Ok(affected > 0)
+    }
+
+    /// 切换 Skill 的 Agent 级别常用标记
+    pub fn toggle_skill_agent_favorite(
+        &self,
+        skill_id: &str,
+        agent_id: &str,
+        is_favorite: bool,
+    ) -> Result<bool, AppError> {
+        let conn = lock_conn!(self.conn);
+        if is_favorite {
+            conn.execute(
+                "INSERT OR IGNORE INTO skill_agent_favorites (skill_id, agent_id) VALUES (?1, ?2)",
+                params![skill_id, agent_id],
+            )
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        } else {
+            conn.execute(
+                "DELETE FROM skill_agent_favorites WHERE skill_id = ?1 AND agent_id = ?2",
+                params![skill_id, agent_id],
+            )
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        }
+        Ok(true)
+    }
+
+    /// 获取某 agent 下所有收藏的 skill_id 集合
+    pub fn get_agent_favorite_skill_ids(
+        &self,
+        agent_id: &str,
+    ) -> Result<std::collections::HashSet<String>, AppError> {
+        let conn = lock_conn!(self.conn);
+        let mut stmt = conn
+            .prepare("SELECT skill_id FROM skill_agent_favorites WHERE agent_id = ?1")
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        let ids = stmt
+            .query_map(params![agent_id], |row| row.get::<_, String>(0))
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        let mut set = std::collections::HashSet::new();
+        for id in ids {
+            set.insert(id.map_err(|e| AppError::Database(e.to_string()))?);
+        }
+        Ok(set)
     }
 
     /// 删除 Skill

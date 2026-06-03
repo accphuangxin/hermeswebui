@@ -62,6 +62,7 @@ import { cn } from "@/lib/utils";
 interface UnifiedSkillsPanelProps {
   onOpenDiscovery: () => void;
   currentApp: AppId;
+  agentId?: string | null;
 }
 
 export interface UnifiedSkillsPanelHandle {
@@ -265,6 +266,21 @@ function BrowsePanel({ installedKeys, onInstalled }: BrowsePanelProps) {
             {t("skills.repoManager")}
           </Button>
         )}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 shrink-0"
+          disabled={clawHubLoading}
+          onClick={() => {
+            setClawHubSkills([]);
+            setClawHubCursor(undefined);
+            setClawHubDone(false);
+            void loadClawHub(true);
+          }}
+          title={t("skills.reload", { defaultValue: "刷新" })}
+        >
+          {clawHubLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+        </Button>
       </div>
 
       {/* Search bar */}
@@ -595,7 +611,7 @@ function PublishDialog({ skill, onClose }: PublishDialogProps) {
 // ─── Main panel ───────────────────────────────────────────────────────────────
 
 const UnifiedSkillsPanel = React.forwardRef<UnifiedSkillsPanelHandle, UnifiedSkillsPanelProps>(
-  ({ onOpenDiscovery, currentApp }, ref) => {
+  ({ onOpenDiscovery, currentApp, agentId }, ref) => {
     const { t } = useTranslation();
     const [confirmDialog, setConfirmDialog] = useState<{
       isOpen: boolean;
@@ -611,10 +627,10 @@ const UnifiedSkillsPanel = React.forwardRef<UnifiedSkillsPanelHandle, UnifiedSki
     const [searchQuery, setSearchQuery] = useState("");
     const listScrollRef = React.useRef<HTMLDivElement>(null);
 
-    const { data: skills, isLoading, refetch: refetchSkills, isFetching: isRefetchingSkills } = useInstalledSkills();
+    const { data: skills, isLoading, refetch: refetchSkills, isFetching: isRefetchingSkills } = useInstalledSkills(agentId);
     const { data: skillBackups = [], refetch: refetchSkillBackups, isFetching: isFetchingSkillBackups } = useSkillBackups();
     const deleteBackupMutation = useDeleteSkillBackup();
-    const toggleFavoriteMutation = useToggleSkillFavorite();
+    const toggleFavoriteMutation = useToggleSkillFavorite(agentId);
     const uninstallMutation = useUninstallSkill();
     const restoreBackupMutation = useRestoreSkillBackup();
     const { data: unmanagedSkills, refetch: scanUnmanaged } = useScanUnmanagedSkills();

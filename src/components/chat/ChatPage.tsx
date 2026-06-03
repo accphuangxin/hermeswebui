@@ -15,6 +15,7 @@ import {
   useUpdateChatSession,
   useSaveChatMessage,
   useDeleteChatMessage,
+  useHermesAgents,
 } from "@/hooks/useHermesChat";
 import { useInstalledSkills } from "@/hooks/useSkills";
 import { useChatStream, type ToolActivity, type ApprovalRequest, type RunUsage } from "@/hooks/useChatStream";
@@ -22,7 +23,7 @@ import { chatApi } from "@/lib/api/chat";
 import { compressContext } from "@/lib/contextCompression";
 import { ChatSidebar } from "./ChatSidebar";
 import type { SidebarTab } from "./ChatSidebar";
-import { CronPage } from "@/components/cron/CronPage";
+import { CronPage, cronKeys } from "@/components/cron/CronPage";
 import { ChatMessageBubble } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
 import { ToolActivityBlock } from "./ToolActivityBlock";
@@ -33,9 +34,10 @@ interface ChatPageProps {
   selectedModel: string;
   selectedAgentId: string | null;
   selectedAgentPort: number | null;
+  onSelectAgent?: (agentId: string | null, port?: number, key?: string) => void;
 }
 
-export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort }: ChatPageProps) {
+export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort, onSelectAgent }: ChatPageProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -54,9 +56,10 @@ export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort }: 
 
   const { data: status } = useChatStatus(true);
   const { data: chatModels = [] } = useChatModels();
-  const { data: installedSkills = [] } = useInstalledSkills();
+  const { data: agents = [] } = useHermesAgents();
+  const { data: installedSkills = [] } = useInstalledSkills(selectedAgentId);
   const favoriteSkills = installedSkills.filter((s) => s.isFavorite);
-  const { data: sessions = [] } = useChatSessions();
+  const { data: sessions = [] } = useChatSessions(selectedAgentId);
   const { data: messages = [] } = useChatMessages(activeSessionId);
   const createSession = useCreateChatSession();
   const deleteSession = useDeleteChatSession();
@@ -86,6 +89,12 @@ export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort }: 
     }
   }, [sessions, activeSessionId]);
 
+  // Reset active session when switching agent
+  useEffect(() => {
+    setActiveSessionId(null);
+    setHermesSessionId(null);
+  }, [selectedAgentId]);
+
   // Reset Hermes session when switching chat sessions or model
   useEffect(() => {
     setHermesSessionId(null);
@@ -106,9 +115,9 @@ export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort }: 
 
   const handleNewSession = useCallback(async () => {
     const id = crypto.randomUUID();
-    await createSession.mutateAsync({ id });
+    await createSession.mutateAsync({ id, agentId: selectedAgentId });
     setActiveSessionId(id);
-  }, [createSession]);
+  }, [createSession, selectedAgentId]);
 
   const handleDeleteSession = useCallback(
     async (id: string) => {
@@ -324,7 +333,10 @@ export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort }: 
         </button>
         <button
           type="button"
-          onClick={() => setSidebarTab("cron")}
+          onClick={() => {
+            setSidebarTab("cron");
+            void queryClient.invalidateQueries({ queryKey: cronKeys.list });
+          }}
           className={cn(
             "flex items-center gap-1.5 px-4 text-xs font-medium transition-colors",
             sidebarTab === "cron"
@@ -464,6 +476,9 @@ export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort }: 
             isStreaming={isStreaming}
             disabled={!isOnline || !activeSessionId}
             favoriteSkills={favoriteSkills}
+            agents={agents}
+            selectedAgentId={selectedAgentId}
+            onSelectAgent={onSelectAgent}
           />
         </div>
         </div>

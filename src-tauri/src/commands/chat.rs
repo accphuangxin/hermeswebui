@@ -41,6 +41,7 @@ pub fn createChatSession(
     model: Option<String>,
     systemPrompt: Option<String>,
     projectDir: Option<String>,
+    agentId: Option<String>,
 ) -> Result<ChatSession, String> {
     state
         .db
@@ -50,13 +51,14 @@ pub fn createChatSession(
             model.as_deref(),
             systemPrompt.as_deref(),
             projectDir.as_deref(),
+            agentId.as_deref(),
         )
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn listChatSessions(state: State<'_, AppState>) -> Result<Vec<ChatSession>, String> {
-    state.db.list_chat_sessions().map_err(|e| e.to_string())
+pub fn listChatSessions(state: State<'_, AppState>, agentId: Option<String>) -> Result<Vec<ChatSession>, String> {
+    state.db.list_chat_sessions(agentId.as_deref()).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -179,9 +181,22 @@ fn read_hermes_env_key() -> String {
     read_hermes_env_var("API_SERVER_KEY").unwrap_or_default()
 }
 
+/// Returns the .env path for the currently active agent profile (or the default hermes dir).
+fn active_env_path() -> std::path::PathBuf {
+    let hermes_dir = hermes_config::get_hermes_dir();
+    if let Some(agent_id) = crate::store::get_active_hermes_agent() {
+        hermes_dir.join("profiles").join(agent_id).join(".env")
+    } else {
+        hermes_dir.join(".env")
+    }
+}
+
 fn read_hermes_env_var(key: &str) -> Option<String> {
-    let env_path = hermes_config::get_hermes_dir().join(".env");
-    let content = std::fs::read_to_string(&env_path).ok()?;
+    read_env_var_from(&hermes_config::get_hermes_dir().join(".env"), key)
+}
+
+fn read_env_var_from(env_path: &std::path::Path, key: &str) -> Option<String> {
+    let content = std::fs::read_to_string(env_path).ok()?;
     let prefix = format!("{key}=");
     for line in content.lines() {
         let line = line.trim();
@@ -200,6 +215,10 @@ fn read_hermes_env_var(key: &str) -> Option<String> {
 
 fn write_hermes_env_vars(updates: &[(&str, Option<&str>)]) -> Result<(), String> {
     let env_path = hermes_config::get_hermes_dir().join(".env");
+    write_env_vars_to(&env_path, updates)
+}
+
+fn write_env_vars_to(env_path: &std::path::Path, updates: &[(&str, Option<&str>)]) -> Result<(), String> {
     let existing = std::fs::read_to_string(&env_path).unwrap_or_default();
     let keys_to_remove: std::collections::HashSet<String> =
         updates.iter().map(|(k, _)| format!("{k}=")).collect();
@@ -249,19 +268,38 @@ pub struct HermesApiServerConfig {
 }
 
 /// Get the effective API server connection config (host/port/key).
+/// Reads from the active agent's profile .env if one is selected.
 #[tauri::command]
 pub fn getHermesApiServerConfig() -> HermesApiServerConfig {
-    let cfg = read_api_server_config();
-    HermesApiServerConfig { host: cfg.host, port: cfg.port, key: cfg.key }
+    let env_path = active_env_path();
+    // Port: profile .env → default .env → config.yaml → hardcoded default
+    let port = read_env_var_from(&env_path, "HERMES_CLIENT_PORT")
+        .or_else(|| read_hermes_env_var("HERMES_CLIENT_PORT"))
+        .and_then(|v| v.parse::<u16>().ok())
+        .unwrap_or_else(|| {
+            let cfg = read_api_server_config();
+            cfg.port
+        });
+    // Host: same cascade
+    let host = read_env_var_from(&env_path, "HERMES_CLIENT_HOST")
+        .or_else(|| read_hermes_env_var("HERMES_CLIENT_HOST"))
+        .unwrap_or_else(|| {
+            let cfg = read_api_server_config();
+            cfg.host
+        });
+    // Key: profile .env takes precedence, then fall back to default .env / config
+    let key = read_env_var_from(&env_path, "API_SERVER_KEY")
+        .or_else(|| read_hermes_env_var("API_SERVER_KEY"))
+        .unwrap_or_default();
+    HermesApiServerConfig { host, port, key }
 }
 
-/// Persist host/port/key overrides to ~/.hermes/.env.
+/// Persist host/port/key overrides to the active agent profile .env (or default ~/.hermes/.env).
 /// Pass empty string to clear a value (revert to config.yaml default).
 #[tauri::command]
 pub fn setHermesApiServerConfig(host: String, port: String, key: String) -> Result<(), String> {
-    // Use HERMES_CLIENT_HOST/PORT so we don't overwrite the server-side
-    // HERMES_API_HOST/PORT that Python uses to decide its bind address.
-    write_hermes_env_vars(&[
+    let env_path = active_env_path();
+    write_env_vars_to(&env_path, &[
         ("HERMES_CLIENT_HOST", if host.is_empty() { None } else { Some(host.as_str()) }),
         ("HERMES_CLIENT_PORT", if port.is_empty() { None } else { Some(port.as_str()) }),
         ("API_SERVER_KEY",     if key.is_empty()  { None } else { Some(key.as_str()) }),
@@ -274,32 +312,30 @@ pub(crate) fn read_api_server_config() -> ApiServerConfig {
     let api_server = platforms.and_then(|p| p.get("api_server"));
     let extra = api_server.and_then(|a| a.get("extra"));
 
+    // Profile .env takes priority over the global ~/.hermes/.env
+    let profile_env = active_env_path();
+
     // Read client-specific override first, then fall back to config.yaml extra.host
-    let host = read_hermes_env_var("HERMES_CLIENT_HOST")
+    let host = read_env_var_from(&profile_env, "HERMES_CLIENT_HOST")
+        .or_else(|| read_hermes_env_var("HERMES_CLIENT_HOST"))
         .or_else(|| extra.and_then(|e| e.get("host")).and_then(|v| v.as_str()).map(str::to_string))
         .unwrap_or_else(|| "127.0.0.1".to_string());
 
-    let port = read_hermes_env_var("HERMES_CLIENT_PORT")
+    let port = read_env_var_from(&profile_env, "HERMES_CLIENT_PORT")
+        .or_else(|| read_hermes_env_var("HERMES_CLIENT_PORT"))
         .and_then(|v| v.parse::<u16>().ok())
         .or_else(|| extra.and_then(|e| e.get("port")).and_then(|v| v.as_u64()).map(|p| p as u16))
         .unwrap_or(8643);
 
-    // Key resolution order (mirrors Hermes gateway/platforms/api_server.py):
-    //   1. platforms.api_server.extra.key  (runtime injection)
-    //   2. platforms.api_server.key        (config.yaml top-level field)
-    //   3. API_SERVER_KEY in ~/.hermes/.env
-    let key = extra
-        .and_then(|e| e.get("key"))
-        .and_then(|v| v.as_str())
+    // Key resolution order:
+    //   1. profile .env API_SERVER_KEY  (active agent override)
+    //   2. platforms.api_server.extra.key  (runtime injection)
+    //   3. platforms.api_server.key        (config.yaml top-level field)
+    //   4. API_SERVER_KEY in ~/.hermes/.env
+    let key = read_env_var_from(&profile_env, "API_SERVER_KEY")
         .filter(|s| !s.is_empty())
-        .map(str::to_string)
-        .or_else(|| {
-            api_server
-                .and_then(|a| a.get("key"))
-                .and_then(|v| v.as_str())
-                .filter(|s| !s.is_empty())
-                .map(str::to_string)
-        })
+        .or_else(|| extra.and_then(|e| e.get("key")).and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(str::to_string))
+        .or_else(|| api_server.and_then(|a| a.get("key")).and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(str::to_string))
         .unwrap_or_else(read_hermes_env_key);
 
     ApiServerConfig { host, port, key }
@@ -486,20 +522,53 @@ pub struct RunRequest {
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct HermesAgent {
     pub id: String,
+    /// Display name — fall back to `alias` then `id` if absent
+    #[serde(default)]
     pub name: Option<String>,
+    #[serde(default)]
+    pub alias: Option<String>,
+    #[serde(default)]
     pub description: Option<String>,
+    #[serde(default)]
     pub model: Option<String>,
+    #[serde(default)]
+    pub provider: Option<String>,
+    #[serde(default)]
+    pub is_default: Option<bool>,
+    #[serde(default)]
+    pub gateway_running: Option<bool>,
+    #[serde(default)]
+    pub skill_count: Option<u32>,
+    #[serde(default)]
     pub skills: Option<Vec<String>>,
-    // Accept both snake_case (from server) and camelCase; always serialize as camelCase for frontend
-    #[serde(
-        alias = "api_server_port",
-        rename = "apiServerPort",
-        default,
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(default)]
     pub api_server_port: Option<u16>,
+    #[serde(default)]
+    pub api_server_key: Option<String>,
+}
+
+/// Set the globally active Hermes agent.
+/// Pass None to revert to the default ~/.hermes/skills path.
+#[tauri::command]
+pub fn setActiveHermesAgent(agent_id: Option<String>) {
+    // Treat "default" as no active agent (use ~/.hermes/.env)
+    let normalized = agent_id.filter(|id| !id.is_empty() && id != "default");
+    crate::store::set_active_hermes_agent(normalized);
+}
+
+/// Get the current Hermes skills path based on the active agent.
+#[tauri::command]
+pub fn getHermesSkillsPath() -> String {
+    let hermes_dir = crate::hermes_config::get_hermes_dir();
+    let path = if let Some(agent_id) = crate::store::get_active_hermes_agent() {
+        hermes_dir.join("profiles").join(agent_id).join("skills")
+    } else {
+        hermes_dir.join("skills")
+    };
+    path.to_string_lossy().into_owned()
 }
 
 #[tauri::command]

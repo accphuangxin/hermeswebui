@@ -633,6 +633,7 @@ export interface ChatSession {
   updatedAt: number;
   messageCount: number;
   projectDir: string | null;
+  agentId: string | null;
 }
 
 export interface ChatMessage {

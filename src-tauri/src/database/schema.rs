@@ -485,6 +485,16 @@ impl Database {
                         Self::migrate_v11_to_v12(conn)?;
                         Self::set_user_version(conn, 12)?;
                     }
+                    12 => {
+                        log::info!("迁移数据库从 v12 到 v13（chat_sessions 添加 agent_id 字段）");
+                        Self::migrate_v12_to_v13(conn)?;
+                        Self::set_user_version(conn, 13)?;
+                    }
+                    13 => {
+                        log::info!("迁移数据库从 v13 到 v14（新增 skill_agent_favorites 表）");
+                        Self::migrate_v13_to_v14(conn)?;
+                        Self::set_user_version(conn, 14)?;
+                    }
                     _ => {
                         return Err(AppError::Database(format!(
                             "未知的数据库版本 {version}，无法迁移到 {SCHEMA_VERSION}"
@@ -1306,6 +1316,31 @@ impl Database {
     fn migrate_v11_to_v12(conn: &Connection) -> Result<(), AppError> {
         Self::add_column_if_missing(conn, "skills", "is_favorite", "BOOLEAN NOT NULL DEFAULT 0")?;
         log::info!("v11 -> v12 迁移完成：skills 表添加 is_favorite 字段");
+        Ok(())
+    }
+
+    fn migrate_v12_to_v13(conn: &Connection) -> Result<(), AppError> {
+        Self::add_column_if_missing(conn, "chat_sessions", "agent_id", "TEXT")?;
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_chat_sessions_agent ON chat_sessions(agent_id)",
+            [],
+        )
+        .map_err(|e| AppError::Database(format!("创建 chat_sessions agent_id 索引失败: {e}")))?;
+        log::info!("v12 -> v13 迁移完成：chat_sessions 表添加 agent_id 字段");
+        Ok(())
+    }
+
+    fn migrate_v13_to_v14(conn: &Connection) -> Result<(), AppError> {
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS skill_agent_favorites (
+                skill_id TEXT NOT NULL,
+                agent_id TEXT NOT NULL,
+                PRIMARY KEY (skill_id, agent_id)
+            )",
+            [],
+        )
+        .map_err(|e| AppError::Database(format!("创建 skill_agent_favorites 表失败: {e}")))?;
+        log::info!("v13 -> v14 迁移完成：新增 skill_agent_favorites 表");
         Ok(())
     }
 
