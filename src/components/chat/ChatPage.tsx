@@ -32,9 +32,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 interface ChatPageProps {
   selectedModel: string;
   selectedAgentId: string | null;
+  selectedAgentPort: number | null;
 }
 
-export function ChatPage({ selectedModel, selectedAgentId }: ChatPageProps) {
+export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort }: ChatPageProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -183,6 +184,7 @@ export function ChatPage({ selectedModel, selectedAgentId }: ChatPageProps) {
           model: hermesModel,
           sessionId: wasCompressed ? undefined : (hermesSessionId ?? undefined),
           agentId: selectedAgentId ?? undefined,
+          apiServerPort: selectedAgentPort ?? undefined,
           onDelta: (delta) => {
             fullContent += delta;
             setStreamingContent(fullContent);
@@ -254,7 +256,7 @@ export function ChatPage({ selectedModel, selectedAgentId }: ChatPageProps) {
         });
       }
     },
-    [isOnline, activeSessionId, messages, selectedModel, selectedAgentId, activeContextWindow, hermesSessionId, sendRun, saveMessage, t],
+    [isOnline, activeSessionId, messages, selectedModel, selectedAgentId, selectedAgentPort, activeContextWindow, hermesSessionId, sendRun, saveMessage, t],
   );
 
   const handleClearMessages = useCallback(async () => {

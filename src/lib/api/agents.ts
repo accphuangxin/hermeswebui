@@ -6,6 +6,7 @@ export interface HermesAgent {
   description?: string;
   model?: string;
   skills?: string[];
+  apiServerPort?: number;
 }
 
 export const agentsApi = {

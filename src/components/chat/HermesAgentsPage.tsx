@@ -8,7 +8,7 @@ import type { HermesAgent } from "@/lib/api/agents";
 interface HermesAgentsPageProps {
   isOnline: boolean;
   selectedAgentId: string | null;
-  onSelectAgent: (agentId: string | null) => void;
+  onSelectAgent: (agentId: string | null, port?: number) => void;
   onBack: () => void;
 }
 
@@ -16,7 +16,7 @@ export function HermesAgentsPage({ isOnline, selectedAgentId, onSelectAgent, onB
   const { t } = useTranslation();
   const { data: agents = [], isLoading, isError, error, refetch, isFetching } = useHermesAgents(isOnline);
 
-  const allItems: Array<{ id: string | null; name: string; description?: string; model?: string }> = [
+  const allItems: Array<{ id: string | null; name: string; description?: string; model?: string; port?: number }> = [
     {
       id: null,
       name: t("hermes.agents.default", { defaultValue: "默认" }),
@@ -27,6 +27,7 @@ export function HermesAgentsPage({ isOnline, selectedAgentId, onSelectAgent, onB
       name: a.name ?? a.id,
       description: a.description,
       model: a.model,
+      port: a.apiServerPort,
     })),
   ];
 
@@ -72,7 +73,7 @@ export function HermesAgentsPage({ isOnline, selectedAgentId, onSelectAgent, onB
                 description={item.description}
                 model={item.model}
                 isSelected={selectedAgentId === item.id}
-                onSelect={() => { onSelectAgent(item.id); onBack(); }}
+                onSelect={() => { onSelectAgent(item.id, item.port); onBack(); }}
               />
             ))}
           </div>

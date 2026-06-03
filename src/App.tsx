@@ -205,6 +205,7 @@ function App() {
   const { data: hermesChatModels = [] } = useChatModels();
   const [hermesSelectedModel, setHermesSelectedModel] = useState("");
   const [hermesSelectedAgentId, setHermesSelectedAgentId] = useState<string | null>(null);
+  const [hermesSelectedAgentPort, setHermesSelectedAgentPort] = useState<number | null>(null);
   const prevApiHostRef = useRef<string>("");
   useEffect(() => {
     const host = hermesChatStatus?.host ?? "127.0.0.1";
@@ -1035,7 +1036,7 @@ function App() {
         {/* Always-mounted hermes views — hidden via CSS to preserve streaming state */}
         <div className={cn("flex-1 min-h-0 overflow-hidden", !isHermesView && "hidden")}>
           <div className={cn("flex-1 min-h-0 flex flex-col overflow-hidden h-full", currentView !== "hermesChat" && "hidden")}>
-            <ChatPage selectedModel={hermesSelectedModel} selectedAgentId={hermesSelectedAgentId} />
+            <ChatPage selectedModel={hermesSelectedModel} selectedAgentId={hermesSelectedAgentId} selectedAgentPort={hermesSelectedAgentPort} />
           </div>
           <div className={cn("flex-1 min-h-0 flex flex-col overflow-hidden h-full", currentView !== "skills" && "hidden")}>
             <UnifiedSkillsPanel
@@ -1048,7 +1049,10 @@ function App() {
             <HermesAgentsPage
               isOnline={hermesChatStatus?.online ?? false}
               selectedAgentId={hermesSelectedAgentId}
-              onSelectAgent={setHermesSelectedAgentId}
+              onSelectAgent={(id, port) => {
+                setHermesSelectedAgentId(id);
+                setHermesSelectedAgentPort(port ?? null);
+              }}
               onBack={() => setCurrentView("hermesChat")}
             />
           </div>

@@ -482,6 +482,7 @@ pub struct RunRequest {
     pub model: Option<String>,
     pub session_id: Option<String>,
     pub agent_id: Option<String>,
+    pub api_server_port: Option<u16>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -491,6 +492,7 @@ pub struct HermesAgent {
     pub description: Option<String>,
     pub model: Option<String>,
     pub skills: Option<Vec<String>>,
+    pub api_server_port: Option<u16>,
 }
 
 #[tauri::command]
@@ -536,7 +538,11 @@ pub async fn startChatRun(
 ) -> Result<RunCreated, String> {
     use futures::StreamExt;
 
-    let (client, base, auth_header) = build_api_client(300)?;
+    let (client, mut base, auth_header) = build_api_client(300)?;
+    if let Some(port) = request.api_server_port {
+        let cfg = read_api_server_config();
+        base = format!("http://{}:{}", cfg.host, port);
+    }
     let url = format!("{base}/v1/runs");
 
     let mut body = serde_json::json!({ "input": request.input });
