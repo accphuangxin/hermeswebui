@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, RefreshCw, Users } from "lucide-react";
+import { Check, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -32,19 +32,12 @@ export function HermesAgentsPage({ isOnline, selectedAgentId, onSelectAgent, onB
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center gap-2 px-4 pt-3 pb-2 border-b shrink-0">
-        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onBack}>
-          <ArrowLeft className="w-3.5 h-3.5" />
-        </Button>
-        <Users className="w-3.5 h-3.5 text-muted-foreground" />
-        <span className="text-sm font-medium flex-1">
-          {t("hermes.agents.title", { defaultValue: "选择智能体" })}
-        </span>
+      {/* Refresh button row */}
+      <div className="flex items-center justify-end px-4 pt-2 pb-1 shrink-0">
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7 shrink-0"
+          className="h-7 w-7"
           onClick={() => void refetch()}
           disabled={isFetching}
         >
@@ -53,7 +46,7 @@ export function HermesAgentsPage({ isOnline, selectedAgentId, onSelectAgent, onB
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto px-4 pb-4">
         {!isOnline ? (
           <EmptyState>{t("hermes.agents.offline", { defaultValue: "服务未连接" })}</EmptyState>
         ) : isLoading ? (

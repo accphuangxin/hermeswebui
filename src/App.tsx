@@ -27,6 +27,7 @@ import {
   LayoutDashboard,
   MessageSquare,
   Sparkles,
+  Users,
 } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Provider, VisibleApps } from "@/types";
@@ -1147,7 +1148,22 @@ function App() {
             className="flex items-center gap-1"
             style={{ WebkitAppRegion: "no-drag" } as any}
           >
-            {currentView === "hermesChat" ? (
+            {currentView === "hermesAgents" ? (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setCurrentView("hermesChat")}
+                  className="hover:bg-black/5 dark:hover:bg-white/5 shrink-0"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </Button>
+                <Users className="w-4 h-4 text-muted-foreground" />
+                <h1 className="text-sm font-semibold">
+                  {t("hermes.agents.title", { defaultValue: "选择智能体" })}
+                </h1>
+              </div>
+            ) : currentView === "hermesChat" ? (
               <div className="flex items-center gap-2">
                 <div className="relative inline-flex items-center shrink-0">
                   <img
