@@ -1345,13 +1345,6 @@ function App() {
                       <span className={cn("text-xs font-medium", hermesChatStatus?.online ? "text-green-600 dark:text-green-400" : "text-destructive")}>
                         {hermesChatStatus?.online ? t("hermes.chat.connected") : t("hermes.chat.disconnected")}
                       </span>
-                      {hermesChatStatus && (
-                        <span className="text-xs text-muted-foreground ml-1">
-                          {!hermesSelectedModel || hermesSelectedModel === "__default__"
-                            ? t("hermes.chat.defaultModel", { defaultValue: "默认" })
-                            : hermesSelectedModel.replace(/^custom_/, "").replace(":", " / ")}
-                        </span>
-                      )}
                     </div>
                     <Select
                       value={hermesSelectedModel}
@@ -1428,34 +1421,12 @@ function App() {
                       variant="ghost"
                       size="sm"
                       onClick={() =>
-                        unifiedSkillsPanelRef.current?.openRestoreFromBackup()
-                      }
-                      className="hover:bg-black/5 dark:hover:bg-white/5"
-                    >
-                      <History className="w-4 h-4 mr-2" />
-                      {t("skills.restoreFromBackup.button")}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
                         unifiedSkillsPanelRef.current?.openInstallFromZip()
                       }
                       className="hover:bg-black/5 dark:hover:bg-white/5"
                     >
                       <FolderArchive className="w-4 h-4 mr-2" />
                       {t("skills.installFromZip.button")}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        unifiedSkillsPanelRef.current?.openImport()
-                      }
-                      className="hover:bg-black/5 dark:hover:bg-white/5"
-                    >
-                      <Download className="w-4 h-4 mr-2" />
-                      {t("skills.import")}
                     </Button>
                   </>
                 )}

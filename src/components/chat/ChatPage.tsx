@@ -7,6 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   chatKeys,
   useChatStatus,
+  useChatModels,
   useChatSessions,
   useChatMessages,
   useCreateChatSession,
@@ -16,7 +17,7 @@ import {
   useDeleteChatMessage,
 } from "@/hooks/useHermesChat";
 import { useInstalledSkills } from "@/hooks/useSkills";
-import { useChatStream, type ToolActivity, type ApprovalRequest } from "@/hooks/useChatStream";
+import { useChatStream, type ToolActivity, type ApprovalRequest, type RunUsage } from "@/hooks/useChatStream";
 import { chatApi } from "@/lib/api/chat";
 import { compressContext } from "@/lib/contextCompression";
 import { ChatSidebar } from "./ChatSidebar";
@@ -40,6 +41,8 @@ export function ChatPage({ selectedModel }: ChatPageProps) {
   const [toolActivities, setToolActivities] = useState<ToolActivity[]>([]);
   const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(null);
   const [hermesSessionId, setHermesSessionId] = useState<string | null>(null);
+  const [lastUsage, setLastUsage] = useState<RunUsage | null>(null);
+  const [compressionInfo, setCompressionInfo] = useState<{ wasCompressed: boolean; droppedCount: number } | null>(null);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("chat");
   const [areaMenu, setAreaMenu] = useState<{ x: number; y: number } | null>(null);
   const areaMenuRef = useRef<HTMLDivElement>(null);
@@ -47,6 +50,7 @@ export function ChatPage({ selectedModel }: ChatPageProps) {
   const scrollBottomRef = useRef<HTMLDivElement>(null);
 
   const { data: status } = useChatStatus(true);
+  const { data: chatModels = [] } = useChatModels();
   const { data: installedSkills = [] } = useInstalledSkills();
   const favoriteSkills = installedSkills.filter((s) => s.isFavorite);
   const { data: sessions = [] } = useChatSessions();
@@ -64,6 +68,12 @@ export function ChatPage({ selectedModel }: ChatPageProps) {
   }, [stop]);
 
   const isOnline = status?.online ?? false;
+
+  const activeContextWindow = (() => {
+    const modelId = selectedModel?.replace(/^custom_[^:]+:/, "").replace("__default__", "");
+    const model = chatModels.find((m) => m.id === modelId);
+    return model?.contextLength ?? 100000;
+  })();
 
 
   // Auto-select first session
@@ -142,7 +152,8 @@ export function ChatPage({ selectedModel }: ChatPageProps) {
           ? selectedModel.replace(/^custom_[^:]+:/, "")
           : undefined;
 
-      const { compressedInput, wasCompressed, droppedCount } = compressContext(messages, fullText);
+      const { compressedInput, wasCompressed, droppedCount } = compressContext(messages, fullText, activeContextWindow);
+      setCompressionInfo({ wasCompressed, droppedCount });
       if (wasCompressed) {
         toast.info(t("hermes.chat.contextCompressed", { count: droppedCount, defaultValue: `上下文过长，已省略最旧的 ${droppedCount} 条消息` }));
       }
@@ -187,7 +198,10 @@ export function ChatPage({ selectedModel }: ChatPageProps) {
           onApprovalRequired: (approval) => {
             setPendingApproval(approval);
           },
-          onCompleted: async (output, runSessionId) => {
+          onCompleted: async (output, runSessionId, usage) => {
+            if (usage && (usage.inputTokens > 0 || usage.outputTokens > 0)) {
+              setLastUsage(usage);
+            }
             const content = fullContent || output;
             // No content means the server responded but produced nothing — treat as failure
             if (!content) {
@@ -234,7 +248,7 @@ export function ChatPage({ selectedModel }: ChatPageProps) {
         });
       }
     },
-    [isOnline, activeSessionId, messages, selectedModel, hermesSessionId, sendRun, saveMessage, t],
+    [isOnline, activeSessionId, messages, selectedModel, activeContextWindow, hermesSessionId, sendRun, saveMessage, t],
   );
 
   const handleClearMessages = useCallback(async () => {
@@ -401,6 +415,41 @@ export function ChatPage({ selectedModel }: ChatPageProps) {
               <div ref={scrollBottomRef} />
             </div>
           </ScrollArea>
+          {/* Token usage & compression status bar */}
+          {activeSessionId && messages.length > 0 && (() => {
+            const modelName = lastUsage?.model || selectedModel || "";
+            const displayModel = modelName.replace(/^custom_[^:]+:/, "").replace("__default__", "");
+            const activeModel = chatModels.find((m) => m.id === displayModel || m.id === selectedModel);
+            const estimatedTokens = lastUsage?.inputTokens
+              ? lastUsage.inputTokens + lastUsage.outputTokens
+              : Math.ceil(messages.reduce((s, m) => s + m.content.length, 0) / 4);
+            const contextWindow = activeModel?.contextLength ?? 100000;
+            const pct = Math.min(100, Math.round((estimatedTokens / contextWindow) * 100));
+            const barColor = pct > 80 ? "bg-red-500" : pct > 50 ? "bg-amber-500" : "bg-green-500";
+            return (
+              <div className="flex items-center gap-2 px-3 py-1 text-[10px] font-mono border-t border-border/40 bg-muted/20 text-muted-foreground/60 select-none">
+                {displayModel && <span className="text-muted-foreground/80 truncate max-w-[120px]">{displayModel}</span>}
+                {displayModel && <span className="opacity-30">|</span>}
+                <span title={lastUsage?.inputTokens ? "实际 tokens" : "估算 tokens（1 token ≈ 4 字符）"}>
+                  {lastUsage?.inputTokens ? "" : "~"}{estimatedTokens.toLocaleString()}/{contextWindow >= 1000 ? `${contextWindow / 1000}K` : contextWindow}
+                </span>
+                <div className="flex items-center gap-1">
+                  <div className="w-16 h-1.5 rounded-full bg-muted-foreground/20 overflow-hidden">
+                    <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
+                  </div>
+                  <span>{pct}%</span>
+                </div>
+                {compressionInfo?.wasCompressed && (
+                  <>
+                    <span className="opacity-30">|</span>
+                    <span className="text-amber-500/80" title={`已省略最旧 ${compressionInfo.droppedCount} 条消息`}>
+                      ⚡ -{compressionInfo.droppedCount}
+                    </span>
+                  </>
+                )}
+              </div>
+            );
+          })()}
           <ChatInput
             onSend={handleSend}
             onStop={handleStop}

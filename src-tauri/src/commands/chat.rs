@@ -348,7 +348,7 @@ pub async fn getHermesChatStatus() -> Result<HermesChatStatus, String> {
     let probe_url = format!("{base_url}/v1/models");
 
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_millis(1500))
+        .timeout(Duration::from_millis(3000))
         .no_proxy()
         .build()
         .map_err(|e| format!("failed to build probe client: {e}"))?;
@@ -375,7 +375,7 @@ pub async fn getHermesChatStatus() -> Result<HermesChatStatus, String> {
 
 /// Fetch the model list from a provider's /v1/models endpoint.
 /// Returns (id, owned_by) pairs on success, empty vec on any failure (non-fatal).
-async fn fetch_remote_models(base_url: &str, api_key: &str) -> Vec<(String, String)> {
+async fn fetch_remote_models(base_url: &str, api_key: &str) -> Vec<(String, String, Option<u64>)> {
     let url = format!("{}/v1/models", base_url.trim_end_matches('/'));
     let client = match reqwest::Client::builder()
         .timeout(Duration::from_secs(5))
@@ -408,7 +408,8 @@ async fn fetch_remote_models(base_url: &str, api_key: &str) -> Vec<(String, Stri
                         .and_then(|v| v.as_str())
                         .unwrap_or("api_server")
                         .to_string();
-                    Some((id, owned_by))
+                    let context_window = m.get("context_window").and_then(|v| v.as_u64());
+                    Some((id, owned_by, context_window))
                 })
                 .collect()
         })
@@ -428,9 +429,9 @@ pub async fn getHermesChatModels() -> Result<Vec<HermesChatModel>, String> {
 
     let mut models: Vec<HermesChatModel> = remote_models
         .into_iter()
-        .map(|(id, owned_by)| {
+        .map(|(id, owned_by, context_window)| {
             let is_default = id == default_model && owned_by == default_provider;
-            HermesChatModel { id, provider: owned_by, context_length: None, is_default }
+            HermesChatModel { id, provider: owned_by, context_length: context_window, is_default }
         })
         .collect();
 
@@ -469,7 +470,7 @@ pub enum RunStreamEvent {
     ToolStarted { tool: String, preview: String },
     ToolCompleted { tool: String, duration: f64, error: bool },
     ApprovalRequired { tool: String, args: String },
-    Completed { output: String, run_id: String, session_id: String },
+    Completed { output: String, run_id: String, session_id: String, input_tokens: i64, output_tokens: i64, model: String },
     Failed { error: String },
     Error { message: String },
 }
@@ -632,17 +633,19 @@ pub async fn startChatRun(
                         let output = json["output"].as_str().unwrap_or("").to_string();
                         let session_id =
                             json["session_id"].as_str().unwrap_or("").to_string();
+                        let input_tokens = json["usage"]["input_tokens"].as_i64().unwrap_or(0);
+                        let output_tokens = json["usage"]["output_tokens"].as_i64().unwrap_or(0);
+                        let completed_model = json["model"].as_str().unwrap_or(&log_model).to_string();
 
                         // Notify frontend first — DB write must not delay the response
                         let _ = on_event.send(RunStreamEvent::Completed {
                             output,
                             run_id: run_id_clone.clone(),
                             session_id,
+                            input_tokens,
+                            output_tokens,
+                            model: completed_model,
                         });
-
-                        // Fire-and-forget usage log
-                        let input_tokens = json["usage"]["input_tokens"].as_i64().unwrap_or(0);
-                        let output_tokens = json["usage"]["output_tokens"].as_i64().unwrap_or(0);
                         if input_tokens > 0 || output_tokens > 0 {
                             let req_id = format!("hermes-{}", run_id_clone);
                             let model = if log_model.is_empty() { "unknown".to_string() } else { log_model.clone() };
@@ -669,6 +672,9 @@ pub async fn startChatRun(
                             output: String::new(),
                             run_id: run_id_clone.clone(),
                             session_id,
+                            input_tokens: 0,
+                            output_tokens: 0,
+                            model: String::new(),
                         });
                         return;
                     }
@@ -683,6 +689,9 @@ pub async fn startChatRun(
             output: String::new(),
             run_id: run_id_clone,
             session_id: String::new(),
+            input_tokens: 0,
+            output_tokens: 0,
+            model: String::new(),
         });
     });
 

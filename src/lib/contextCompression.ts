@@ -2,10 +2,9 @@ import type { ChatMessage } from "@/types";
 
 // 1 token ≈ 4 chars（粗估）
 const CHARS_PER_TOKEN = 4;
-// 超过此 token 数时触发压缩
-const COMPRESS_THRESHOLD_TOKENS = 6000;
-// 压缩后保留最近的 token 数
-const KEEP_RECENT_TOKENS = 3000;
+const DEFAULT_CONTEXT_WINDOW = 8000;
+const COMPRESS_RATIO = 0.6;
+const KEEP_RATIO = 0.3;
 
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / CHARS_PER_TOKEN);
@@ -25,7 +24,11 @@ export interface CompressResult {
 export function compressContext(
   messages: ChatMessage[],
   currentInput: string,
+  contextWindow = DEFAULT_CONTEXT_WINDOW,
 ): CompressResult {
+  const COMPRESS_THRESHOLD_TOKENS = Math.floor(contextWindow * COMPRESS_RATIO);
+  const KEEP_RECENT_TOKENS = Math.floor(contextWindow * KEEP_RATIO);
+
   const history = messages.filter((m) => m.role !== "tool");
 
   // 计算总 token
@@ -44,12 +47,20 @@ export function compressContext(
   }
 
   // 从最新消息往前取，直到达到 KEEP_RECENT_TOKENS
+  // 单条消息内容超长时截断到 KEEP_RECENT_TOKENS 的一半
+  const MAX_SINGLE_MSG_TOKENS = Math.floor(KEEP_RECENT_TOKENS / 2);
   let kept: ChatMessage[] = [];
   let accumulated = 0;
   for (let i = history.length - 1; i >= 0; i--) {
-    const tokens = estimateTokens(history[i].content);
+    let msg = history[i];
+    let tokens = estimateTokens(msg.content);
+    if (tokens > MAX_SINGLE_MSG_TOKENS) {
+      const maxChars = MAX_SINGLE_MSG_TOKENS * CHARS_PER_TOKEN;
+      msg = { ...msg, content: msg.content.slice(-maxChars) + "\n[... 内容过长已截断]" };
+      tokens = MAX_SINGLE_MSG_TOKENS;
+    }
     if (accumulated + tokens > KEEP_RECENT_TOKENS) break;
-    kept.unshift(history[i]);
+    kept.unshift(msg);
     accumulated += tokens;
   }
 

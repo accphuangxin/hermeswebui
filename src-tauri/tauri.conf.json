@@ -51,6 +51,12 @@
     },
     "macOS": {
       "minimumSystemVersion": "12.0"
+    },
+    "resources": {
+      "locales/zh_CN.lproj/InfoPlist.strings": "zh_CN.lproj/InfoPlist.strings",
+      "locales/zh_TW.lproj/InfoPlist.strings": "zh_TW.lproj/InfoPlist.strings",
+      "locales/ja.lproj/InfoPlist.strings": "ja.lproj/InfoPlist.strings",
+      "locales/en.lproj/InfoPlist.strings": "en.lproj/InfoPlist.strings"
     }
   },
   "plugins": {
