@@ -16,10 +16,24 @@ export function HermesAgentsPage({ isOnline, selectedAgentId, onSelectAgent, onB
   const { t } = useTranslation();
   const { data: agents = [], isLoading, isError, error, refetch, isFetching } = useHermesAgents(isOnline);
 
+  const allItems: Array<{ id: string | null; name: string; description?: string; model?: string }> = [
+    {
+      id: null,
+      name: t("hermes.agents.default", { defaultValue: "默认" }),
+      description: t("hermes.agents.defaultHint", { defaultValue: "由服务端决定" }),
+    },
+    ...agents.map((a: HermesAgent) => ({
+      id: a.id,
+      name: a.name ?? a.id,
+      description: a.description,
+      model: a.model,
+    })),
+  ];
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 pt-3 pb-2 border-b shrink-0">
+      <div className="flex items-center gap-2 px-4 pt-3 pb-2 border-b shrink-0">
         <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onBack}>
           <ArrowLeft className="w-3.5 h-3.5" />
         </Button>
@@ -33,89 +47,57 @@ export function HermesAgentsPage({ isOnline, selectedAgentId, onSelectAgent, onB
           className="h-7 w-7 shrink-0"
           onClick={() => void refetch()}
           disabled={isFetching}
-          title={t("hermes.agents.retry", { defaultValue: "刷新" })}
         >
           <RefreshCw className={cn("w-3.5 h-3.5", isFetching && "animate-spin")} />
         </Button>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto py-2">
+      <div className="flex-1 overflow-y-auto p-4">
         {!isOnline ? (
-          <div className="flex flex-col items-center justify-center h-40 text-center px-6 gap-2">
-            <p className="text-sm text-muted-foreground">
-              {t("hermes.agents.offline", { defaultValue: "服务未连接" })}
-            </p>
-          </div>
+          <EmptyState>{t("hermes.agents.offline", { defaultValue: "服务未连接" })}</EmptyState>
         ) : isLoading ? (
-          <div className="flex flex-col items-center justify-center h-40 text-center px-6 gap-2">
-            <p className="text-sm text-muted-foreground animate-pulse">
-              {t("common.loading", { defaultValue: "加载中..." })}
-            </p>
-          </div>
+          <EmptyState pulse>{t("common.loading", { defaultValue: "加载中..." })}</EmptyState>
         ) : isError ? (
-          <div className="flex flex-col items-center justify-center h-40 text-center px-6 gap-3">
+          <div className="flex flex-col items-center justify-center h-40 text-center gap-3">
             <p className="text-sm text-muted-foreground">
               {t("hermes.agents.loadError", { defaultValue: "加载失败" })}
             </p>
             {error && (
-              <p className="text-xs text-destructive/80 max-w-xs break-all font-mono">{String(error)}</p>
+              <p className="text-xs text-destructive/80 max-w-sm break-all font-mono">{String(error)}</p>
             )}
             <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => void refetch()}>
               {t("hermes.agents.retry", { defaultValue: "重试" })}
             </Button>
           </div>
         ) : (
-          <>
-            {/* Default option */}
-            <AgentRow
-              id={null}
-              name={t("hermes.agents.default", { defaultValue: "默认" })}
-              description={t("hermes.agents.defaultHint", { defaultValue: "由服务端决定" })}
-              isSelected={selectedAgentId === null}
-              onSelect={() => { onSelectAgent(null); onBack(); }}
-            />
-            <div className="mx-3 my-1 border-t border-border/40" />
-            {agents.length > 0 ? (
-              agents.map((agent: HermesAgent) => (
-                <AgentRow
-                  key={agent.id}
-                  id={agent.id}
-                  name={agent.name ?? agent.id}
-                  description={agent.description ?? agent.model}
-                  model={agent.description ? agent.model : undefined}
-                  isSelected={selectedAgentId === agent.id}
-                  onSelect={() => { onSelectAgent(agent.id); onBack(); }}
-                />
-              ))
-            ) : (
-              <div className="flex flex-col items-center justify-center h-32 text-center px-6">
-                <p className="text-sm text-muted-foreground">
-                  {t("hermes.agents.empty", { defaultValue: "暂无可用智能体" })}
-                </p>
-              </div>
-            )}
-          </>
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
+            {allItems.map((item) => (
+              <AgentCard
+                key={item.id ?? "__default__"}
+                name={item.name}
+                description={item.description}
+                model={item.model}
+                isSelected={selectedAgentId === item.id}
+                onSelect={() => { onSelectAgent(item.id); onBack(); }}
+              />
+            ))}
+          </div>
         )}
       </div>
-
-      {/* Selected indicator at bottom */}
-      {selectedAgentId && (
-        <div className="px-3 py-2 border-t border-border/50 shrink-0">
-          <p className="text-xs text-muted-foreground">
-            {t("hermes.agents.active", { defaultValue: "当前：" })}
-            <span className="text-primary font-medium ml-1">
-              {agents.find((a) => a.id === selectedAgentId)?.name ?? selectedAgentId}
-            </span>
-          </p>
-        </div>
-      )}
     </div>
   );
 }
 
-interface AgentRowProps {
-  id: string | null;
+function EmptyState({ children, pulse }: { children: React.ReactNode; pulse?: boolean }) {
+  return (
+    <div className="flex items-center justify-center h-40">
+      <p className={cn("text-sm text-muted-foreground", pulse && "animate-pulse")}>{children}</p>
+    </div>
+  );
+}
+
+interface AgentCardProps {
   name: string;
   description?: string;
   model?: string;
@@ -123,25 +105,28 @@ interface AgentRowProps {
   onSelect: () => void;
 }
 
-function AgentRow({ name, description, model, isSelected, onSelect }: AgentRowProps) {
+function AgentCard({ name, description, model, isSelected, onSelect }: AgentCardProps) {
   return (
     <button
       onClick={onSelect}
       className={cn(
-        "w-full flex items-start gap-2.5 px-3 py-2.5 text-left hover:bg-accent/60 transition-colors",
-        isSelected && "bg-accent/40",
+        "relative flex flex-col gap-1.5 p-3 rounded-xl border text-left transition-all",
+        "hover:border-primary/50 hover:bg-accent/40",
+        isSelected
+          ? "border-primary bg-primary/5"
+          : "border-border bg-card",
       )}
     >
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium leading-snug truncate">{name}</p>
-        {description && (
-          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{description}</p>
-        )}
-        {model && (
-          <p className="text-[10px] text-muted-foreground/60 mt-0.5 font-mono truncate">{model}</p>
-        )}
-      </div>
-      {isSelected && <Check className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" />}
+      {isSelected && (
+        <Check className="absolute top-2.5 right-2.5 w-3.5 h-3.5 text-primary" />
+      )}
+      <p className="text-sm font-semibold leading-snug pr-5 truncate">{name}</p>
+      {description && (
+        <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed">{description}</p>
+      )}
+      {model && (
+        <p className="text-[10px] text-muted-foreground/50 font-mono truncate mt-auto pt-1">{model}</p>
+      )}
     </button>
   );
 }
