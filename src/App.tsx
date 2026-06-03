@@ -90,6 +90,7 @@ import OpenClawHealthBanner from "@/components/openclaw/OpenClawHealthBanner";
 import HermesMemoryPanel from "@/components/hermes/HermesMemoryPanel";
 import { ChatPage } from "@/components/chat/ChatPage";
 import { AgentsButton } from "@/components/chat/AgentsButton";
+import { HermesAgentsPage } from "@/components/chat/HermesAgentsPage";
 import { useChatStatus, useChatModels } from "@/hooks/useHermesChat";
 import {
   Select,
@@ -114,7 +115,8 @@ type View =
   | "openclawTools"
   | "openclawAgents"
   | "hermesMemory"
-  | "hermesChat";
+  | "hermesChat"
+  | "hermesAgents";
 
 interface WebDavSyncStatusUpdatedPayload {
   source?: string;
@@ -905,7 +907,7 @@ function App() {
   };
 
   const renderContent = () => {
-    const isHermesView = currentView === "hermesChat" || currentView === "skills";
+    const isHermesView = currentView === "hermesChat" || currentView === "skills" || currentView === "hermesAgents";
 
     const content = (() => {
       switch (currentView) {
@@ -1039,6 +1041,14 @@ function App() {
               ref={unifiedSkillsPanelRef}
               onOpenDiscovery={() => setCurrentView("skills")}
               currentApp={activeApp === "openclaw" ? "claude" : activeApp}
+            />
+          </div>
+          <div className={cn("flex-1 min-h-0 flex flex-col overflow-hidden h-full", currentView !== "hermesAgents" && "hidden")}>
+            <HermesAgentsPage
+              isOnline={hermesChatStatus?.online ?? false}
+              selectedAgentId={hermesSelectedAgentId}
+              onSelectAgent={setHermesSelectedAgentId}
+              onBack={() => setCurrentView("hermesChat")}
             />
           </div>
         </div>
@@ -1283,13 +1293,14 @@ function App() {
                 className="flex shrink-0 items-center gap-1.5 ml-auto"
                 style={{ WebkitAppRegion: "no-drag" } as any}
               >
+                {(currentView === "hermesChat" || currentView === "hermesAgents") && (
+                  <AgentsButton
+                    isActive={currentView === "hermesAgents"}
+                    onClick={() => setCurrentView(currentView === "hermesAgents" ? "hermesChat" : "hermesAgents")}
+                  />
+                )}
                 {currentView === "hermesChat" && (
                   <>
-                    <AgentsButton
-                      isOnline={hermesChatStatus?.online ?? false}
-                      selectedAgentId={hermesSelectedAgentId}
-                      onSelectAgent={setHermesSelectedAgentId}
-                    />
                     <Popover open={apiConfigOpen} onOpenChange={setApiConfigOpen}>
                       <PopoverTrigger asChild>
                         <Button
