@@ -492,6 +492,13 @@ pub struct HermesAgent {
     pub description: Option<String>,
     pub model: Option<String>,
     pub skills: Option<Vec<String>>,
+    // Accept both snake_case (from server) and camelCase; always serialize as camelCase for frontend
+    #[serde(
+        alias = "api_server_port",
+        rename = "apiServerPort",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub api_server_port: Option<u16>,
 }
 
