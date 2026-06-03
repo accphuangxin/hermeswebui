@@ -481,6 +481,34 @@ pub struct RunRequest {
     pub input: String,
     pub model: Option<String>,
     pub session_id: Option<String>,
+    pub agent_id: Option<String>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct HermesAgent {
+    pub id: String,
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub model: Option<String>,
+    pub skills: Option<Vec<String>>,
+}
+
+#[tauri::command]
+pub async fn getHermesAgents() -> Result<Vec<HermesAgent>, String> {
+    let (client, base, auth_header) = build_api_client(5)?;
+    let url = format!("{base}/api/agents");
+
+    let mut req = client.get(&url);
+    if !auth_header.is_empty() {
+        req = req.header("Authorization", &auth_header);
+    }
+
+    let resp = req.send().await.map_err(|e| format!("request failed: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+
+    resp.json::<Vec<HermesAgent>>().await.map_err(|e| format!("parse failed: {e}"))
 }
 
 #[derive(Serialize)]
@@ -506,6 +534,9 @@ pub async fn startChatRun(
     }
     if let Some(sid) = &request.session_id {
         body["session_id"] = serde_json::json!(sid);
+    }
+    if let Some(agent_id) = &request.agent_id {
+        body["agent_id"] = serde_json::json!(agent_id);
     }
 
     // POST /v1/runs — create run

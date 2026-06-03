@@ -1731,6 +1731,16 @@
       "openConfig": "Adjust limits in Hermes Web UI",
       "runtimeNote": "Changes apply on Hermes restart or new session."
     },
+    "agents": {
+      "button": "Agents",
+      "title": "Select Agent",
+      "default": "Default",
+      "defaultHint": "Determined by server",
+      "empty": "No agents available",
+      "offline": "Service not connected",
+      "loadError": "Failed to load",
+      "retry": "Retry"
+    },
     "chat": {
       "title": "Chat",
       "newSession": "New Chat",

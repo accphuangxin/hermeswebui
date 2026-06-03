@@ -1731,6 +1731,16 @@
       "openConfig": "Hermes Web UI で上限を調整",
       "runtimeNote": "変更は Hermes の再起動または新規セッション時に反映されます。"
     },
+    "agents": {
+      "button": "エージェント",
+      "title": "エージェントを選択",
+      "default": "デフォルト",
+      "defaultHint": "サーバーが決定",
+      "empty": "利用可能なエージェントがありません",
+      "offline": "サービス未接続",
+      "loadError": "読み込み失敗",
+      "retry": "再試行"
+    },
     "chat": {
       "title": "チャット",
       "newSession": "新規チャット",

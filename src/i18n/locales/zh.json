@@ -1731,6 +1731,16 @@
       "openConfig": "在 Hermes Web UI 调整上限",
       "runtimeNote": "更改将在 Hermes 下次启动或新建会话时生效。"
     },
+    "agents": {
+      "button": "智能体",
+      "title": "选择智能体",
+      "default": "默认",
+      "defaultHint": "由服务端决定",
+      "empty": "暂无可用智能体",
+      "offline": "服务未连接",
+      "loadError": "加载失败",
+      "retry": "重试"
+    },
     "chat": {
       "title": "聊天",
       "newSession": "新建聊天",

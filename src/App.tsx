@@ -89,6 +89,7 @@ import AgentsDefaultsPanel from "@/components/openclaw/AgentsDefaultsPanel";
 import OpenClawHealthBanner from "@/components/openclaw/OpenClawHealthBanner";
 import HermesMemoryPanel from "@/components/hermes/HermesMemoryPanel";
 import { ChatPage } from "@/components/chat/ChatPage";
+import { AgentsButton } from "@/components/chat/AgentsButton";
 import { useChatStatus, useChatModels } from "@/hooks/useHermesChat";
 import {
   Select,
@@ -200,6 +201,7 @@ function App() {
   const { data: hermesChatStatus } = useChatStatus(true);
   const { data: hermesChatModels = [] } = useChatModels();
   const [hermesSelectedModel, setHermesSelectedModel] = useState("");
+  const [hermesSelectedAgentId, setHermesSelectedAgentId] = useState<string | null>(null);
   const prevApiHostRef = useRef<string>("");
   useEffect(() => {
     const host = hermesChatStatus?.host ?? "127.0.0.1";
@@ -1030,7 +1032,7 @@ function App() {
         {/* Always-mounted hermes views — hidden via CSS to preserve streaming state */}
         <div className={cn("flex-1 min-h-0 overflow-hidden", !isHermesView && "hidden")}>
           <div className={cn("flex-1 min-h-0 flex flex-col overflow-hidden h-full", currentView !== "hermesChat" && "hidden")}>
-            <ChatPage selectedModel={hermesSelectedModel} />
+            <ChatPage selectedModel={hermesSelectedModel} selectedAgentId={hermesSelectedAgentId} />
           </div>
           <div className={cn("flex-1 min-h-0 flex flex-col overflow-hidden h-full", currentView !== "skills" && "hidden")}>
             <UnifiedSkillsPanel
@@ -1283,6 +1285,11 @@ function App() {
               >
                 {currentView === "hermesChat" && (
                   <>
+                    <AgentsButton
+                      isOnline={hermesChatStatus?.online ?? false}
+                      selectedAgentId={hermesSelectedAgentId}
+                      onSelectAgent={setHermesSelectedAgentId}
+                    />
                     <Popover open={apiConfigOpen} onOpenChange={setApiConfigOpen}>
                       <PopoverTrigger asChild>
                         <Button

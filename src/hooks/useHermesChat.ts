@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { chatApi, type SaveMessageInput } from "@/lib/api/chat";
+import { agentsApi } from "@/lib/api/agents";
 
 export const chatKeys = {
   all: ["hermesChat"] as const,
   status: ["hermesChat", "status"] as const,
   models: ["hermesChat", "models"] as const,
+  agents: ["hermesChat", "agents"] as const,
   sessions: ["hermesChat", "sessions"] as const,
   session: (id: string) => ["hermesChat", "session", id] as const,
   messages: (sessionId: string) => ["hermesChat", "messages", sessionId] as const,
@@ -23,6 +25,16 @@ export function useChatModels() {
   return useQuery({
     queryKey: chatKeys.models,
     queryFn: () => chatApi.getModels(),
+  });
+}
+
+export function useHermesAgents(enabled: boolean) {
+  return useQuery({
+    queryKey: chatKeys.agents,
+    queryFn: () => agentsApi.getAgents(),
+    enabled,
+    refetchInterval: 30_000,
+    staleTime: 20_000,
   });
 }
 

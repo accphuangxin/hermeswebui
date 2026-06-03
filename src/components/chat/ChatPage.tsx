@@ -31,9 +31,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface ChatPageProps {
   selectedModel: string;
+  selectedAgentId: string | null;
 }
 
-export function ChatPage({ selectedModel }: ChatPageProps) {
+export function ChatPage({ selectedModel, selectedAgentId }: ChatPageProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -43,6 +44,7 @@ export function ChatPage({ selectedModel }: ChatPageProps) {
   const [hermesSessionId, setHermesSessionId] = useState<string | null>(null);
   const [lastUsage, setLastUsage] = useState<RunUsage | null>(null);
   const [compressionInfo, setCompressionInfo] = useState<{ wasCompressed: boolean; droppedCount: number } | null>(null);
+  const [isSending, setIsSending] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("chat");
   const [areaMenu, setAreaMenu] = useState<{ x: number; y: number } | null>(null);
   const areaMenuRef = useRef<HTMLDivElement>(null);
@@ -99,7 +101,7 @@ export function ChatPage({ selectedModel }: ChatPageProps) {
 
   useEffect(() => {
     scrollBottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [streamingContent, toolActivities]);
+  }, [streamingContent, toolActivities, isWaiting, isStreaming, isSending]);
 
   const handleNewSession = useCallback(async () => {
     const id = crypto.randomUUID();
@@ -146,6 +148,7 @@ export function ChatPage({ selectedModel }: ChatPageProps) {
       setStreamingContent("");
       setToolActivities([]);
       setPendingApproval(null);
+      setIsSending(true);
 
       const hermesModel =
         selectedModel && selectedModel !== "__default__"
@@ -179,6 +182,7 @@ export function ChatPage({ selectedModel }: ChatPageProps) {
           input: compressedInput,
           model: hermesModel,
           sessionId: wasCompressed ? undefined : (hermesSessionId ?? undefined),
+          agentId: selectedAgentId ?? undefined,
           onDelta: (delta) => {
             fullContent += delta;
             setStreamingContent(fullContent);
@@ -212,6 +216,7 @@ export function ChatPage({ selectedModel }: ChatPageProps) {
             succeeded = true;
             setStreamingContent("");
             setToolActivities([]);
+            setIsSending(false);
 
             if (runSessionId) {
               setHermesSessionId(runSessionId);
@@ -240,6 +245,7 @@ export function ChatPage({ selectedModel }: ChatPageProps) {
 
       setStreamingContent("");
       setToolActivities([]);
+      setIsSending(false);
       if (!userCancelledRef.current && lastError) {
         const errMsgId = crypto.randomUUID();
         await saveMessage.mutateAsync({
@@ -248,7 +254,7 @@ export function ChatPage({ selectedModel }: ChatPageProps) {
         });
       }
     },
-    [isOnline, activeSessionId, messages, selectedModel, activeContextWindow, hermesSessionId, sendRun, saveMessage, t],
+    [isOnline, activeSessionId, messages, selectedModel, selectedAgentId, activeContextWindow, hermesSessionId, sendRun, saveMessage, t],
   );
 
   const handleClearMessages = useCallback(async () => {
@@ -372,6 +378,12 @@ export function ChatPage({ selectedModel }: ChatPageProps) {
                       onResend={(content) => void doSendToAgent(content)}
                     />
                   ))}
+                {/* Thinking indicator */}
+                {(isSending || isWaiting || (isStreaming && !streamingContent)) && (
+                  <div className="px-3 py-2 text-sm text-muted-foreground animate-pulse">
+                    {t("hermes.chat.thinking")}
+                  </div>
+                )}
                 {/* Tool activities during streaming */}
                 {toolActivities.length > 0 && (
                   <div className="border-l-2 border-muted ml-5 my-2">
@@ -395,12 +407,6 @@ export function ChatPage({ selectedModel }: ChatPageProps) {
                       createdAt: Date.now(),
                     }}
                   />
-                )}
-                {/* Thinking indicator */}
-                {(isWaiting || (isStreaming && !streamingContent && toolActivities.length === 0)) && (
-                  <div className="px-3 py-2 text-sm text-muted-foreground animate-pulse">
-                    {t("hermes.chat.thinking")}
-                  </div>
                 )}
                 {/* Approval card */}
                 {pendingApproval && (

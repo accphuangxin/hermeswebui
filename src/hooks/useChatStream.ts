@@ -26,17 +26,27 @@ interface RunStreamEvent {
   message?: string;
   runId?: string;
   sessionId?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  model?: string;
+}
+
+export interface RunUsage {
+  inputTokens: number;
+  outputTokens: number;
+  model: string;
 }
 
 interface StreamOptions {
   input: string;
   model?: string;
   sessionId?: string;
+  agentId?: string;
   onDelta: (text: string) => void;
   onToolStarted: (tool: string, preview: string) => void;
   onToolCompleted: (tool: string, duration: number, error: boolean) => void;
   onApprovalRequired: (approval: ApprovalRequest) => void;
-  onCompleted: (output: string, runSessionId: string) => void;
+  onCompleted: (output: string, runSessionId: string, usage?: RunUsage) => void;
   onError: (error: string) => void;
 }
 
@@ -68,7 +78,7 @@ export function useChatStream() {
   }, []);
 
   const sendRun = useCallback(async (options: StreamOptions) => {
-    const { input, model, sessionId, onDelta, onToolStarted, onToolCompleted, onApprovalRequired, onCompleted, onError } = options;
+    const { input, model, sessionId, agentId, onDelta, onToolStarted, onToolCompleted, onApprovalRequired, onCompleted, onError } = options;
 
     if (waitingTimerRef.current) {
       clearTimeout(waitingTimerRef.current);
@@ -106,7 +116,11 @@ export function useChatStream() {
               break;
             case "completed":
               clearWaiting();
-              onCompleted(event.output ?? "", event.sessionId ?? "");
+              onCompleted(event.output ?? "", event.sessionId ?? "", {
+                inputTokens: event.inputTokens ?? 0,
+                outputTokens: event.outputTokens ?? 0,
+                model: event.model ?? "",
+              });
               resolve();
               break;
             case "failed":
@@ -127,6 +141,7 @@ export function useChatStream() {
             input,
             model: model ?? null,
             sessionId: sessionId ?? null,
+            agentId: agentId ?? null,
           },
           onEvent,
         })
