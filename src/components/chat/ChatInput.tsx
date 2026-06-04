@@ -59,7 +59,8 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkill
   );
 
   const filteredAgents = agents.filter((a) => {
-    const name = (a.name ?? a.alias ?? a.id).toLowerCase();
+    if (a.status === "stopped") return false;
+    const name = a.name.toLowerCase();
     const desc = (a.description ?? "").toLowerCase();
     const q = agentFilter.toLowerCase();
     return name.includes(q) || desc.includes(q);
@@ -152,7 +153,7 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkill
     setAgentTriggerPos(-1);
 
     if (onSelectAgent) {
-      const agentId = agent.isDefault ? null : agent.id;
+      const agentId = (agent.isDefault || agent.name === "default") ? null : agent.name;
       onSelectAgent(agentId, agent.apiServerPort, agent.apiServerKey);
     }
   };
@@ -366,11 +367,11 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkill
           className="absolute bottom-full left-3 right-3 mb-1 bg-popover border rounded-md shadow-md max-h-[240px] overflow-y-auto z-50"
         >
           {filteredAgents.map((a, i) => {
-            const name = a.name ?? a.alias ?? a.id;
-            const isSelected = a.isDefault ? selectedAgentId === null : a.id === selectedAgentId;
+            const name = a.name;
+            const isSelected = (a.isDefault || a.name === "default") ? selectedAgentId === null : a.name === selectedAgentId;
             return (
               <button
-                key={a.id}
+                key={a.name}
                 onMouseEnter={() => setAgentSelectedIndex(i)}
                 onClick={() => selectAgent(a)}
                 className={cn(

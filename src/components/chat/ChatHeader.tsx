@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Wifi, WifiOff, Sparkles } from "lucide-react";
+import { Wifi, WifiOff, Sparkles, Settings2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -8,6 +9,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import type { HermesChatModel } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +26,13 @@ interface ChatHeaderProps {
   selectedModel: string;
   onModelChange: (model: string) => void;
   onNavigateSkills?: () => void;
+  apiConfigHost: string;
+  apiConfigPort: string;
+  apiConfigKey: string;
+  onApiConfigHostChange: (v: string) => void;
+  onApiConfigPortChange: (v: string) => void;
+  onApiConfigKeyChange: (v: string) => void;
+  onApiConfigSave: () => void;
 }
 
 export function ChatHeader({
@@ -29,8 +43,16 @@ export function ChatHeader({
   selectedModel,
   onModelChange,
   onNavigateSkills,
+  apiConfigHost,
+  apiConfigPort,
+  apiConfigKey,
+  onApiConfigHostChange,
+  onApiConfigPortChange,
+  onApiConfigKeyChange,
+  onApiConfigSave,
 }: ChatHeaderProps) {
   const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
 
   return (
     <div className="flex items-center gap-3 px-4 h-10 border-b bg-muted/20 shrink-0">
@@ -60,8 +82,62 @@ export function ChatHeader({
             : defaultModel || ""}
       </span>
 
-      {/* Model selector */}
-      <div className="flex items-center gap-2 ml-auto">
+      {/* Right side controls */}
+      <div className="flex items-center gap-1.5 ml-auto">
+        {/* API Server config popover */}
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <Button size="icon" variant="ghost" className="h-7 w-7" title="API Server 配置">
+              <Settings2 className="w-3.5 h-3.5" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-72 p-4 space-y-3">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              {t("hermes.serverConfig.title", { defaultValue: "API Server 配置" })}
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Host</label>
+                <Input
+                  value={apiConfigHost}
+                  onChange={(e) => onApiConfigHostChange(e.target.value)}
+                  placeholder="127.0.0.1"
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Port</label>
+                <Input
+                  value={apiConfigPort}
+                  onChange={(e) => onApiConfigPortChange(e.target.value)}
+                  placeholder="8643"
+                  className="h-8 text-xs"
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">API Key</label>
+              <Input
+                type="password"
+                value={apiConfigKey}
+                onChange={(e) => onApiConfigKeyChange(e.target.value)}
+                placeholder={t("hermes.serverConfig.keyPlaceholder", { defaultValue: "留空则不验证" })}
+                className="h-8 text-xs"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { onApiConfigSave(); setOpen(false); }
+                }}
+              />
+            </div>
+            <Button
+              size="sm"
+              className="w-full h-8 text-xs"
+              onClick={() => { onApiConfigSave(); setOpen(false); }}
+            >
+              {t("common.save", { defaultValue: "保存" })}
+            </Button>
+          </PopoverContent>
+        </Popover>
+
         {onNavigateSkills && (
           <Button
             size="icon"
@@ -73,6 +149,8 @@ export function ChatHeader({
             <Sparkles className="w-3.5 h-3.5" />
           </Button>
         )}
+
+        {/* Model selector */}
         <Select
           value={selectedModel}
           onValueChange={onModelChange}

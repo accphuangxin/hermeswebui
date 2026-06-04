@@ -19,6 +19,29 @@ pub fn set_active_hermes_agent(agent_id: Option<String>) {
     }
 }
 
+/// 当前 active agent 的 port 和 key（从 agent 数据直接获取，优先级高于 .env）
+#[derive(Clone, Default)]
+pub struct ActiveAgentConfig {
+    pub port: Option<u16>,
+    pub key: Option<String>,
+}
+
+static ACTIVE_AGENT_CONFIG: OnceLock<RwLock<ActiveAgentConfig>> = OnceLock::new();
+
+fn agent_config_lock() -> &'static RwLock<ActiveAgentConfig> {
+    ACTIVE_AGENT_CONFIG.get_or_init(|| RwLock::new(ActiveAgentConfig::default()))
+}
+
+pub fn get_active_agent_config() -> ActiveAgentConfig {
+    agent_config_lock().read().ok().map(|g| g.clone()).unwrap_or_default()
+}
+
+pub fn set_active_agent_config(port: Option<u16>, key: Option<String>) {
+    if let Ok(mut w) = agent_config_lock().write() {
+        *w = ActiveAgentConfig { port, key };
+    }
+}
+
 /// 全局应用状态
 pub struct AppState {
     pub db: Arc<Database>,

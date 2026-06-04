@@ -307,6 +307,24 @@ pub fn setHermesApiServerConfig(host: String, port: String, key: String) -> Resu
 }
 
 pub(crate) fn read_api_server_config() -> ApiServerConfig {
+    // In-memory store takes highest priority (set on agent switch)
+    let active = crate::store::get_active_agent_config();
+    if active.port.is_some() || active.key.is_some() {
+        let config = hermes_config::read_hermes_config().unwrap_or_default();
+        let platforms = config.get("platforms");
+        let api_server = platforms.and_then(|p| p.get("api_server"));
+        let extra = api_server.and_then(|a| a.get("extra"));
+        let host = read_hermes_env_var("HERMES_CLIENT_HOST")
+            .or_else(|| extra.and_then(|e| e.get("host")).and_then(|v| v.as_str()).map(str::to_string))
+            .unwrap_or_else(|| "127.0.0.1".to_string());
+        let port = active.port
+            .or_else(|| read_hermes_env_var("HERMES_CLIENT_PORT").and_then(|v| v.parse().ok()))
+            .unwrap_or(8640);
+        let key = active.key.filter(|s| !s.is_empty())
+            .unwrap_or_else(read_hermes_env_key);
+        return ApiServerConfig { host, port, key };
+    }
+
     let config = hermes_config::read_hermes_config().unwrap_or_default();
     let platforms = config.get("platforms");
     let api_server = platforms.and_then(|p| p.get("api_server"));
@@ -325,7 +343,7 @@ pub(crate) fn read_api_server_config() -> ApiServerConfig {
         .or_else(|| read_hermes_env_var("HERMES_CLIENT_PORT"))
         .and_then(|v| v.parse::<u16>().ok())
         .or_else(|| extra.and_then(|e| e.get("port")).and_then(|v| v.as_u64()).map(|p| p as u16))
-        .unwrap_or(8643);
+        .unwrap_or(8640);
 
     // Key resolution order:
     //   1. profile .env API_SERVER_KEY  (active agent override)
@@ -519,17 +537,16 @@ pub struct RunRequest {
     pub session_id: Option<String>,
     pub agent_id: Option<String>,
     pub api_server_port: Option<u16>,
+    pub api_server_key: Option<String>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct HermesAgent {
     pub id: String,
-    /// Display name — fall back to `alias` then `id` if absent
+    pub name: String,
     #[serde(default)]
-    pub name: Option<String>,
-    #[serde(default)]
-    pub alias: Option<String>,
+    pub object: Option<String>,
     #[serde(default)]
     pub description: Option<String>,
     #[serde(default)]
@@ -537,26 +554,55 @@ pub struct HermesAgent {
     #[serde(default)]
     pub provider: Option<String>,
     #[serde(default)]
+    pub host: Option<String>,
+    /// accepts "apiServerPort" (camel) or "port" (snake)
+    #[serde(default, alias = "port")]
+    pub api_server_port: Option<u16>,
+    /// accepts "apiServerKey" (camel) or "api_key" (snake)
+    #[serde(default, alias = "api_key")]
+    pub api_server_key: Option<String>,
+    /// actual_port: the port the agent is actually listening on
+    #[serde(default)]
+    pub actual_port: Option<u16>,
+    #[serde(default)]
+    pub status: Option<String>,
+    #[serde(default, alias = "gateway_running")]
+    pub gateway_running: Option<bool>,
+    #[serde(default, alias = "skill_count")]
+    pub skill_count: Option<u32>,
+    #[serde(default, alias = "is_default")]
     pub is_default: Option<bool>,
     #[serde(default)]
-    pub gateway_running: Option<bool>,
+    pub source: Option<String>,
     #[serde(default)]
-    pub skill_count: Option<u32>,
-    #[serde(default)]
-    pub skills: Option<Vec<String>>,
-    #[serde(default)]
-    pub api_server_port: Option<u16>,
-    #[serde(default)]
-    pub api_server_key: Option<String>,
+    pub soul: Option<String>,
 }
 
 /// Set the globally active Hermes agent.
 /// Pass None to revert to the default ~/.hermes/skills path.
 #[tauri::command]
-pub fn setActiveHermesAgent(agent_id: Option<String>) {
-    // Treat "default" as no active agent (use ~/.hermes/.env)
+pub fn setActiveHermesAgent(
+    agent_id: Option<String>,
+    api_server_port: Option<u16>,
+    api_server_key: Option<String>,
+) -> Result<(), String> {
+    // agent_id is now the agent name (filesystem key), no prefix stripping needed
     let normalized = agent_id.filter(|id| !id.is_empty() && id != "default");
     crate::store::set_active_hermes_agent(normalized);
+
+    // Store port and key in memory so status/model queries pick them up immediately
+    crate::store::set_active_agent_config(api_server_port, api_server_key.clone());
+
+    // Also persist to the agent's profile .env for other tools
+    if api_server_port.is_some() || api_server_key.as_deref().map_or(false, |s| !s.is_empty()) {
+        let port_str = api_server_port.map(|p| p.to_string());
+        let profile_env = active_env_path();
+        let _ = write_env_vars_to(&profile_env, &[
+            ("HERMES_CLIENT_PORT", port_str.as_deref()),
+            ("API_SERVER_KEY",     api_server_key.as_deref().filter(|s| !s.is_empty())),
+        ]);
+    }
+    Ok(())
 }
 
 /// Get the current Hermes skills path based on the active agent.
@@ -573,15 +619,15 @@ pub fn getHermesSkillsPath() -> String {
 
 #[tauri::command]
 pub async fn getHermesAgents() -> Result<Vec<HermesAgent>, String> {
-    let (client, base, auth_header) = build_api_client(5)?;
-    let url = format!("{base}/api/agents");
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .no_proxy()
+        .build()
+        .map_err(|e| format!("failed to build client: {e}"))?;
+    let host = read_api_server_config().host;
+    let url = format!("http://{host}:8640/v1/agents");
 
-    let mut req = client.get(&url);
-    if !auth_header.is_empty() {
-        req = req.header("Authorization", &auth_header);
-    }
-
-    let resp = req.send().await.map_err(|e| format!("request failed: {e}"))?;
+    let resp = client.get(url).send().await.map_err(|e| format!("request failed: {e}"))?;
     if !resp.status().is_success() {
         return Err(format!("HTTP {}", resp.status()));
     }
@@ -600,6 +646,63 @@ pub async fn getHermesAgents() -> Result<Vec<HermesAgent>, String> {
     serde_json::from_value::<Vec<HermesAgent>>(arr).map_err(|e| format!("deserialize failed: {e}"))
 }
 
+#[derive(serde::Deserialize)]
+pub struct CreateAgentInput {
+    pub name: String,
+    pub description: Option<String>,
+    pub soul: Option<String>,
+    pub clone: Option<bool>,
+    pub api_server_port: Option<u16>,
+    pub api_server_key: Option<String>,
+}
+
+#[tauri::command]
+pub async fn createHermesAgent(input: CreateAgentInput) -> Result<HermesAgent, String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .no_proxy()
+        .build()
+        .map_err(|e| format!("failed to build client: {e}"))?;
+    let host = read_api_server_config().host;
+    let url = format!("http://{host}:8640/v1/agents");
+
+    let mut body = serde_json::json!({ "name": input.name });
+    if let Some(v) = input.description { body["description"] = serde_json::json!(v); }
+    if let Some(v) = input.soul       { body["soul"] = serde_json::json!(v); }
+    if let Some(v) = input.clone      { body["clone"] = serde_json::json!(v); }
+    if let Some(v) = input.api_server_port { body["api_server_port"] = serde_json::json!(v); }
+    if let Some(v) = input.api_server_key  { body["api_server_key"] = serde_json::json!(v); }
+
+    let resp = client.post(&url).json(&body).send().await
+        .map_err(|e| format!("request failed: {e}"))?;
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        return Err(format!("HTTP {status}: {text}"));
+    }
+
+    resp.json::<HermesAgent>().await.map_err(|e| format!("deserialize failed: {e}"))
+}
+
+#[tauri::command]
+pub async fn deleteHermesAgent(agent_id: String) -> Result<(), String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .no_proxy()
+        .build()
+        .map_err(|e| format!("failed to build client: {e}"))?;
+    let host = read_api_server_config().host;
+    let url = format!("http://{host}:8640/v1/agents/{agent_id}");
+    let resp = client.delete(&url).send().await
+        .map_err(|e| format!("request failed: {e}"))?;
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        return Err(format!("HTTP {status}: {text}"));
+    }
+    Ok(())
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RunCreated {
@@ -614,10 +717,17 @@ pub async fn startChatRun(
 ) -> Result<RunCreated, String> {
     use futures::StreamExt;
 
-    let (client, mut base, auth_header) = build_api_client(300)?;
+    let (client, mut base, mut auth_header) = build_api_client(300)?;
+    let cfg = read_api_server_config();
+    // Use port from agent if provided
     if let Some(port) = request.api_server_port {
-        let cfg = read_api_server_config();
         base = format!("http://{}:{}", cfg.host, port);
+    }
+    // Use key from agent if provided — takes precedence over .env
+    if let Some(key) = &request.api_server_key {
+        if !key.is_empty() {
+            auth_header = format!("Bearer {key}");
+        }
     }
     let url = format!("{base}/v1/runs");
 
@@ -648,7 +758,17 @@ pub async fn startChatRun(
     if !resp.status().is_success() {
         let status = resp.status();
         let text = resp.text().await.unwrap_or_default();
-        return Err(format!("HTTP {status}: {text}"));
+        let key_display = if auth_header.is_empty() {
+            "(no key)".to_string()
+        } else {
+            let raw = auth_header.trim_start_matches("Bearer ");
+            if raw.len() > 8 {
+                format!("{}...{}", &raw[..4], &raw[raw.len()-4..])
+            } else {
+                raw.to_string()
+            }
+        };
+        return Err(format!("HTTP {status}: {text}\nURL: {url}\nKey: {key_display}"));
     }
 
     let create_resp: serde_json::Value = resp

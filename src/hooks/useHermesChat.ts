@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { chatApi, type SaveMessageInput } from "@/lib/api/chat";
-import { agentsApi } from "@/lib/api/agents";
+import { agentsApi, type CreateAgentInput } from "@/lib/api/agents";
 
 export const chatKeys = {
   all: ["hermesChat"] as const,
@@ -37,6 +37,26 @@ export function useHermesAgents() {
     refetchInterval: 30_000,
     staleTime: 20_000,
     retry: 1,
+  });
+}
+
+export function useCreateAgent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateAgentInput) => agentsApi.createAgent(input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: chatKeys.agents });
+    },
+  });
+}
+
+export function useDeleteAgent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (agentId: string) => agentsApi.deleteAgent(agentId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: chatKeys.agents });
+    },
   });
 }
 

@@ -565,24 +565,72 @@ impl SkillService {
 
     // ========== 统一管理方法 ==========
 
-    /// 获取所有已安装的 Skills（含 ~/.hermes/skills/ 目录下未被管理的技能）
-    /// 当传入 agent_id 时，isFavorite 由 skill_agent_favorites 表决定（agent 级别隔离）
+    /// 获取所有已安装的 Skills
+    /// - 先扫描全局 ~/.hermes/skills/（始终执行）
+    /// - 再扫描 agent 专属 ~/.hermes/profiles/<agent_id>/skills/（有 agent 时追加，同 id 以 agent 路径覆盖）
+    /// - 结果 upsert 到 agent_skill_cache（agent_id="" 表示全局），并清除 stale 条目
+    /// - DB 只用于读取收藏标签（skill_agent_favorites 表）
     pub fn get_all_installed(db: &Arc<Database>, agent_id: Option<&str>) -> Result<Vec<InstalledSkill>> {
-        let mut skills = db.get_all_installed_skills()?;
+        let hermes_dir = crate::hermes_config::get_hermes_dir();
 
-        // 如果指定了 agent，用 agent 级别收藏覆盖全局 is_favorite
+        // 1. 扫描全局 skills
+        let global_dir = hermes_dir.join("skills");
+        let mut skills: indexmap::IndexMap<String, InstalledSkill> = indexmap::IndexMap::new();
+        if global_dir.exists() {
+            Self::scan_hermes_skills_recursive(
+                &global_dir,
+                &global_dir,
+                &std::collections::HashSet::new(),
+                &mut skills,
+            );
+        }
+
+        // 2. 如果有 agent，再扫描 agent 专属目录（同 id 会覆盖全局条目）
         if let Some(aid) = agent_id {
-            let agent_favs = db.get_agent_favorite_skill_ids(aid)?;
-            for skill in skills.values_mut() {
-                skill.is_favorite = agent_favs.contains(&skill.id);
+            let agent_dir = hermes_dir.join("profiles").join(aid).join("skills");
+            if agent_dir.exists() {
+                Self::scan_hermes_skills_recursive(
+                    &agent_dir,
+                    &agent_dir,
+                    &std::collections::HashSet::new(),
+                    &mut skills,
+                );
             }
         }
 
-        // 递归扫描 ~/.hermes/skills/ 目录，把不在数据库中的技能以 local: 形式补充进去
-        if let Ok(hermes_dir) = Self::get_app_skills_dir(&AppType::Hermes) {
-            let managed_dirs: std::collections::HashSet<String> =
-                skills.values().map(|s| s.directory.clone()).collect();
-            Self::scan_hermes_skills_recursive(&hermes_dir, &hermes_dir, &managed_dirs, &mut skills);
+        // 3. upsert 到 agent_skill_cache，并清除 stale 条目
+        let cache_agent_id = agent_id.unwrap_or("");
+        let now_ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+        let cache_entries: Vec<(String, String, String, Option<String>, String, i64)> = skills
+            .values()
+            .map(|s| {
+                (
+                    s.id.clone(),
+                    cache_agent_id.to_string(),
+                    s.name.clone(),
+                    s.description.clone(),
+                    s.directory.clone(),
+                    now_ts,
+                )
+            })
+            .collect();
+        let _ = db.upsert_agent_skill_cache(&cache_entries);
+        let current_ids: Vec<String> = skills.keys().cloned().collect();
+        let _ = db.delete_stale_agent_skills(cache_agent_id, &current_ids);
+
+        // 4. 读取收藏集合（纯标签，不影响技能列表）
+        let favorites: std::collections::HashSet<String> = if let Some(aid) = agent_id {
+            db.get_agent_favorite_skill_ids(aid).unwrap_or_default()
+        } else {
+            db.get_global_favorite_skill_ids().unwrap_or_default()
+        };
+
+        // 5. 附加收藏标签
+        for skill in skills.values_mut() {
+            skill.is_favorite = favorites.contains(&skill.id);
         }
 
         Ok(skills.into_values().collect())
@@ -666,7 +714,13 @@ impl SkillService {
         skill: &DiscoverableSkill,
         current_app: &AppType,
     ) -> Result<InstalledSkill> {
-        let ssot_dir = Self::get_ssot_dir()?;
+        // Hermes skips SSOT — install directly to the agent-aware skills dir
+        let is_hermes = matches!(current_app, AppType::Hermes);
+        let install_dir = if is_hermes {
+            Self::get_app_skills_dir(current_app)?
+        } else {
+            Self::get_ssot_dir()?
+        };
 
         // 允许多级目录（如 a/b/c），但必须是安全的相对路径。
         let source_rel = Self::sanitize_skill_source_path(&skill.directory).ok_or_else(|| {
@@ -732,7 +786,7 @@ impl SkillService {
             }
         }
 
-        let dest = ssot_dir.join(&install_name);
+        let dest = install_dir.join(&install_name);
 
         let mut repo_branch = skill.repo_branch.clone();
 
@@ -858,8 +912,10 @@ impl SkillService {
         // 保存到数据库
         db.save_skill(&installed_skill)?;
 
-        // 同步到当前应用目录
-        Self::sync_to_app_dir(&install_name, current_app)?;
+        // Hermes: already in the right place; non-Hermes: symlink/copy from SSOT
+        if !is_hermes {
+            Self::sync_to_app_dir(&install_name, current_app)?;
+        }
 
         log::info!(
             "Skill {} 安装成功，已启用 {:?}",
@@ -877,6 +933,31 @@ impl SkillService {
     /// 2. 从 SSOT 删除
     /// 3. 从数据库删除
     pub fn uninstall(db: &Arc<Database>, id: &str) -> Result<SkillUninstallResult> {
+        // local: skills (scanned from hermes dirs) are not in the skills table —
+        // delete the directory directly without going through the DB.
+        if let Some(dir) = id.strip_prefix("local:") {
+            let hermes_dir = crate::hermes_config::get_hermes_dir();
+            // Try global dir first, then agent-specific dir
+            let mut candidates = vec![hermes_dir.join("skills").join(dir)];
+            if let Some(agent_id) = crate::store::get_active_hermes_agent() {
+                candidates.push(hermes_dir.join("profiles").join(agent_id).join("skills").join(dir));
+            }
+            let mut deleted = false;
+            for candidate in &candidates {
+                if candidate.exists() {
+                    fs::remove_dir_all(candidate)?;
+                    deleted = true;
+                    break;
+                }
+            }
+            if !deleted {
+                log::warn!("Local hermes skill {} 文件目录不存在，跳过文件删除", id);
+            }
+            let _ = db.delete_agent_skill_cache_by_id(id);
+            log::info!("Local hermes skill {} 卸载成功", id);
+            return Ok(SkillUninstallResult { backup_path: None });
+        }
+
         // 获取 skill 信息
         let skill = db
             .get_installed_skill(id)?

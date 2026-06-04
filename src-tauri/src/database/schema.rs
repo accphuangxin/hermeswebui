@@ -495,6 +495,11 @@ impl Database {
                         Self::migrate_v13_to_v14(conn)?;
                         Self::set_user_version(conn, 14)?;
                     }
+                    14 => {
+                        log::info!("迁移数据库从 v14 到 v15（新增 agent_skill_cache 表）");
+                        Self::migrate_v14_to_v15(conn)?;
+                        Self::set_user_version(conn, 15)?;
+                    }
                     _ => {
                         return Err(AppError::Database(format!(
                             "未知的数据库版本 {version}，无法迁移到 {SCHEMA_VERSION}"
@@ -1341,6 +1346,24 @@ impl Database {
         )
         .map_err(|e| AppError::Database(format!("创建 skill_agent_favorites 表失败: {e}")))?;
         log::info!("v13 -> v14 迁移完成：新增 skill_agent_favorites 表");
+        Ok(())
+    }
+
+    fn migrate_v14_to_v15(conn: &Connection) -> Result<(), AppError> {
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS agent_skill_cache (
+                skill_id   TEXT NOT NULL,
+                agent_id   TEXT NOT NULL DEFAULT '',
+                name       TEXT NOT NULL,
+                description TEXT,
+                directory  TEXT NOT NULL,
+                scanned_at INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (skill_id, agent_id)
+            )",
+            [],
+        )
+        .map_err(|e| AppError::Database(format!("创建 agent_skill_cache 表失败: {e}")))?;
+        log::info!("v14 -> v15 迁移完成：新增 agent_skill_cache 表");
         Ok(())
     }
 

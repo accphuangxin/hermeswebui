@@ -44,6 +44,7 @@ import type { AppId } from "@/lib/api/types";
 import type { SkillRepo } from "@/lib/api/skills";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { settingsApi, skillsApi } from "@/lib/api";
+import { useHermesAgents } from "@/hooks/useHermesChat";
 import { toast } from "sonner";
 import { ListItemRow } from "@/components/common/ListItemRow";
 import {
@@ -63,6 +64,7 @@ interface UnifiedSkillsPanelProps {
   onOpenDiscovery: () => void;
   currentApp: AppId;
   agentId?: string | null;
+  onSelectAgent?: (agentId: string | null) => void;
 }
 
 export interface UnifiedSkillsPanelHandle {
@@ -87,9 +89,10 @@ const CLAWHUB_PAGE_SIZE = 20;
 interface BrowsePanelProps {
   installedKeys: Set<string>;
   onInstalled: () => void;
+  agentId?: string | null;
 }
 
-function BrowsePanel({ installedKeys, onInstalled }: BrowsePanelProps) {
+function BrowsePanel({ installedKeys, onInstalled, agentId }: BrowsePanelProps) {
   const { t } = useTranslation();
   const [tab, setTab] = useState<BrowseTab>("clawhub");
   const [searchInput, setSearchInput] = useState("");
@@ -179,7 +182,13 @@ function BrowsePanel({ installedKeys, onInstalled }: BrowsePanelProps) {
         : "https://wry-manatee-359.convex.site";
       const url = `${baseUrl}/api/v1/download?slug=${encodeURIComponent(skill.slug)}`;
       await invoke("install_skill_from_url", { url, currentApp: "hermes" });
-      toast.success(t("skills.installSuccess", { name: skill.displayName || skill.slug }), { closeButton: true });
+      const installPath = agentId
+        ? `~/.hermes/profiles/${agentId}/skills/`
+        : "~/.hermes/skills/";
+      toast.success(t("skills.installSuccess", { name: skill.displayName || skill.slug }), {
+        description: installPath,
+        closeButton: true,
+      });
       onInstalled();
     } catch (error) {
       const { title, description } = formatSkillError(error instanceof Error ? error.message : String(error), t, "skills.installFailed");
@@ -611,7 +620,7 @@ function PublishDialog({ skill, onClose }: PublishDialogProps) {
 // ─── Main panel ───────────────────────────────────────────────────────────────
 
 const UnifiedSkillsPanel = React.forwardRef<UnifiedSkillsPanelHandle, UnifiedSkillsPanelProps>(
-  ({ onOpenDiscovery, currentApp, agentId }, ref) => {
+  ({ onOpenDiscovery, currentApp, agentId, onSelectAgent }, ref) => {
     const { t } = useTranslation();
     const [confirmDialog, setConfirmDialog] = useState<{
       isOpen: boolean;
@@ -628,6 +637,10 @@ const UnifiedSkillsPanel = React.forwardRef<UnifiedSkillsPanelHandle, UnifiedSki
     const listScrollRef = React.useRef<HTMLDivElement>(null);
 
     const { data: skills, isLoading, refetch: refetchSkills, isFetching: isRefetchingSkills } = useInstalledSkills(agentId);
+    const { data: allAgents = [] } = useHermesAgents();
+    // Only show selector when there are non-default agents
+    const nonDefaultAgents = allAgents.filter((a) => !a.isDefault && a.name !== "default");
+    const showAgentSelector = nonDefaultAgents.length > 0;
     const { data: skillBackups = [], refetch: refetchSkillBackups, isFetching: isFetchingSkillBackups } = useSkillBackups();
     const deleteBackupMutation = useDeleteSkillBackup();
     const toggleFavoriteMutation = useToggleSkillFavorite(agentId);
@@ -662,7 +675,10 @@ const UnifiedSkillsPanel = React.forwardRef<UnifiedSkillsPanelHandle, UnifiedSki
         const owner = s.repoOwner?.toLowerCase() || "";
         const name = s.repoName?.toLowerCase() || "";
         keys.add(`${s.directory.toLowerCase()}:${owner}:${name}`);
-        // 仅 directory 的快速匹配键（用于局域网仓库列表）
+        // slug key: use the last path segment so that
+        // "openclaw-imports/opencli-explorer" matches slug "opencli-explorer"
+        const leaf = s.directory.split(/[/\\]/).pop()?.toLowerCase() ?? s.directory.toLowerCase();
+        keys.add(`slug:${leaf}`);
         keys.add(`slug:${s.directory.toLowerCase()}`);
       }
       return keys;
@@ -831,13 +847,25 @@ const UnifiedSkillsPanel = React.forwardRef<UnifiedSkillsPanelHandle, UnifiedSki
         <div className="w-[46%] min-w-0 flex flex-col border-r overflow-hidden">
           {/* Toolbar */}
           <div className="flex items-center gap-1 px-3 pt-3 pb-2 border-b shrink-0">
-            <span className="text-xs font-medium text-foreground flex-1">
-              {t("skills.noInstalled") ? null : null}
+            <span className="text-xs font-medium text-foreground shrink-0">
               {t("skills.manage")}
               {skills && skills.length > 0 && (
                 <span className="ml-1.5 text-muted-foreground font-normal">({skills.length})</span>
               )}
             </span>
+            {showAgentSelector && onSelectAgent && (
+              <select
+                value={agentId ?? ""}
+                onChange={(e) => onSelectAgent(e.target.value === "" ? null : e.target.value)}
+                className="ml-2 flex-1 min-w-0 h-6 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="">default</option>
+                {nonDefaultAgents.map((a) => (
+                  <option key={a.name} value={a.name}>{a.name}</option>
+                ))}
+              </select>
+            )}
+            {(!showAgentSelector || !onSelectAgent) && <span className="flex-1" />}
             <div
               className="transition-all duration-300 ease-out overflow-hidden"
               style={{ maxWidth: skillUpdates && skillUpdates.length > 0 ? "160px" : "0px", opacity: skillUpdates && skillUpdates.length > 0 ? 1 : 0 }}
@@ -909,6 +937,7 @@ const UnifiedSkillsPanel = React.forwardRef<UnifiedSkillsPanelHandle, UnifiedSki
           <BrowsePanel
             installedKeys={installedKeys}
             onInstalled={() => void refetchSkills()}
+            agentId={agentId}
           />
         </div>
 

@@ -43,6 +43,7 @@ interface StreamOptions {
   sessionId?: string;
   agentId?: string;
   apiServerPort?: number;
+  apiServerKey?: string;
   onDelta: (text: string) => void;
   onToolStarted: (tool: string, preview: string) => void;
   onToolCompleted: (tool: string, duration: number, error: boolean) => void;
@@ -79,7 +80,7 @@ export function useChatStream() {
   }, []);
 
   const sendRun = useCallback(async (options: StreamOptions) => {
-    const { input, model, sessionId, agentId, apiServerPort, onDelta, onToolStarted, onToolCompleted, onApprovalRequired, onCompleted, onError } = options;
+    const { input, model, sessionId, agentId, apiServerPort, apiServerKey, onDelta, onToolStarted, onToolCompleted, onApprovalRequired, onCompleted, onError } = options;
 
     if (waitingTimerRef.current) {
       clearTimeout(waitingTimerRef.current);
@@ -144,6 +145,7 @@ export function useChatStream() {
             sessionId: sessionId ?? null,
             agentId: agentId ?? null,
             apiServerPort: apiServerPort ?? null,
+            apiServerKey: apiServerKey ?? null,
           },
           onEvent,
         })

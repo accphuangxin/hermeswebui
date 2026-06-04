@@ -29,6 +29,7 @@ import {
   Sparkles,
   Users,
   Bot,
+  Settings2,
 } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Provider, VisibleApps } from "@/types";
@@ -77,6 +78,12 @@ import { AgentsPanel } from "@/components/agents/AgentsPanel";
 import { UniversalProviderPanel } from "@/components/universal";
 import { McpIcon } from "@/components/BrandIcons";
 import { Button } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Input } from "@/components/ui/input";
 import { SessionManagerPage } from "@/components/sessions/SessionManagerPage";
 import {
   useDisableCurrentOmo,
@@ -206,6 +213,7 @@ function App() {
   const [hermesSelectedModel, setHermesSelectedModel] = useState("");
   const [hermesSelectedAgentId, setHermesSelectedAgentId] = useState<string | null>(null);
   const [hermesSelectedAgentPort, setHermesSelectedAgentPort] = useState<number | null>(null);
+  const [hermesSelectedAgentKey, setHermesSelectedAgentKey] = useState<string | null>(null);
   const prevApiHostRef = useRef<string>("");
   useEffect(() => {
     const host = hermesChatStatus?.host ?? "127.0.0.1";
@@ -1040,10 +1048,12 @@ function App() {
               selectedModel={hermesSelectedModel}
               selectedAgentId={hermesSelectedAgentId}
               selectedAgentPort={hermesSelectedAgentPort}
+              selectedAgentKey={hermesSelectedAgentKey}
               onSelectAgent={(id, port, key) => {
                 setHermesSelectedAgentId(id);
                 setHermesSelectedAgentPort(port ?? null);
-                void invoke("setActiveHermesAgent", { agentId: id }).then(async () => {
+                setHermesSelectedAgentKey(key ?? null);
+                void invoke("setActiveHermesAgent", { agentId: id, apiServerPort: port ?? null, apiServerKey: key ?? null }).then(async () => {
                   const cfg = await invoke<{ host: string; port: number; key: string }>("getHermesApiServerConfig").catch(() => null);
                   if (!cfg) return;
                   const newHost = cfg.host;
@@ -1073,6 +1083,11 @@ function App() {
               onOpenDiscovery={() => setCurrentView("skills")}
               currentApp={activeApp === "openclaw" ? "claude" : activeApp}
               agentId={hermesSelectedAgentId}
+              onSelectAgent={(id) => {
+                setHermesSelectedAgentId(id);
+                void invoke("setActiveHermesAgent", { agentId: id, apiServerPort: null, apiServerKey: null });
+                void queryClient.invalidateQueries({ queryKey: ["skills", "installed"] });
+              }}
             />
           </div>
           <div className={cn("flex-1 min-h-0 flex flex-col overflow-hidden h-full", currentView !== "hermesAgents" && "hidden")}>
@@ -1081,28 +1096,26 @@ function App() {
               onSelectAgent={(id, port, key) => {
                 setHermesSelectedAgentId(id);
                 setHermesSelectedAgentPort(port ?? null);
-                void invoke("setActiveHermesAgent", { agentId: id }).then(() => {
-                  void invoke<string>("getHermesSkillsPath").then((p) => console.log("[skills path]", p));
-                  // Reload API config from the agent's profile .env
-                  void invoke<{ host: string; port: number; key: string }>("getHermesApiServerConfig")
-                    .then((cfg) => {
-                      setApiConfigHost(cfg.host);
-                      // If agent provides a port, prefer it; otherwise use stored config
-                      setApiConfigPort(port != null ? String(port) : String(cfg.port));
-                      // If agent provides a key, prefer it; otherwise use stored config
-                      setApiConfigKey(key != null ? key : cfg.key);
-                    })
-                    .catch(console.error);
+                setHermesSelectedAgentKey(key ?? null);
+                void invoke("setActiveHermesAgent", { agentId: id, apiServerPort: port ?? null, apiServerKey: key ?? null }).then(async () => {
+                  const cfg = await invoke<{ host: string; port: number; key: string }>("getHermesApiServerConfig").catch(() => null);
+                  if (!cfg) return;
+                  const newHost = cfg.host;
+                  const newPort = port != null ? String(port) : String(cfg.port);
+                  const newKey = key != null ? key : cfg.key;
+                  setApiConfigHost(newHost);
+                  setApiConfigPort(newPort);
+                  setApiConfigKey(newKey);
+                  try {
+                    await invoke("setHermesApiServerConfig", { host: newHost, port: newPort, key: newKey });
+                    void queryClient.invalidateQueries({ queryKey: ["skills", "installed"], refetchType: "all" });
+                    void queryClient.invalidateQueries({ queryKey: ["hermesChat", "status"], refetchType: "all" });
+                    void queryClient.invalidateQueries({ queryKey: ["hermesChat", "models"], refetchType: "all" });
+                  } catch (e) {
+                    toast.error(t("hermes.serverConfig.saveFailed", { defaultValue: "保存失败" }), { description: String(e) });
+                  }
                 });
               }}
-              onBack={() => setCurrentView("hermesChat")}
-              apiConfigHost={apiConfigHost}
-              apiConfigPort={apiConfigPort}
-              apiConfigKey={apiConfigKey}
-              onApiConfigHostChange={setApiConfigHost}
-              onApiConfigPortChange={setApiConfigPort}
-              onApiConfigKeyChange={setApiConfigKey}
-              onApiConfigSave={() => void handleApiConfigSave()}
             />
           </div>
         </div>
@@ -1229,6 +1242,7 @@ function App() {
                   isActive={false}
                   onClick={() => setCurrentView("hermesAgents")}
                 />
+                {/* Settings button hidden — kept for future use
                 <Button
                   variant="ghost"
                   size="icon"
@@ -1238,6 +1252,7 @@ function App() {
                 >
                   <Settings className="w-4 h-4" />
                 </Button>
+                */}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -1339,17 +1354,21 @@ function App() {
           {/* Center: current agent indicator */}
           <div className="flex-1 flex items-center justify-center pointer-events-none" {...DRAG_REGION_ATTR} style={{ ...DRAG_REGION_STYLE } as any}>
             {currentView === "hermesChat" && hermesSelectedAgentId !== null && (() => {
-              const agent = hermesAgents.find((a) => a.id === hermesSelectedAgentId);
-              const name = agent ? (agent.name ?? agent.alias ?? agent.id) : hermesSelectedAgentId;
+              const agent = hermesAgents.find((a) => a.name === hermesSelectedAgentId);
+              const name = agent ? agent.name : hermesSelectedAgentId;
+              const description = agent?.description;
               return (
                 <button
-                  className="pointer-events-auto flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 hover:bg-primary/15 transition-colors border border-primary/20"
+                  className="pointer-events-auto flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 hover:bg-primary/15 transition-colors border border-primary/20 max-w-xs"
                   style={{ WebkitAppRegion: "no-drag" } as any}
                   onClick={() => setCurrentView("hermesAgents")}
-                  title={t("hermes.agents.title", { defaultValue: "选择智能体" })}
+                  title={description ? `${name} — ${description}` : name}
                 >
-                  <Bot className="w-3 h-3 text-primary" />
-                  <span className="text-xs font-medium text-primary">{name}</span>
+                  <Bot className="w-3 h-3 text-primary shrink-0" />
+                  <span className="text-xs font-medium text-primary shrink-0">{name}</span>
+                  {description && (
+                    <span className="text-[10px] text-primary/60 truncate">{description}</span>
+                  )}
                 </button>
               );
             })()}
@@ -1397,6 +1416,35 @@ function App() {
                         {hermesChatStatus?.online ? t("hermes.chat.connected") : t("hermes.chat.disconnected")}
                       </span>
                     </div>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" title="API Server 配置">
+                          <Settings2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="end" className="w-72 p-4 space-y-3">
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                          {t("hermes.serverConfig.title", { defaultValue: "API Server 配置" })}
+                        </p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <label className="text-xs text-muted-foreground">Host</label>
+                            <Input value={apiConfigHost} onChange={(e) => setApiConfigHost(e.target.value)} placeholder="127.0.0.1" className="h-8 text-xs" />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs text-muted-foreground">Port</label>
+                            <Input value={apiConfigPort} onChange={(e) => setApiConfigPort(e.target.value)} placeholder="8643" className="h-8 text-xs" />
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs text-muted-foreground">API Key</label>
+                          <Input type="password" value={apiConfigKey} onChange={(e) => setApiConfigKey(e.target.value)} placeholder={t("hermes.serverConfig.keyPlaceholder", { defaultValue: "留空则不验证" })} className="h-8 text-xs" onKeyDown={(e) => { if (e.key === "Enter") void handleApiConfigSave(); }} />
+                        </div>
+                        <Button size="sm" className="w-full h-8 text-xs" onClick={() => void handleApiConfigSave()}>
+                          {t("common.save", { defaultValue: "保存" })}
+                        </Button>
+                      </PopoverContent>
+                    </Popover>
                     <Select
                       value={hermesSelectedModel}
                       onValueChange={async (m) => {

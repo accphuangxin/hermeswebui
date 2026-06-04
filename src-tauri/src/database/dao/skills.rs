@@ -141,15 +141,26 @@ impl Database {
     }
 
     /// 切换 Skill 的常用标记（全局，无 agent 隔离）
+    /// 使用 upsert：skill 不在 DB 时也能写入收藏标记
     pub fn toggle_skill_favorite(&self, id: &str, is_favorite: bool) -> Result<bool, AppError> {
         let conn = lock_conn!(self.conn);
-        let affected = conn
-            .execute(
-                "UPDATE skills SET is_favorite = ?1 WHERE id = ?2",
-                params![is_favorite, id],
+        if is_favorite {
+            // upsert：存在则更新，不存在则插入最小记录
+            conn.execute(
+                "INSERT INTO skills (id, name, directory, installed_at, updated_at, is_favorite)
+                 VALUES (?1, ?1, ?1, 0, 0, 1)
+                 ON CONFLICT(id) DO UPDATE SET is_favorite = 1",
+                params![id],
             )
             .map_err(|e| AppError::Database(e.to_string()))?;
-        Ok(affected > 0)
+        } else {
+            conn.execute(
+                "UPDATE skills SET is_favorite = 0 WHERE id = ?1",
+                params![id],
+            )
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        }
+        Ok(true)
     }
 
     /// 切换 Skill 的 Agent 级别常用标记
@@ -174,6 +185,24 @@ impl Database {
             .map_err(|e| AppError::Database(e.to_string()))?;
         }
         Ok(true)
+    }
+
+    /// 获取全局收藏的 skill_id 集合（用于 default agent，读 skills.is_favorite 列）
+    pub fn get_global_favorite_skill_ids(
+        &self,
+    ) -> Result<std::collections::HashSet<String>, AppError> {
+        let conn = lock_conn!(self.conn);
+        let mut stmt = conn
+            .prepare("SELECT id FROM skills WHERE is_favorite = 1")
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        let ids = stmt
+            .query_map([], |row| row.get::<_, String>(0))
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        let mut set = std::collections::HashSet::new();
+        for id in ids {
+            set.insert(id.map_err(|e| AppError::Database(e.to_string()))?);
+        }
+        Ok(set)
     }
 
     /// 获取某 agent 下所有收藏的 skill_id 集合
@@ -287,6 +316,80 @@ impl Database {
         conn.execute(
             "DELETE FROM skill_repos WHERE owner = ?1 AND name = ?2",
             params![owner, name],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+        Ok(())
+    }
+
+    // ========== agent_skill_cache ==========
+
+    /// 批量 upsert agent_skill_cache 记录
+    pub fn upsert_agent_skill_cache(
+        &self,
+        entries: &[(String, String, String, Option<String>, String, i64)],
+    ) -> Result<(), AppError> {
+        if entries.is_empty() {
+            return Ok(());
+        }
+        let conn = lock_conn!(self.conn);
+        for (skill_id, agent_id, name, description, directory, scanned_at) in entries {
+            conn.execute(
+                "INSERT OR REPLACE INTO agent_skill_cache
+                 (skill_id, agent_id, name, description, directory, scanned_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![skill_id, agent_id, name, description, directory, scanned_at],
+            )
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        }
+        Ok(())
+    }
+
+    /// 删除 agent_id 下已不在磁盘上的 stale 缓存记录
+    pub fn delete_stale_agent_skills(
+        &self,
+        agent_id: &str,
+        current_ids: &[String],
+    ) -> Result<(), AppError> {
+        if current_ids.is_empty() {
+            let conn = lock_conn!(self.conn);
+            conn.execute(
+                "DELETE FROM agent_skill_cache WHERE agent_id = ?1",
+                params![agent_id],
+            )
+            .map_err(|e| AppError::Database(e.to_string()))?;
+            return Ok(());
+        }
+        let placeholders = current_ids
+            .iter()
+            .enumerate()
+            .map(|(i, _)| format!("?{}", i + 2))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let sql = format!(
+            "DELETE FROM agent_skill_cache WHERE agent_id = ?1 AND skill_id NOT IN ({placeholders})"
+        );
+        let conn = lock_conn!(self.conn);
+        let mut stmt = conn
+            .prepare(&sql)
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        let mut param_values: Vec<Box<dyn rusqlite::ToSql>> =
+            vec![Box::new(agent_id.to_string())];
+        for id in current_ids {
+            param_values.push(Box::new(id.clone()));
+        }
+        let params_ref: Vec<&dyn rusqlite::ToSql> =
+            param_values.iter().map(|b| b.as_ref()).collect();
+        stmt.execute(params_ref.as_slice())
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        Ok(())
+    }
+
+    /// 按 skill_id 删除 agent_skill_cache 中所有 agent 的缓存条目
+    pub fn delete_agent_skill_cache_by_id(&self, skill_id: &str) -> Result<(), AppError> {
+        let conn = lock_conn!(self.conn);
+        conn.execute(
+            "DELETE FROM agent_skill_cache WHERE skill_id = ?1",
+            params![skill_id],
         )
         .map_err(|e| AppError::Database(e.to_string()))?;
         Ok(())

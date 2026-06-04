@@ -121,6 +121,13 @@ export function useUninstallSkill() {
         .uninstallUnified(id)
         .then((result) => ({ ...result, skillKey })),
     onSuccess: ({ skillKey }, _vars) => {
+      // local: skills live in agent_skill_cache, not the skills table —
+      // invalidate to re-scan so the list reflects the deletion.
+      if (_vars.id.startsWith("local:")) {
+        void queryClient.invalidateQueries({ queryKey: ["skills", "installed"] });
+        return;
+      }
+
       // 直接更新 installed 缓存，移除该 skill
       queryClient.setQueryData<InstalledSkill[]>(
         ["skills", "installed"],

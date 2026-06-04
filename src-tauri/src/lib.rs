@@ -1317,6 +1317,8 @@ pub fn run() {
             commands::setActiveHermesAgent,
             commands::getHermesSkillsPath,
             commands::getHermesAgents,
+            commands::createHermesAgent,
+            commands::deleteHermesAgent,
             commands::startChatRun,
             commands::stopChatRun,
             commands::approveChatRun,

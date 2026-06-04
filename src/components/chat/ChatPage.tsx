@@ -34,10 +34,11 @@ interface ChatPageProps {
   selectedModel: string;
   selectedAgentId: string | null;
   selectedAgentPort: number | null;
+  selectedAgentKey: string | null;
   onSelectAgent?: (agentId: string | null, port?: number, key?: string) => void;
 }
 
-export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort, onSelectAgent }: ChatPageProps) {
+export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort, selectedAgentKey, onSelectAgent }: ChatPageProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -194,6 +195,7 @@ export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort, on
           sessionId: wasCompressed ? undefined : (hermesSessionId ?? undefined),
           agentId: selectedAgentId ?? undefined,
           apiServerPort: selectedAgentPort ?? undefined,
+          apiServerKey: selectedAgentKey ?? undefined,
           onDelta: (delta) => {
             fullContent += delta;
             setStreamingContent(fullContent);
