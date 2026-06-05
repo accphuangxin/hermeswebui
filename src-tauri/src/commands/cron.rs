@@ -229,13 +229,28 @@ pub struct CronOutputEntry {
     pub size: u64,
 }
 
-/// List output log files for a cron job from ~/.hermes/cron/output/{job_id}/
+/// Resolve the cron output directory for the given job_id.
+/// Prefers the active agent profile path; falls back to global.
+fn cron_output_dir(job_id: &str) -> std::path::PathBuf {
+    let hermes_dir = crate::hermes_config::get_hermes_dir();
+    if let Some(agent_id) = crate::store::get_active_hermes_agent() {
+        let agent_dir = hermes_dir
+            .join("profiles")
+            .join(agent_id)
+            .join("cron")
+            .join("output")
+            .join(job_id);
+        if agent_dir.exists() {
+            return agent_dir;
+        }
+    }
+    hermes_dir.join("cron").join("output").join(job_id)
+}
+
+/// List output log files for a cron job
 #[tauri::command]
 pub fn list_cron_outputs(job_id: String) -> Result<Vec<CronOutputEntry>, String> {
-    let dir = crate::hermes_config::get_hermes_dir()
-        .join("cron")
-        .join("output")
-        .join(&job_id);
+    let dir = cron_output_dir(&job_id);
 
     if !dir.exists() {
         return Ok(vec![]);
@@ -255,7 +270,6 @@ pub fn list_cron_outputs(job_id: String) -> Result<Vec<CronOutputEntry>, String>
         })
         .collect();
 
-    // Sort newest first
     entries.sort_by(|a, b| b.filename.cmp(&a.filename));
     Ok(entries)
 }
@@ -263,15 +277,9 @@ pub fn list_cron_outputs(job_id: String) -> Result<Vec<CronOutputEntry>, String>
 /// Read a single output log file for a cron job
 #[tauri::command]
 pub fn read_cron_output(job_id: String, filename: String) -> Result<String, String> {
-    // Prevent path traversal
     if filename.contains('/') || filename.contains('\\') || filename.contains("..") {
         return Err("invalid filename".to_string());
     }
-    let path = crate::hermes_config::get_hermes_dir()
-        .join("cron")
-        .join("output")
-        .join(&job_id)
-        .join(&filename);
-
+    let path = cron_output_dir(&job_id).join(&filename);
     std::fs::read_to_string(&path).map_err(|e| e.to_string())
 }
