@@ -319,12 +319,12 @@ export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort, se
   return (
     <div className="flex flex-col h-full">
       {/* Top tab bar */}
-      <div className="flex border-b shrink-0 h-10 bg-muted/30">
+      <div className="flex items-center border-b shrink-0 h-10 bg-muted/30">
         <button
           type="button"
           onClick={() => setSidebarTab("chat")}
           className={cn(
-            "flex items-center gap-1.5 px-4 text-xs font-medium transition-colors",
+            "flex items-center gap-1.5 px-4 h-full text-xs font-medium transition-colors",
             sidebarTab === "chat"
               ? "text-primary border-b-2 border-primary"
               : "text-muted-foreground hover:text-foreground",
@@ -340,7 +340,7 @@ export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort, se
             void queryClient.invalidateQueries({ queryKey: cronKeys.list });
           }}
           className={cn(
-            "flex items-center gap-1.5 px-4 text-xs font-medium transition-colors",
+            "flex items-center gap-1.5 px-4 h-full text-xs font-medium transition-colors",
             sidebarTab === "cron"
               ? "text-primary border-b-2 border-primary"
               : "text-muted-foreground hover:text-foreground",
@@ -349,6 +349,7 @@ export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort, se
           <Clock className="w-3.5 h-3.5" />
           {t("cron.title", { defaultValue: "定时任务" })}
         </button>
+
       </div>
 
       <div className="flex flex-1 min-h-0">

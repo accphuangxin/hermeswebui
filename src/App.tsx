@@ -29,7 +29,7 @@ import {
   Sparkles,
   Users,
   Bot,
-  Settings2,
+
 } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Provider, VisibleApps } from "@/types";
@@ -78,12 +78,6 @@ import { AgentsPanel } from "@/components/agents/AgentsPanel";
 import { UniversalProviderPanel } from "@/components/universal";
 import { McpIcon } from "@/components/BrandIcons";
 import { Button } from "@/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Input } from "@/components/ui/input";
 import { SessionManagerPage } from "@/components/sessions/SessionManagerPage";
 import {
   useDisableCurrentOmo,
@@ -96,7 +90,7 @@ import AgentsDefaultsPanel from "@/components/openclaw/AgentsDefaultsPanel";
 import OpenClawHealthBanner from "@/components/openclaw/OpenClawHealthBanner";
 import HermesMemoryPanel from "@/components/hermes/HermesMemoryPanel";
 import { ChatPage } from "@/components/chat/ChatPage";
-import { AgentsButton } from "@/components/chat/AgentsButton";
+
 import { HermesAgentsPage } from "@/components/chat/HermesAgentsPage";
 import { useChatStatus, useChatModels, useHermesAgents } from "@/hooks/useHermesChat";
 import {
@@ -226,34 +220,6 @@ function App() {
     }
   }, [hermesChatModels, hermesSelectedModel, hermesChatStatus]);
 
-  // API Server quick-config popover state
-  const [apiConfigHost, setApiConfigHost] = useState("");
-  const [apiConfigPort, setApiConfigPort] = useState("");
-  const [apiConfigKey, setApiConfigKey] = useState("");
-  useEffect(() => {
-    if (currentView === "hermesAgents") {
-      invoke<{ host: string; port: number; key: string }>("getHermesApiServerConfig")
-        .then((cfg) => {
-          setApiConfigHost(cfg.host);
-          setApiConfigPort(String(cfg.port));
-          setApiConfigKey(cfg.key);
-        })
-        .catch(console.error);
-    }
-  }, [currentView]);
-  const handleApiConfigSave = async () => {
-    try {
-      await invoke("setHermesApiServerConfig", { host: apiConfigHost, port: apiConfigPort, key: apiConfigKey });
-      setHermesSelectedModel(""); // reset model selection for new host
-      void queryClient.invalidateQueries({ queryKey: ["hermesChat", "status"], refetchType: "all" });
-      void queryClient.invalidateQueries({ queryKey: ["hermesChat", "models"], refetchType: "all" });
-      void queryClient.invalidateQueries({ queryKey: ["hermesChat", "agents"], refetchType: "all" });
-      void queryClient.invalidateQueries({ queryKey: ["skills", "installed"], refetchType: "all" });
-      toast.success(t("hermes.serverConfig.saved", { defaultValue: "连接配置已保存" }));
-    } catch (e) {
-      toast.error(t("hermes.serverConfig.saveFailed", { defaultValue: "保存失败" }), { description: String(e) });
-    }
-  };
 
   const useAppWindowControls =
     isLinux() && (settingsData?.useAppWindowControls ?? false);
@@ -1059,9 +1025,6 @@ function App() {
                   const newHost = cfg.host;
                   const newPort = port != null ? String(port) : String(cfg.port);
                   const newKey = key != null ? key : cfg.key;
-                  setApiConfigHost(newHost);
-                  setApiConfigPort(newPort);
-                  setApiConfigKey(newKey);
                   try {
                     await invoke("setHermesApiServerConfig", { host: newHost, port: newPort, key: newKey });
                     setHermesSelectedModel("");
@@ -1069,6 +1032,7 @@ function App() {
                     void queryClient.invalidateQueries({ queryKey: ["hermesChat", "models"], refetchType: "all" });
                     void queryClient.invalidateQueries({ queryKey: ["hermesChat", "agents"], refetchType: "all" });
                     void queryClient.invalidateQueries({ queryKey: ["skills", "installed"], refetchType: "all" });
+                    void queryClient.invalidateQueries({ queryKey: ["cron"], refetchType: "all" });
                     toast.success(t("hermes.serverConfig.saved", { defaultValue: "连接配置已保存" }));
                   } catch (e) {
                     toast.error(t("hermes.serverConfig.saveFailed", { defaultValue: "保存失败" }), { description: String(e) });
@@ -1103,14 +1067,12 @@ function App() {
                   const newHost = cfg.host;
                   const newPort = port != null ? String(port) : String(cfg.port);
                   const newKey = key != null ? key : cfg.key;
-                  setApiConfigHost(newHost);
-                  setApiConfigPort(newPort);
-                  setApiConfigKey(newKey);
                   try {
                     await invoke("setHermesApiServerConfig", { host: newHost, port: newPort, key: newKey });
                     void queryClient.invalidateQueries({ queryKey: ["skills", "installed"], refetchType: "all" });
                     void queryClient.invalidateQueries({ queryKey: ["hermesChat", "status"], refetchType: "all" });
                     void queryClient.invalidateQueries({ queryKey: ["hermesChat", "models"], refetchType: "all" });
+                    void queryClient.invalidateQueries({ queryKey: ["cron"], refetchType: "all" });
                   } catch (e) {
                     toast.error(t("hermes.serverConfig.saveFailed", { defaultValue: "保存失败" }), { description: String(e) });
                   }
@@ -1238,31 +1200,25 @@ function App() {
                     className="h-12 w-auto object-contain"
                   />
                 </div>
-                <AgentsButton
-                  isActive={false}
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setCurrentView("hermesAgents")}
-                />
-                {/* Settings button hidden — kept for future use
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setCurrentView("providers")}
-                  title={t("common.settings")}
-                  className="hover:bg-black/5 dark:hover:bg-white/5 shrink-0"
+                  className="hover:bg-black/5 dark:hover:bg-white/5 shrink-0 gap-1.5 text-xs"
                 >
-                  <Settings className="w-4 h-4" />
+                  <Users className="w-3.5 h-3.5" />
+                  {t("hermes.agents.button", { defaultValue: "智能体" })}
                 </Button>
-                */}
                 <Button
                   variant="ghost"
-                  size="icon"
+                  size="sm"
                   onClick={() => setCurrentView("skills")}
-                  title={t("skills.title", { defaultValue: "Skills 管理" })}
-                  className="hover:bg-black/5 dark:hover:bg-white/5 shrink-0"
+                  className="hover:bg-black/5 dark:hover:bg-white/5 shrink-0 gap-1.5 text-xs"
                 >
-                  <Sparkles className="w-4 h-4" />
+                  <Sparkles className="w-3.5 h-3.5" />
+                  {t("skills.title", { defaultValue: "技能" })}
                 </Button>
-                <UpdateBadge onClick={() => openSettings("general")} />
+                <UpdateBadge onClick={() => openSettings("general")} showLabel />
               </div>
             ) : currentView !== "providers" ? (
               <div className="flex items-center gap-2">
@@ -1351,23 +1307,36 @@ function App() {
             )}
           </div>
 
-          {/* Center: current agent indicator */}
+          {/* Center: agent + connection status */}
           <div className="flex-1 flex items-center justify-center pointer-events-none" {...DRAG_REGION_ATTR} style={{ ...DRAG_REGION_STYLE } as any}>
-            {currentView === "hermesChat" && hermesSelectedAgentId !== null && (() => {
-              const agent = hermesAgents.find((a) => a.name === hermesSelectedAgentId);
-              const name = agent ? agent.name : hermesSelectedAgentId;
+            {currentView === "hermesChat" && (() => {
+              const agent = hermesSelectedAgentId ? hermesAgents.find((a) => a.name === hermesSelectedAgentId) : null;
+              const name = agent ? agent.name : null;
               const description = agent?.description;
+              const online = hermesChatStatus?.online ?? false;
               return (
                 <button
-                  className="pointer-events-auto flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 hover:bg-primary/15 transition-colors border border-primary/20 max-w-xs"
+                  className="pointer-events-auto flex items-center gap-2 px-3 py-1 rounded-full bg-muted/60 hover:bg-muted transition-colors border border-border max-w-sm"
                   style={{ WebkitAppRegion: "no-drag" } as any}
                   onClick={() => setCurrentView("hermesAgents")}
-                  title={description ? `${name} — ${description}` : name}
                 >
-                  <Bot className="w-3 h-3 text-primary shrink-0" />
-                  <span className="text-xs font-medium text-primary shrink-0">{name}</span>
-                  {description && (
-                    <span className="text-[10px] text-primary/60 truncate">{description}</span>
+                  {online ? (
+                    <Wifi className="w-3 h-3 text-green-500 shrink-0" />
+                  ) : (
+                    <WifiOff className="w-3 h-3 text-destructive shrink-0" />
+                  )}
+                  <span className={cn("text-xs font-medium shrink-0", online ? "text-green-600 dark:text-green-400" : "text-destructive")}>
+                    {online ? t("hermes.chat.connected") : t("hermes.chat.disconnected")}
+                  </span>
+                  {name && (
+                    <>
+                      <span className="text-muted-foreground/40 text-xs shrink-0">|</span>
+                      <Bot className="w-3 h-3 text-primary shrink-0" />
+                      <span className="text-xs font-medium text-primary shrink-0">{name}</span>
+                      {description && (
+                        <span className="text-[10px] text-muted-foreground truncate">{description}</span>
+                      )}
+                    </>
                   )}
                 </button>
               );
@@ -1406,45 +1375,6 @@ function App() {
               >
                 {currentView === "hermesChat" && (
                   <>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {hermesChatStatus?.online ? (
-                        <Wifi className="w-3.5 h-3.5 text-green-500" />
-                      ) : (
-                        <WifiOff className="w-3.5 h-3.5 text-destructive" />
-                      )}
-                      <span className={cn("text-xs font-medium", hermesChatStatus?.online ? "text-green-600 dark:text-green-400" : "text-destructive")}>
-                        {hermesChatStatus?.online ? t("hermes.chat.connected") : t("hermes.chat.disconnected")}
-                      </span>
-                    </div>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button size="icon" variant="ghost" className="h-7 w-7" title="API Server 配置">
-                          <Settings2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent align="end" className="w-72 p-4 space-y-3">
-                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                          {t("hermes.serverConfig.title", { defaultValue: "API Server 配置" })}
-                        </p>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="space-y-1">
-                            <label className="text-xs text-muted-foreground">Host</label>
-                            <Input value={apiConfigHost} onChange={(e) => setApiConfigHost(e.target.value)} placeholder="127.0.0.1" className="h-8 text-xs" />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-xs text-muted-foreground">Port</label>
-                            <Input value={apiConfigPort} onChange={(e) => setApiConfigPort(e.target.value)} placeholder="8643" className="h-8 text-xs" />
-                          </div>
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-xs text-muted-foreground">API Key</label>
-                          <Input type="password" value={apiConfigKey} onChange={(e) => setApiConfigKey(e.target.value)} placeholder={t("hermes.serverConfig.keyPlaceholder", { defaultValue: "留空则不验证" })} className="h-8 text-xs" onKeyDown={(e) => { if (e.key === "Enter") void handleApiConfigSave(); }} />
-                        </div>
-                        <Button size="sm" className="w-full h-8 text-xs" onClick={() => void handleApiConfigSave()}>
-                          {t("common.save", { defaultValue: "保存" })}
-                        </Button>
-                      </PopoverContent>
-                    </Popover>
                     <Select
                       value={hermesSelectedModel}
                       onValueChange={async (m) => {
@@ -1462,7 +1392,8 @@ function App() {
                       }}
                       disabled={!hermesChatStatus?.online || hermesChatModels.length === 0}
                     >
-                      <SelectTrigger className="h-7 w-[220px] text-xs">
+                      <SelectTrigger className="h-7 w-[240px] text-xs gap-1">
+                        <span className="text-muted-foreground shrink-0">模型</span>
                         <SelectValue placeholder={t("hermes.chat.selectModel")} />
                       </SelectTrigger>
                       <SelectContent>
@@ -1479,6 +1410,49 @@ function App() {
                         ))}
                       </SelectContent>
                     </Select>
+                    {(() => {
+                      const nonDefault = hermesAgents.filter((a) => !a.isDefault && a.name !== "default");
+                      if (nonDefault.length === 0) return null;
+                      return (
+                        <Select
+                          value={hermesSelectedAgentId ?? "__default__"}
+                          onValueChange={(val) => {
+                            const agent = hermesAgents.find((a) => a.name === val);
+                            const id = val === "__default__" ? null : val;
+                            const port = agent?.apiServerPort;
+                            const key = agent?.apiServerKey;
+                            setHermesSelectedAgentId(id);
+                            setHermesSelectedAgentPort(port ?? null);
+                            setHermesSelectedAgentKey(key ?? null);
+                            void invoke("setActiveHermesAgent", { agentId: id, apiServerPort: port ?? null, apiServerKey: key ?? null }).then(async () => {
+                              const cfg = await invoke<{ host: string; port: number; key: string }>("getHermesApiServerConfig").catch(() => null);
+                              if (!cfg) return;
+                              const newPort = port != null ? String(port) : String(cfg.port);
+                              const newKey = key != null ? key : cfg.key;
+                              try {
+                                await invoke("setHermesApiServerConfig", { host: cfg.host, port: newPort, key: newKey });
+                                setHermesSelectedModel("");
+                                void queryClient.invalidateQueries({ queryKey: ["hermesChat", "status"], refetchType: "all" });
+                                void queryClient.invalidateQueries({ queryKey: ["hermesChat", "models"], refetchType: "all" });
+                                void queryClient.invalidateQueries({ queryKey: ["skills", "installed"], refetchType: "all" });
+                                void queryClient.invalidateQueries({ queryKey: ["cron"], refetchType: "all" });
+                              } catch {}
+                            });
+                          }}
+                        >
+                          <SelectTrigger className="h-7 w-[160px] text-xs gap-1">
+                            <span className="text-muted-foreground shrink-0">智能体</span>
+                            <SelectValue placeholder="default" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__default__" className="text-xs">default</SelectItem>
+                            {nonDefault.map((a) => (
+                              <SelectItem key={a.name} value={a.name} className="text-xs">{a.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      );
+                    })()}
                   </>
                 )}
                 {currentView === "prompts" && (
