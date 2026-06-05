@@ -301,8 +301,8 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkill
     const paths = Array.isArray(selected) ? selected : [selected];
     for (const path of paths) {
       try {
-        const { filename, content, sizeBytes } = await chatApi.readFile(path);
-        setFiles((prev) => [...prev, { filename, content, sizeBytes, mimeType: "" }]);
+        const { filename, content, sizeBytes, mimeType } = await chatApi.readFile(path);
+        setFiles((prev) => [...prev, { filename, content, sizeBytes, mimeType, sourcePath: path }]);
       } catch (err) {
         console.error("Failed to read file:", err);
       }

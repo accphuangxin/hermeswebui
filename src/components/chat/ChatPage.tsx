@@ -18,7 +18,7 @@ import {
   useHermesAgents,
 } from "@/hooks/useHermesChat";
 import { useInstalledSkills } from "@/hooks/useSkills";
-import { useChatStream, type ToolActivity, type ApprovalRequest, type RunUsage } from "@/hooks/useChatStream";
+import { useChatStream, type ToolActivity, type ApprovalRequest, type RunUsage, type StreamFile } from "@/hooks/useChatStream";
 import { chatApi } from "@/lib/api/chat";
 import { compressContext } from "@/lib/contextCompression";
 import { ChatSidebar } from "./ChatSidebar";
@@ -82,6 +82,13 @@ export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort, se
     return model?.contextLength ?? 100000;
   })();
 
+  const activeModelSupportsVision = (() => {
+    const modelId = selectedModel?.replace(/^custom_[^:]+:/, "").replace("__default__", "");
+    const model = chatModels.find((m) => m.id === modelId);
+    // default model: unknown, optimistically allow vision
+    return model?.supportsVision ?? true;
+  })();
+
 
   // Auto-select first session
   useEffect(() => {
@@ -141,8 +148,24 @@ export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort, se
     async (text: string, files: import("@/types").ChatFileRef[] = []) => {
       if (!isOnline || !activeSessionId) return;
 
-      const fileBlocks = files.length > 0
-        ? files.map((f) => `<file name="${f.filename}">\n${f.content}\n</file>`).join("\n\n")
+      // Files with a local path → send as attachments (method 1)
+      // Pasted images (base64 only, vision model) → send as messages content parts (method 3)
+      // Everything else → inline as <file> text blocks
+      const attachmentPaths = files
+        .filter((f) => f.sourcePath)
+        .map((f) => f.sourcePath as string);
+
+      const pastedImageFiles: StreamFile[] = activeModelSupportsVision
+        ? files
+            .filter((f) => !f.sourcePath && f.mimeType?.startsWith("image/"))
+            .map((f) => ({ filename: f.filename, content: f.content, mimeType: f.mimeType }))
+        : [];
+
+      const inlineFiles = files.filter(
+        (f) => !f.sourcePath && (!f.mimeType?.startsWith("image/") || !activeModelSupportsVision),
+      );
+      const fileBlocks = inlineFiles.length > 0
+        ? inlineFiles.map((f) => `<file name="${f.filename}">\n${f.content}\n</file>`).join("\n\n")
         : "";
       const fullText = fileBlocks && text ? `${fileBlocks}\n\n${text}` : fileBlocks || text;
 
@@ -191,6 +214,8 @@ export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort, se
 
         await sendRun({
           input: compressedInput,
+          files: pastedImageFiles.length > 0 ? pastedImageFiles : undefined,
+          attachments: attachmentPaths.length > 0 ? attachmentPaths : undefined,
           model: hermesModel,
           sessionId: wasCompressed ? undefined : (hermesSessionId ?? undefined),
           agentId: selectedAgentId ?? undefined,

@@ -1028,6 +1028,7 @@ function App() {
                   try {
                     await invoke("setHermesApiServerConfig", { host: newHost, port: newPort, key: newKey });
                     setHermesSelectedModel("");
+                    queryClient.removeQueries({ queryKey: ["hermesChat", "models"] });
                     void queryClient.invalidateQueries({ queryKey: ["hermesChat", "status"], refetchType: "all" });
                     void queryClient.invalidateQueries({ queryKey: ["hermesChat", "models"], refetchType: "all" });
                     void queryClient.invalidateQueries({ queryKey: ["hermesChat", "agents"], refetchType: "all" });
@@ -1071,6 +1072,7 @@ function App() {
                     await invoke("setHermesApiServerConfig", { host: newHost, port: newPort, key: newKey });
                     void queryClient.invalidateQueries({ queryKey: ["skills", "installed"], refetchType: "all" });
                     void queryClient.invalidateQueries({ queryKey: ["hermesChat", "status"], refetchType: "all" });
+                    queryClient.removeQueries({ queryKey: ["hermesChat", "models"] });
                     void queryClient.invalidateQueries({ queryKey: ["hermesChat", "models"], refetchType: "all" });
                     void queryClient.invalidateQueries({ queryKey: ["cron"], refetchType: "all" });
                   } catch (e) {
@@ -1432,6 +1434,7 @@ function App() {
                               try {
                                 await invoke("setHermesApiServerConfig", { host: cfg.host, port: newPort, key: newKey });
                                 setHermesSelectedModel("");
+                                queryClient.removeQueries({ queryKey: ["hermesChat", "models"] });
                                 void queryClient.invalidateQueries({ queryKey: ["hermesChat", "status"], refetchType: "all" });
                                 void queryClient.invalidateQueries({ queryKey: ["hermesChat", "models"], refetchType: "all" });
                                 void queryClient.invalidateQueries({ queryKey: ["skills", "installed"], refetchType: "all" });

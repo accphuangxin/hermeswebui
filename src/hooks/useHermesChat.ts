@@ -17,7 +17,8 @@ export function useChatStatus(enabled: boolean) {
     queryKey: chatKeys.status,
     queryFn: () => chatApi.getStatus(),
     enabled,
-    refetchInterval: 5000,
+    refetchInterval: 10000,
+    refetchIntervalInBackground: false,
   });
 }
 

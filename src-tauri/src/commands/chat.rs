@@ -27,6 +27,7 @@ pub struct HermesChatModel {
     pub provider: String,
     pub context_length: Option<u64>,
     pub is_default: bool,
+    pub supports_vision: bool,
 }
 
 // ============================================================================
@@ -402,7 +403,7 @@ pub async fn getHermesChatStatus() -> Result<HermesChatStatus, String> {
     let probe_url = format!("{base_url}/v1/models");
 
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_millis(3000))
+        .timeout(Duration::from_millis(5000))
         .no_proxy()
         .build()
         .map_err(|e| format!("failed to build probe client: {e}"))?;
@@ -429,10 +430,10 @@ pub async fn getHermesChatStatus() -> Result<HermesChatStatus, String> {
 
 /// Fetch the model list from a provider's /v1/models endpoint.
 /// Returns (id, owned_by) pairs on success, empty vec on any failure (non-fatal).
-async fn fetch_remote_models(base_url: &str, api_key: &str) -> Vec<(String, String, Option<u64>)> {
+async fn fetch_remote_models(base_url: &str, api_key: &str) -> Vec<(String, String, Option<u64>, bool)> {
     let url = format!("{}/v1/models", base_url.trim_end_matches('/'));
     let client = match reqwest::Client::builder()
-        .timeout(Duration::from_secs(5))
+        .timeout(Duration::from_secs(15))
         .no_proxy()
         .build()
     {
@@ -463,7 +464,8 @@ async fn fetch_remote_models(base_url: &str, api_key: &str) -> Vec<(String, Stri
                         .unwrap_or("api_server")
                         .to_string();
                     let context_window = m.get("context_window").and_then(|v| v.as_u64());
-                    Some((id, owned_by, context_window))
+                    let supports_vision = m.get("supports_vision").and_then(|v| v.as_bool()).unwrap_or(false);
+                    Some((id, owned_by, context_window, supports_vision))
                 })
                 .collect()
         })
@@ -483,9 +485,9 @@ pub async fn getHermesChatModels() -> Result<Vec<HermesChatModel>, String> {
 
     let mut models: Vec<HermesChatModel> = remote_models
         .into_iter()
-        .map(|(id, owned_by, context_window)| {
+        .map(|(id, owned_by, context_window, supports_vision)| {
             let is_default = id == default_model && owned_by == default_provider;
-            HermesChatModel { id, provider: owned_by, context_length: context_window, is_default }
+            HermesChatModel { id, provider: owned_by, context_length: context_window, is_default, supports_vision }
         })
         .collect();
 
@@ -531,6 +533,14 @@ pub enum RunStreamEvent {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RunFile {
+    pub filename: String,
+    pub content: String,   // base64
+    pub mime_type: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RunRequest {
     pub input: String,
     pub model: Option<String>,
@@ -538,6 +548,12 @@ pub struct RunRequest {
     pub agent_id: Option<String>,
     pub api_server_port: Option<u16>,
     pub api_server_key: Option<String>,
+    /// Local-path or base64 files from the frontend
+    #[serde(default)]
+    pub files: Vec<RunFile>,
+    /// Local paths to attach directly (method 1)
+    #[serde(default)]
+    pub attachments: Vec<String>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -731,7 +747,39 @@ pub async fn startChatRun(
     }
     let url = format!("{base}/v1/runs");
 
-    let mut body = serde_json::json!({ "input": request.input });
+    // Build body based on attachment type:
+    // - local path attachments  → attachments: ["/path/..."]   (method 1)
+    // - base64 image files      → messages content parts       (method 3)
+    // - no files                → plain input
+    let mut body = {
+        let has_attachments = !request.attachments.is_empty();
+        let has_inline_images = request.files.iter().any(|f| f.mime_type.starts_with("image/"));
+
+        if has_attachments {
+            serde_json::json!({
+                "input": request.input,
+                "attachments": request.attachments,
+            })
+        } else if has_inline_images {
+            let mut content: Vec<serde_json::Value> = vec![
+                serde_json::json!({ "type": "text", "text": request.input }),
+            ];
+            for f in &request.files {
+                if f.mime_type.starts_with("image/") {
+                    content.push(serde_json::json!({
+                        "type": "image_url",
+                        "image_url": { "url": format!("data:{};base64,{}", f.mime_type, f.content) }
+                    }));
+                }
+            }
+            serde_json::json!({
+                "input": request.input,
+                "messages": [{ "role": "user", "content": content }]
+            })
+        } else {
+            serde_json::json!({ "input": request.input })
+        }
+    };
     if let Some(model) = &request.model {
         body["model"] = serde_json::json!(model);
     }
@@ -740,6 +788,26 @@ pub async fn startChatRun(
     }
     if let Some(agent_id) = &request.agent_id {
         body["agent_id"] = serde_json::json!(agent_id);
+    }
+
+    // Log the request body for debugging (truncate base64 in image_url for readability)
+    if !request.files.is_empty() {
+        let mut debug_body = body.clone();
+        if let Some(messages) = debug_body["messages"].as_array_mut() {
+            for msg in messages.iter_mut() {
+                if let Some(content) = msg["content"].as_array_mut() {
+                    for item in content.iter_mut() {
+                        if item["type"] == "image_url" {
+                            if let Some(url) = item["image_url"]["url"].as_str() {
+                                let truncated = format!("{}...[{}chars]", &url[..url.find(',').map(|i| i + 1).unwrap_or(50).min(url.len())], url.len());
+                                item["image_url"]["url"] = serde_json::json!(truncated);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        log::info!("[startChatRun] request body (image truncated): {}", debug_body);
     }
 
     // POST /v1/runs — create run
@@ -768,7 +836,28 @@ pub async fn startChatRun(
                 raw.to_string()
             }
         };
-        return Err(format!("HTTP {status}: {text}\nURL: {url}\nKey: {key_display}"));
+        // Build a truncated body preview for debugging
+        let body_preview = {
+            let mut b = body.clone();
+            if let Some(messages) = b["messages"].as_array_mut() {
+                for msg in messages.iter_mut() {
+                    if let Some(content) = msg["content"].as_array_mut() {
+                        for item in content.iter_mut() {
+                            if item["type"] == "image_url" {
+                                if let Some(url) = item["image_url"]["url"].as_str() {
+                                    let prefix_end = url.find(',').map(|i| i + 1).unwrap_or(50).min(url.len());
+                                    item["image_url"]["url"] = serde_json::json!(
+                                        format!("{}...[{}chars total]", &url[..prefix_end], url.len())
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            b.to_string()
+        };
+        return Err(format!("HTTP {status}: {text}\nURL: {url}\nKey: {key_display}\nBody: {body_preview}"));
     }
 
     let create_resp: serde_json::Value = resp
@@ -1018,6 +1107,7 @@ pub struct ChatFileContent {
     pub filename: String,
     pub content: String,
     pub size_bytes: u64,
+    pub mime_type: String,
 }
 
 #[tauri::command]
@@ -1040,21 +1130,39 @@ pub fn readChatFile(path: String) -> Result<ChatFileContent, String> {
         .map(|e| e.to_string_lossy().to_lowercase())
         .unwrap_or_default();
 
-    let content = match ext.as_str() {
-        "pdf" => extract_pdf(&path)?,
-        "docx" => extract_docx(&path)?,
-        "doc" => extract_doc_legacy(&path)?,
-        "xlsx" | "xls" => extract_excel(&path)?,
-        "pptx" => extract_pptx(&path)?,
-        "ppt" => extract_ppt_legacy(&path)?,
-        _ => std::fs::read_to_string(&path)
-            .map_err(|e| format!("cannot read file as text: {e}"))?,
+    let (content, mime_type) = match ext.as_str() {
+        "pdf" => (extract_pdf(&path)?, "application/pdf".to_string()),
+        "docx" => (extract_docx(&path)?, "application/vnd.openxmlformats-officedocument.wordprocessingml.document".to_string()),
+        "doc" => (extract_doc_legacy(&path)?, "application/msword".to_string()),
+        "xlsx" | "xls" => (extract_excel(&path)?, "application/vnd.ms-excel".to_string()),
+        "pptx" => (extract_pptx(&path)?, "application/vnd.openxmlformats-officedocument.presentationml.presentation".to_string()),
+        "ppt" => (extract_ppt_legacy(&path)?, "application/vnd.ms-powerpoint".to_string()),
+        "png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp" => {
+            let mime = match ext.as_str() {
+                "jpg" | "jpeg" => "image/jpeg",
+                "png" => "image/png",
+                "gif" => "image/gif",
+                "webp" => "image/webp",
+                "bmp" => "image/bmp",
+                _ => "image/png",
+            };
+            let bytes = std::fs::read(&path).map_err(|e| format!("cannot read image: {e}"))?;
+            use base64::Engine;
+            let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+            (b64, mime.to_string())
+        }
+        _ => (
+            std::fs::read_to_string(&path)
+                .map_err(|e| format!("cannot read file as text: {e}"))?,
+            "text/plain".to_string(),
+        ),
     };
 
     Ok(ChatFileContent {
         filename,
         content,
         size_bytes,
+        mime_type,
     })
 }
 

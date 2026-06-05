@@ -102,7 +102,7 @@ export const chatApi = {
     return await invoke("getChatRunStatus", { runId });
   },
 
-  async readFile(path: string): Promise<{ filename: string; content: string; sizeBytes: number }> {
+  async readFile(path: string): Promise<{ filename: string; content: string; sizeBytes: number; mimeType: string }> {
     return await invoke("readChatFile", { path });
   },
 };

@@ -659,6 +659,7 @@ export interface ChatFileRef {
   mimeType: string;
   sizeBytes: number;
   content: string;
+  sourcePath?: string;  // local file path when attached via file picker
 }
 
 export interface HermesChatStatus {
@@ -675,4 +676,5 @@ export interface HermesChatModel {
   provider: string;
   contextLength: number | null;
   isDefault: boolean;
+  supportsVision: boolean;
 }

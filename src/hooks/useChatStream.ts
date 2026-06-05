@@ -37,8 +37,16 @@ export interface RunUsage {
   model: string;
 }
 
+export interface StreamFile {
+  filename: string;
+  content: string;   // base64
+  mimeType: string;
+}
+
 interface StreamOptions {
   input: string;
+  files?: StreamFile[];
+  attachments?: string[];
   model?: string;
   sessionId?: string;
   agentId?: string;
@@ -80,7 +88,7 @@ export function useChatStream() {
   }, []);
 
   const sendRun = useCallback(async (options: StreamOptions) => {
-    const { input, model, sessionId, agentId, apiServerPort, apiServerKey, onDelta, onToolStarted, onToolCompleted, onApprovalRequired, onCompleted, onError } = options;
+    const { input, files, attachments, model, sessionId, agentId, apiServerPort, apiServerKey, onDelta, onToolStarted, onToolCompleted, onApprovalRequired, onCompleted, onError } = options;
 
     if (waitingTimerRef.current) {
       clearTimeout(waitingTimerRef.current);
@@ -141,6 +149,12 @@ export function useChatStream() {
         invoke<{ runId: string }>("startChatRun", {
           request: {
             input,
+            files: (files ?? []).map((f) => ({
+              filename: f.filename,
+              content: f.content,
+              mimeType: f.mimeType,
+            })),
+            attachments: attachments ?? [],
             model: model ?? null,
             sessionId: sessionId ?? null,
             agentId: agentId ?? null,
