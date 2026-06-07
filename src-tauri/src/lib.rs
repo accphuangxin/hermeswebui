@@ -425,6 +425,13 @@ pub fn run() {
             app_state.proxy_service.set_app_handle(app.handle().clone());
 
             // ============================================================
+            // 文件系统迁移：全局 skills → default agent profile
+            // ============================================================
+            if let Err(e) = services::skill::migrate_global_skills_to_default() {
+                log::warn!("⚠ Skills 迁移失败: {e}");
+            }
+
+            // ============================================================
             // 按表独立判断的导入逻辑（各类数据独立检查，互不影响）
             // ============================================================
 
@@ -1319,6 +1326,10 @@ pub fn run() {
             commands::getHermesAgents,
             commands::createHermesAgent,
             commands::deleteHermesAgent,
+            commands::startHermesAgent,
+            commands::stopHermesAgent,
+            commands::restartHermesAgent,
+            commands::updateHermesAgent,
             commands::startChatRun,
             commands::stopChatRun,
             commands::approveChatRun,

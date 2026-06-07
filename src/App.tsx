@@ -1051,7 +1051,7 @@ function App() {
               onSelectAgent={(id) => {
                 setHermesSelectedAgentId(id);
                 void invoke("setActiveHermesAgent", { agentId: id, apiServerPort: null, apiServerKey: null });
-                void queryClient.invalidateQueries({ queryKey: ["skills", "installed"] });
+                void queryClient.invalidateQueries({ queryKey: ["skills", "installed", id] });
               }}
             />
           </div>

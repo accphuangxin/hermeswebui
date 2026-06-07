@@ -3182,6 +3182,43 @@ pub fn migrate_skills_to_ssot(db: &Arc<Database>) -> Result<usize> {
     Ok(count)
 }
 
+/// 一次性迁移：将全局 skills 目录移动到 default agent profile
+/// 从 ~/.hermes/skills/ 迁移到 ~/.hermes/profiles/default/skills/
+pub fn migrate_global_skills_to_default() -> Result<()> {
+    let hermes_dir = crate::hermes_config::get_hermes_dir();
+    let old_global = hermes_dir.join("skills");
+    let new_default = hermes_dir.join("profiles").join("default").join("skills");
+
+    // 如果旧全局目录不存在，或新 default 目录已存在，无需迁移
+    if !old_global.exists() {
+        log::debug!("全局 skills 目录不存在，无需迁移");
+        return Ok(());
+    }
+
+    if new_default.exists() {
+        log::debug!("default agent skills 目录已存在，跳过迁移");
+        return Ok(());
+    }
+
+    // 创建 default profile 目录
+    if let Some(parent) = new_default.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("创建 default profile 目录失败: {:?}", parent))?;
+    }
+
+    // 移动目录（重命名）
+    log::info!("开始迁移全局 skills 到 default agent profile");
+    log::info!("  从: {:?}", old_global);
+    log::info!("  到: {:?}", new_default);
+
+    fs::rename(&old_global, &new_default)
+        .with_context(|| format!("移动 skills 目录失败: {:?} -> {:?}", old_global, new_default))?;
+
+    log::info!("✅ Skills 迁移完成");
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
