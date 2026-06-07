@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { chatApi, type SaveMessageInput } from "@/lib/api/chat";
-import { agentsApi, type CreateAgentInput } from "@/lib/api/agents";
+import { agentsApi, type CreateAgentInput, type UpdateAgentInput } from "@/lib/api/agents";
 
 export const chatKeys = {
   all: ["hermesChat"] as const,
@@ -55,6 +55,47 @@ export function useDeleteAgent() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (agentId: string) => agentsApi.deleteAgent(agentId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: chatKeys.agents });
+    },
+  });
+}
+
+export function useStartAgent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (agentId: string) => agentsApi.startAgent(agentId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: chatKeys.agents });
+    },
+  });
+}
+
+export function useStopAgent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (agentId: string) => agentsApi.stopAgent(agentId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: chatKeys.agents });
+    },
+  });
+}
+
+export function useRestartAgent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (agentId: string) => agentsApi.restartAgent(agentId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: chatKeys.agents });
+    },
+  });
+}
+
+export function useUpdateAgent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ agentId, input }: { agentId: string; input: UpdateAgentInput }) =>
+      agentsApi.updateAgent(agentId, input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: chatKeys.agents });
     },

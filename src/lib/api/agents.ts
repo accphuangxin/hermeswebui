@@ -28,6 +28,15 @@ export interface CreateAgentInput {
   api_server_key?: string;
 }
 
+export interface UpdateAgentInput {
+  description?: string;
+  soul?: string;
+  model?: string;
+  provider?: string;
+  api_server_port?: number;
+  api_server_key?: string;
+}
+
 export const agentsApi = {
   async getAgents(): Promise<HermesAgent[]> {
     return await invoke("getHermesAgents");
@@ -37,5 +46,17 @@ export const agentsApi = {
   },
   async deleteAgent(agentId: string): Promise<void> {
     return await invoke("deleteHermesAgent", { agentId });
+  },
+  async startAgent(agentId: string): Promise<void> {
+    return await invoke("startHermesAgent", { agentId });
+  },
+  async stopAgent(agentId: string): Promise<void> {
+    return await invoke("stopHermesAgent", { agentId });
+  },
+  async restartAgent(agentId: string): Promise<void> {
+    return await invoke("restartHermesAgent", { agentId });
+  },
+  async updateAgent(agentId: string, input: UpdateAgentInput): Promise<HermesAgent> {
+    return await invoke("updateHermesAgent", { agentId, input });
   },
 };

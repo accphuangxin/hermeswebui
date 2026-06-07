@@ -30,6 +30,7 @@ import {
   Users,
   Bot,
   RefreshCw,
+  ChevronDown,
 } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Provider, VisibleApps } from "@/types";
@@ -1260,6 +1261,34 @@ function App() {
                     t("openclaw.agents.title")}
                   {currentView === "hermesMemory" && t("hermes.memory.title")}
                 </h1>
+                {currentView === "skills" && (
+                  <div className="flex items-center gap-2 ml-4 px-4 py-1.5 rounded-full border border-input bg-card/50 relative">
+                    <span className="text-sm text-muted-foreground whitespace-nowrap">
+                      {t("hermes.agents.label", { defaultValue: "智能体" })}
+                    </span>
+                    <select
+                      value={hermesSelectedAgentId}
+                      onChange={(e) => {
+                        const newId = e.target.value;
+                        setHermesSelectedAgentId(newId);
+                        void invoke("setActiveHermesAgent", { agentId: newId, apiServerPort: null, apiServerKey: null });
+                        void queryClient.invalidateQueries({ queryKey: ["skills", "installed", newId] });
+                      }}
+                      className="text-sm text-foreground focus:outline-none pr-5 bg-transparent border-none cursor-pointer"
+                      style={{
+                        WebkitAppearance: 'none',
+                        MozAppearance: 'none',
+                        appearance: 'none',
+                      }}
+                    >
+                      <option value="default">default</option>
+                      {hermesAgents.filter((a) => !a.isDefault && a.name !== "default").map((a) => (
+                        <option key={a.name} value={a.name}>{a.name}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="w-3.5 h-3.5 text-muted-foreground pointer-events-none absolute right-3" />
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex items-center gap-2">

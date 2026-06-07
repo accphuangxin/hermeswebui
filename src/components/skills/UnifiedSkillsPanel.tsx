@@ -853,19 +853,7 @@ const UnifiedSkillsPanel = React.forwardRef<UnifiedSkillsPanelHandle, UnifiedSki
                 <span className="ml-1.5 text-muted-foreground font-normal">({skills.length})</span>
               )}
             </span>
-            {showAgentSelector && onSelectAgent && (
-              <select
-                value={agentId}
-                onChange={(e) => onSelectAgent(e.target.value)}
-                className="ml-2 flex-1 min-w-0 h-6 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-              >
-                <option value="default">default</option>
-                {nonDefaultAgents.map((a) => (
-                  <option key={a.name} value={a.name}>{a.name}</option>
-                ))}
-              </select>
-            )}
-            {(!showAgentSelector || !onSelectAgent) && <span className="flex-1" />}
+            <span className="flex-1" />
             <div
               className="transition-all duration-300 ease-out overflow-hidden"
               style={{ maxWidth: skillUpdates && skillUpdates.length > 0 ? "160px" : "0px", opacity: skillUpdates && skillUpdates.length > 0 ? 1 : 0 }}

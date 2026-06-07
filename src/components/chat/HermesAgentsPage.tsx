@@ -150,7 +150,7 @@ export function HermesAgentsPage({ selectedAgentId, onSelectAgent }: HermesAgent
   return (
     <div className="flex flex-col h-full overflow-hidden" onClick={() => setContextMenu(null)}>
       <div className="flex-1 min-h-0 overflow-hidden px-4 pt-2 pb-4 flex flex-col gap-3">
-        <div className="shrink-0">
+        <div className="shrink-0 max-h-[280px] overflow-y-auto">
           {isLoading ? (
             <EmptyState pulse>{t("common.loading", { defaultValue: "加载中..." })}</EmptyState>
           ) : isError ? (
@@ -447,15 +447,15 @@ function CreateAgentForm({ onClose, onCreated }: { onClose: () => void; onCreate
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b">
+    <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col h-[600px]">
+      <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
         <p className="text-sm font-semibold">{t("hermes.agents.create", { defaultValue: "新建 Agent" })}</p>
         <Button variant="ghost" size="icon" className="h-6 w-6 -mr-1" onClick={onClose}>
           <X className="w-3.5 h-3.5" />
         </Button>
       </div>
 
-      <div className="grid grid-cols-[1fr_3fr] gap-4 p-4">
+      <div className="grid grid-cols-[1fr_3fr] gap-4 p-4 flex-1 min-h-0">
         {/* 左侧：其他属性 (1/4) */}
         <div className="space-y-4">
           <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
@@ -482,8 +482,8 @@ function CreateAgentForm({ onClose, onCreated }: { onClose: () => void; onCreate
         </div>
 
         {/* 右侧：SOUL (3/4) */}
-        <div className="flex flex-col">
-          <div className="text-xs text-muted-foreground uppercase tracking-wide mb-2">SOUL</div>
+        <div className="flex flex-col min-h-0">
+          <div className="text-xs text-muted-foreground uppercase tracking-wide mb-2 shrink-0">SOUL</div>
           <textarea
             value={soul}
             onChange={(e) => setSoul(e.target.value)}
@@ -493,7 +493,7 @@ function CreateAgentForm({ onClose, onCreated }: { onClose: () => void; onCreate
         </div>
       </div>
 
-      <div className="flex gap-2 px-4 py-3 border-t bg-muted/30">
+      <div className="flex gap-2 px-4 py-3 border-t bg-muted/30 shrink-0">
         <Button variant="outline" size="sm" className="flex-1 h-9" onClick={onClose} disabled={isPending}>
           {t("common.cancel", { defaultValue: "取消" })}
         </Button>
@@ -541,15 +541,15 @@ function EditAgentForm({ agent, onClose, onSaved }: {
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b">
+    <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col h-[600px]">
+      <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
         <p className="text-sm font-semibold">{t("hermes.agents.editTitle", { name: agent.name })}</p>
         <Button variant="ghost" size="icon" className="h-6 w-6 -mr-1" onClick={onClose}>
           <X className="w-3.5 h-3.5" />
         </Button>
       </div>
 
-      <div className="grid grid-cols-[1fr_3fr] gap-4 p-4">
+      <div className="grid grid-cols-[1fr_3fr] gap-4 p-4 flex-1 min-h-0">
         {/* 左侧：其他属性 (1/4) */}
         <div className="space-y-4">
           <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
@@ -581,8 +581,8 @@ function EditAgentForm({ agent, onClose, onSaved }: {
         </div>
 
         {/* 右侧：SOUL (3/4) */}
-        <div className="flex flex-col">
-          <div className="text-xs text-muted-foreground uppercase tracking-wide mb-2">SOUL</div>
+        <div className="flex flex-col min-h-0">
+          <div className="text-xs text-muted-foreground uppercase tracking-wide mb-2 shrink-0">SOUL</div>
           <textarea
             value={soul}
             onChange={(e) => setSoul(e.target.value)}
@@ -592,7 +592,7 @@ function EditAgentForm({ agent, onClose, onSaved }: {
         </div>
       </div>
 
-      <div className="flex gap-2 px-4 py-3 border-t bg-muted/30">
+      <div className="flex gap-2 px-4 py-3 border-t bg-muted/30 shrink-0">
         <Button variant="outline" size="sm" className="flex-1 h-9" onClick={onClose} disabled={isPending}>
           {t("common.cancel", { defaultValue: "取消" })}
         </Button>
