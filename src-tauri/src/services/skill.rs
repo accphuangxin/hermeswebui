@@ -553,10 +553,16 @@ impl SkillService {
             AppType::OpenClaw => home.join(".openclaw").join("skills"),
             AppType::Hermes => {
                 let hermes_dir = crate::hermes_config::get_hermes_dir();
-                // 所有 agent 统一使用 profiles/{agent_id}/skills/ 路径
                 let agent_id = crate::store::get_active_hermes_agent()
                     .unwrap_or_else(|| "default".to_string());
-                hermes_dir.join("profiles").join(agent_id).join("skills")
+
+                if agent_id == "default" {
+                    // default agent 使用根目录下的 skills/
+                    hermes_dir.join("skills")
+                } else {
+                    // 其他 agent 使用 profiles/{agent_id}/skills/
+                    hermes_dir.join("profiles").join(agent_id).join("skills")
+                }
             }
         })
     }
@@ -564,22 +570,25 @@ impl SkillService {
     // ========== 统一管理方法 ==========
 
     /// 获取所有已安装的 Skills
-    /// - 扫描 agent 专属目录 ~/.hermes/profiles/<agent_id>/skills/
-    /// - 所有 agent（包括 default）使用统一路径格式，完全隔离
+    /// - default agent: ~/.hermes/skills/
+    /// - 其他 agent: ~/.hermes/profiles/<agent_id>/skills/
     /// - 结果 upsert 到 agent_skill_cache，并清除 stale 条目
     /// - DB 用于读取 agent 专属收藏标签（skill_agent_favorites 表）
     pub fn get_all_installed(db: &Arc<Database>, agent_id: &str) -> Result<Vec<InstalledSkill>> {
         let hermes_dir = crate::hermes_config::get_hermes_dir();
 
-        // 统一路径规则：所有 agent 都使用 profiles/{agent_id}/skills/
-        let agent_skills_dir = hermes_dir
-            .join("profiles")
-            .join(agent_id)
-            .join("skills");
+        // 根据 agent_id 选择路径
+        let agent_skills_dir = if agent_id == "default" {
+            // default agent 使用根目录下的 skills/
+            hermes_dir.join("skills")
+        } else {
+            // 其他 agent 使用 profiles/{agent_id}/skills/
+            hermes_dir.join("profiles").join(agent_id).join("skills")
+        };
 
         let mut skills: indexmap::IndexMap<String, InstalledSkill> = indexmap::IndexMap::new();
 
-        // 只扫描当前 agent 的目录
+        // 扫描当前 agent 的目录
         if agent_skills_dir.exists() {
             Self::scan_hermes_skills_recursive(
                 &agent_skills_dir,
@@ -3180,43 +3189,6 @@ pub fn migrate_skills_to_ssot(db: &Arc<Database>) -> Result<usize> {
     log::info!("Skills 迁移完成，共 {count} 个");
 
     Ok(count)
-}
-
-/// 一次性迁移：将全局 skills 目录移动到 default agent profile
-/// 从 ~/.hermes/skills/ 迁移到 ~/.hermes/profiles/default/skills/
-pub fn migrate_global_skills_to_default() -> Result<()> {
-    let hermes_dir = crate::hermes_config::get_hermes_dir();
-    let old_global = hermes_dir.join("skills");
-    let new_default = hermes_dir.join("profiles").join("default").join("skills");
-
-    // 如果旧全局目录不存在，或新 default 目录已存在，无需迁移
-    if !old_global.exists() {
-        log::debug!("全局 skills 目录不存在，无需迁移");
-        return Ok(());
-    }
-
-    if new_default.exists() {
-        log::debug!("default agent skills 目录已存在，跳过迁移");
-        return Ok(());
-    }
-
-    // 创建 default profile 目录
-    if let Some(parent) = new_default.parent() {
-        fs::create_dir_all(parent)
-            .with_context(|| format!("创建 default profile 目录失败: {:?}", parent))?;
-    }
-
-    // 移动目录（重命名）
-    log::info!("开始迁移全局 skills 到 default agent profile");
-    log::info!("  从: {:?}", old_global);
-    log::info!("  到: {:?}", new_default);
-
-    fs::rename(&old_global, &new_default)
-        .with_context(|| format!("移动 skills 目录失败: {:?} -> {:?}", old_global, new_default))?;
-
-    log::info!("✅ Skills 迁移完成");
-
-    Ok(())
 }
 
 #[cfg(test)]

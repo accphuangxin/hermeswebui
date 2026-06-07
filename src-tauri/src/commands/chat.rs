@@ -625,10 +625,17 @@ pub fn setActiveHermesAgent(
 #[tauri::command]
 pub fn getHermesSkillsPath() -> String {
     let hermes_dir = crate::hermes_config::get_hermes_dir();
-    // 所有 agent 统一使用 profiles/{agent_id}/skills/ 路径
     let agent_id = crate::store::get_active_hermes_agent()
         .unwrap_or_else(|| "default".to_string());
-    let path = hermes_dir.join("profiles").join(agent_id).join("skills");
+
+    let path = if agent_id == "default" {
+        // default agent 使用根目录下的 skills/
+        hermes_dir.join("skills")
+    } else {
+        // 其他 agent 使用 profiles/{agent_id}/skills/
+        hermes_dir.join("profiles").join(agent_id).join("skills")
+    };
+
     path.to_string_lossy().into_owned()
 }
 
