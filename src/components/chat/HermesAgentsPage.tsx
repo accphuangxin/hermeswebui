@@ -166,7 +166,7 @@ export function HermesAgentsPage({ selectedAgentId, onSelectAgent }: HermesAgent
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4">
               {sorted.map((item) => (
                 <AgentCard
                   key={item.id ?? "__default__"}
