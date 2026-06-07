@@ -447,48 +447,48 @@ function CreateAgentForm({ onClose, onCreated }: { onClose: () => void; onCreate
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4 space-y-3">
-      <div className="flex items-center justify-between">
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b">
         <p className="text-sm font-semibold">{t("hermes.agents.create", { defaultValue: "新建 Agent" })}</p>
         <Button variant="ghost" size="icon" className="h-6 w-6 -mr-1" onClick={onClose}>
           <X className="w-3.5 h-3.5" />
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Name *">
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="my-agent" className="h-8 text-xs" autoFocus />
-        </Field>
-        <Field label={t("common.description", { defaultValue: "描述" })}>
-          <Input value={description} onChange={(e) => setDescription(e.target.value)} className="h-8 text-xs" />
-        </Field>
-      </div>
+      <div className="grid grid-cols-[140px_1fr] gap-x-6 gap-y-4 p-4">
+        <div className="text-xs text-muted-foreground uppercase tracking-wide pt-2">NAME *</div>
+        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="my-agent" className="h-9 text-sm" autoFocus />
 
-      <Field label="Soul">
+        <div className="text-xs text-muted-foreground uppercase tracking-wide pt-2">DESCRIPTION</div>
+        <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("common.description", { defaultValue: "描述" })} className="h-9 text-sm" />
+
+        <div className="text-xs text-muted-foreground uppercase tracking-wide pt-2">SOUL</div>
         <textarea
           value={soul}
           onChange={(e) => setSoul(e.target.value)}
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs resize-y min-h-[240px] focus:outline-none focus:ring-1 focus:ring-ring"
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-y min-h-[200px] focus:outline-none focus:ring-1 focus:ring-ring"
           placeholder={t("hermes.agents.soulPlaceholder")}
         />
-      </Field>
 
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="API Port">
-          <Input value={apiServerPort} onChange={(e) => setApiServerPort(e.target.value)} placeholder="8701" className="h-8 text-xs" />
-        </Field>
-        <Field label="API Key">
-          <Input type="password" value={apiServerKey} onChange={(e) => setApiServerKey(e.target.value)} className="h-8 text-xs" />
-        </Field>
+        <div className="text-xs text-muted-foreground uppercase tracking-wide pt-2">API PORT</div>
+        <Input value={apiServerPort} onChange={(e) => setApiServerPort(e.target.value)} placeholder="8701" className="h-9 text-sm" />
+
+        <div className="text-xs text-muted-foreground uppercase tracking-wide pt-2">API KEY</div>
+        <Input type="password" value={apiServerKey} onChange={(e) => setApiServerKey(e.target.value)} placeholder="••••••••" className="h-9 text-sm" />
+
+        {error && (
+          <>
+            <div />
+            <p className="text-xs text-destructive break-all font-mono">{String(error)}</p>
+          </>
+        )}
       </div>
 
-      {error && <p className="text-xs text-destructive break-all font-mono">{String(error)}</p>}
-
-      <div className="flex gap-2 pt-1">
-        <Button variant="outline" size="sm" className="flex-1 h-8 text-xs" onClick={onClose} disabled={isPending}>
+      <div className="flex gap-2 px-4 py-3 border-t bg-muted/30">
+        <Button variant="outline" size="sm" className="flex-1 h-9" onClick={onClose} disabled={isPending}>
           {t("common.cancel", { defaultValue: "取消" })}
         </Button>
-        <Button size="sm" className="flex-1 h-8 text-xs" onClick={handleSubmit} disabled={isPending || !name.trim()}>
+        <Button size="sm" className="flex-1 h-9" onClick={handleSubmit} disabled={isPending || !name.trim()}>
           {isPending ? t("common.creating", { defaultValue: "创建中..." }) : t("common.create", { defaultValue: "创建" })}
         </Button>
       </div>
@@ -532,64 +532,54 @@ function EditAgentForm({ agent, onClose, onSaved }: {
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4 space-y-3">
-      <div className="flex items-center justify-between">
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b">
         <p className="text-sm font-semibold">{t("hermes.agents.editTitle", { name: agent.name })}</p>
         <Button variant="ghost" size="icon" className="h-6 w-6 -mr-1" onClick={onClose}>
           <X className="w-3.5 h-3.5" />
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="描述">
-          <Input value={description} onChange={(e) => setDescription(e.target.value)} className="h-8 text-xs" />
-        </Field>
-        <Field label="Model">
-          <Input value={model} onChange={(e) => setModel(e.target.value)} className="h-8 text-xs" placeholder={agent.model ?? ""} />
-        </Field>
-      </div>
+      <div className="grid grid-cols-[140px_1fr] gap-x-6 gap-y-4 p-4">
+        <div className="text-xs text-muted-foreground uppercase tracking-wide pt-2">DESCRIPTION</div>
+        <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder={agent.description ?? "描述"} className="h-9 text-sm" />
 
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Provider">
-          <Input value={provider} onChange={(e) => setProvider(e.target.value)} className="h-8 text-xs" placeholder={agent.provider ?? ""} />
-        </Field>
-        <Field label="API Port">
-          <Input value={apiServerPort} onChange={(e) => setApiServerPort(e.target.value)} className="h-8 text-xs" placeholder={agent.apiServerPort ? String(agent.apiServerPort) : "8701"} />
-        </Field>
-      </div>
+        <div className="text-xs text-muted-foreground uppercase tracking-wide pt-2">MODEL</div>
+        <Input value={model} onChange={(e) => setModel(e.target.value)} placeholder={agent.model ?? "qwen3_6"} className="h-9 text-sm" />
 
-      <Field label="API Key">
-        <Input type="password" value={apiServerKey} onChange={(e) => setApiServerKey(e.target.value)} className="h-8 text-xs" />
-      </Field>
+        <div className="text-xs text-muted-foreground uppercase tracking-wide pt-2">PROVIDER</div>
+        <Input value={provider} onChange={(e) => setProvider(e.target.value)} placeholder={agent.provider ?? "custom"} className="h-9 text-sm" />
 
-      <Field label="Soul">
+        <div className="text-xs text-muted-foreground uppercase tracking-wide pt-2">API PORT</div>
+        <Input value={apiServerPort} onChange={(e) => setApiServerPort(e.target.value)} placeholder={agent.apiServerPort ? String(agent.apiServerPort) : "8701"} className="h-9 text-sm" />
+
+        <div className="text-xs text-muted-foreground uppercase tracking-wide pt-2">API KEY</div>
+        <Input type="password" value={apiServerKey} onChange={(e) => setApiServerKey(e.target.value)} placeholder="••••••••" className="h-9 text-sm" />
+
+        <div className="text-xs text-muted-foreground uppercase tracking-wide pt-2">SOUL</div>
         <textarea
           value={soul}
           onChange={(e) => setSoul(e.target.value)}
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs resize-y min-h-[240px] focus:outline-none focus:ring-1 focus:ring-ring"
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-y min-h-[200px] focus:outline-none focus:ring-1 focus:ring-ring"
           placeholder="系统提示词"
         />
-      </Field>
 
-      {error && <p className="text-xs text-destructive break-all font-mono">{String(error)}</p>}
+        {error && (
+          <>
+            <div />
+            <p className="text-xs text-destructive break-all font-mono">{String(error)}</p>
+          </>
+        )}
+      </div>
 
-      <div className="flex gap-2 pt-1">
-        <Button variant="outline" size="sm" className="flex-1 h-8 text-xs" onClick={onClose} disabled={isPending}>
+      <div className="flex gap-2 px-4 py-3 border-t bg-muted/30">
+        <Button variant="outline" size="sm" className="flex-1 h-9" onClick={onClose} disabled={isPending}>
           {t("common.cancel", { defaultValue: "取消" })}
         </Button>
-        <Button size="sm" className="flex-1 h-8 text-xs" onClick={handleSubmit} disabled={isPending}>
+        <Button size="sm" className="flex-1 h-9" onClick={handleSubmit} disabled={isPending}>
           {isPending ? t("common.saving", { defaultValue: "保存中..." }) : t("common.save", { defaultValue: "保存" })}
         </Button>
       </div>
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-1">
-      <label className="text-xs text-muted-foreground">{label}</label>
-      {children}
     </div>
   );
 }
