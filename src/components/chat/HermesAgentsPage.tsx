@@ -455,33 +455,42 @@ function CreateAgentForm({ onClose, onCreated }: { onClose: () => void; onCreate
         </Button>
       </div>
 
-      <div className="grid grid-cols-[140px_1fr] gap-x-6 gap-y-4 p-4">
-        <div className="text-xs text-muted-foreground uppercase tracking-wide pt-2">NAME *</div>
-        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="my-agent" className="h-9 text-sm" autoFocus />
+      <div className="grid grid-cols-2 gap-4 p-4">
+        {/* 左侧：其他属性 */}
+        <div className="space-y-4">
+          <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
+            <div className="text-xs text-muted-foreground uppercase tracking-wide">NAME *</div>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="my-agent" className="h-9 text-sm" autoFocus />
+          </div>
 
-        <div className="text-xs text-muted-foreground uppercase tracking-wide pt-2">DESCRIPTION</div>
-        <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("common.description", { defaultValue: "描述" })} className="h-9 text-sm" />
+          <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
+            <div className="text-xs text-muted-foreground uppercase tracking-wide">DESCRIPTION</div>
+            <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("common.description", { defaultValue: "描述" })} className="h-9 text-sm" />
+          </div>
 
-        <div className="text-xs text-muted-foreground uppercase tracking-wide pt-2">SOUL</div>
-        <textarea
-          value={soul}
-          onChange={(e) => setSoul(e.target.value)}
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-y min-h-[200px] focus:outline-none focus:ring-1 focus:ring-ring"
-          placeholder={t("hermes.agents.soulPlaceholder")}
-        />
+          <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
+            <div className="text-xs text-muted-foreground uppercase tracking-wide">API PORT</div>
+            <Input value={apiServerPort} onChange={(e) => setApiServerPort(e.target.value)} placeholder="8701" className="h-9 text-sm" />
+          </div>
 
-        <div className="text-xs text-muted-foreground uppercase tracking-wide pt-2">API PORT</div>
-        <Input value={apiServerPort} onChange={(e) => setApiServerPort(e.target.value)} placeholder="8701" className="h-9 text-sm" />
+          <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
+            <div className="text-xs text-muted-foreground uppercase tracking-wide">API KEY</div>
+            <Input type="password" value={apiServerKey} onChange={(e) => setApiServerKey(e.target.value)} placeholder="••••••••" className="h-9 text-sm" />
+          </div>
 
-        <div className="text-xs text-muted-foreground uppercase tracking-wide pt-2">API KEY</div>
-        <Input type="password" value={apiServerKey} onChange={(e) => setApiServerKey(e.target.value)} placeholder="••••••••" className="h-9 text-sm" />
+          {error && <p className="text-xs text-destructive break-all font-mono col-span-2">{String(error)}</p>}
+        </div>
 
-        {error && (
-          <>
-            <div />
-            <p className="text-xs text-destructive break-all font-mono">{String(error)}</p>
-          </>
-        )}
+        {/* 右侧：SOUL */}
+        <div className="flex flex-col">
+          <div className="text-xs text-muted-foreground uppercase tracking-wide mb-2">SOUL</div>
+          <textarea
+            value={soul}
+            onChange={(e) => setSoul(e.target.value)}
+            className="flex-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+            placeholder={t("hermes.agents.soulPlaceholder")}
+          />
+        </div>
       </div>
 
       <div className="flex gap-2 px-4 py-3 border-t bg-muted/30">
@@ -540,36 +549,47 @@ function EditAgentForm({ agent, onClose, onSaved }: {
         </Button>
       </div>
 
-      <div className="grid grid-cols-[140px_1fr] gap-x-6 gap-y-4 p-4">
-        <div className="text-xs text-muted-foreground uppercase tracking-wide pt-2">DESCRIPTION</div>
-        <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder={agent.description ?? "描述"} className="h-9 text-sm" />
+      <div className="grid grid-cols-2 gap-4 p-4">
+        {/* 左侧：其他属性 */}
+        <div className="space-y-4">
+          <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
+            <div className="text-xs text-muted-foreground uppercase tracking-wide">DESCRIPTION</div>
+            <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder={agent.description ?? "描述"} className="h-9 text-sm" />
+          </div>
 
-        <div className="text-xs text-muted-foreground uppercase tracking-wide pt-2">MODEL</div>
-        <Input value={model} onChange={(e) => setModel(e.target.value)} placeholder={agent.model ?? "qwen3_6"} className="h-9 text-sm" />
+          <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
+            <div className="text-xs text-muted-foreground uppercase tracking-wide">MODEL</div>
+            <Input value={model} onChange={(e) => setModel(e.target.value)} placeholder={agent.model ?? "qwen3_6"} className="h-9 text-sm" />
+          </div>
 
-        <div className="text-xs text-muted-foreground uppercase tracking-wide pt-2">PROVIDER</div>
-        <Input value={provider} onChange={(e) => setProvider(e.target.value)} placeholder={agent.provider ?? "custom"} className="h-9 text-sm" />
+          <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
+            <div className="text-xs text-muted-foreground uppercase tracking-wide">PROVIDER</div>
+            <Input value={provider} onChange={(e) => setProvider(e.target.value)} placeholder={agent.provider ?? "custom"} className="h-9 text-sm" />
+          </div>
 
-        <div className="text-xs text-muted-foreground uppercase tracking-wide pt-2">API PORT</div>
-        <Input value={apiServerPort} onChange={(e) => setApiServerPort(e.target.value)} placeholder={agent.apiServerPort ? String(agent.apiServerPort) : "8701"} className="h-9 text-sm" />
+          <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
+            <div className="text-xs text-muted-foreground uppercase tracking-wide">API PORT</div>
+            <Input value={apiServerPort} onChange={(e) => setApiServerPort(e.target.value)} placeholder={agent.apiServerPort ? String(agent.apiServerPort) : "8701"} className="h-9 text-sm" />
+          </div>
 
-        <div className="text-xs text-muted-foreground uppercase tracking-wide pt-2">API KEY</div>
-        <Input type="password" value={apiServerKey} onChange={(e) => setApiServerKey(e.target.value)} placeholder="••••••••" className="h-9 text-sm" />
+          <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
+            <div className="text-xs text-muted-foreground uppercase tracking-wide">API KEY</div>
+            <Input type="password" value={apiServerKey} onChange={(e) => setApiServerKey(e.target.value)} placeholder="••••••••" className="h-9 text-sm" />
+          </div>
 
-        <div className="text-xs text-muted-foreground uppercase tracking-wide pt-2">SOUL</div>
-        <textarea
-          value={soul}
-          onChange={(e) => setSoul(e.target.value)}
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-y min-h-[200px] focus:outline-none focus:ring-1 focus:ring-ring"
-          placeholder="系统提示词"
-        />
+          {error && <p className="text-xs text-destructive break-all font-mono">{String(error)}</p>}
+        </div>
 
-        {error && (
-          <>
-            <div />
-            <p className="text-xs text-destructive break-all font-mono">{String(error)}</p>
-          </>
-        )}
+        {/* 右侧：SOUL */}
+        <div className="flex flex-col">
+          <div className="text-xs text-muted-foreground uppercase tracking-wide mb-2">SOUL</div>
+          <textarea
+            value={soul}
+            onChange={(e) => setSoul(e.target.value)}
+            className="flex-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+            placeholder="系统提示词"
+          />
+        </div>
       </div>
 
       <div className="flex gap-2 px-4 py-3 border-t bg-muted/30">
