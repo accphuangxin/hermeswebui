@@ -455,8 +455,8 @@ function CreateAgentForm({ onClose, onCreated }: { onClose: () => void; onCreate
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 p-4">
-        {/* 左侧：其他属性 */}
+      <div className="grid grid-cols-[1fr_3fr] gap-4 p-4">
+        {/* 左侧：其他属性 (1/4) */}
         <div className="space-y-4">
           <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
             <div className="text-xs text-muted-foreground uppercase tracking-wide">NAME *</div>
@@ -481,7 +481,7 @@ function CreateAgentForm({ onClose, onCreated }: { onClose: () => void; onCreate
           {error && <p className="text-xs text-destructive break-all font-mono col-span-2">{String(error)}</p>}
         </div>
 
-        {/* 右侧：SOUL */}
+        {/* 右侧：SOUL (3/4) */}
         <div className="flex flex-col">
           <div className="text-xs text-muted-foreground uppercase tracking-wide mb-2">SOUL</div>
           <textarea
@@ -549,8 +549,8 @@ function EditAgentForm({ agent, onClose, onSaved }: {
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 p-4">
-        {/* 左侧：其他属性 */}
+      <div className="grid grid-cols-[1fr_3fr] gap-4 p-4">
+        {/* 左侧：其他属性 (1/4) */}
         <div className="space-y-4">
           <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
             <div className="text-xs text-muted-foreground uppercase tracking-wide">DESCRIPTION</div>
@@ -580,7 +580,7 @@ function EditAgentForm({ agent, onClose, onSaved }: {
           {error && <p className="text-xs text-destructive break-all font-mono">{String(error)}</p>}
         </div>
 
-        {/* 右侧：SOUL */}
+        {/* 右侧：SOUL (3/4) */}
         <div className="flex flex-col">
           <div className="text-xs text-muted-foreground uppercase tracking-wide mb-2">SOUL</div>
           <textarea
