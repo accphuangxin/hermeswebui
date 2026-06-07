@@ -29,7 +29,7 @@ import {
   Sparkles,
   Users,
   Bot,
-
+  RefreshCw,
 } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Provider, VisibleApps } from "@/types";
@@ -1179,7 +1179,7 @@ function App() {
             style={{ WebkitAppRegion: "no-drag" } as any}
           >
             {currentView === "hermesAgents" ? (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-1">
                 <Button
                   variant="ghost"
                   size="icon"
@@ -1192,6 +1192,15 @@ function App() {
                 <h1 className="text-sm font-semibold">
                   {t("hermes.agents.title", { defaultValue: "选择智能体" })}
                 </h1>
+                <div className="flex-1" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  onClick={() => void queryClient.invalidateQueries({ queryKey: ["hermesAgents"] })}
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </Button>
               </div>
             ) : currentView === "hermesChat" ? (
               <div className="flex items-center gap-2">

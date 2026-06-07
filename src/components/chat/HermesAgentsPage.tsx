@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Check, Plus, RefreshCw, Trash2, X, Play, Square, RotateCcw, Pencil } from "lucide-react";
+import { Check, Plus, Trash2, X, Play, Square, RotateCcw, Pencil } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -33,7 +34,8 @@ interface AgentItem {
 
 export function HermesAgentsPage({ selectedAgentId, onSelectAgent }: HermesAgentsPageProps) {
   const { t } = useTranslation();
-  const { data: agents = [], isLoading, isError, error, refetch, isFetching } = useHermesAgents();
+  const queryClient = useQueryClient();
+  const { data: agents = [], isLoading, isError, error } = useHermesAgents();
   const [showCreate, setShowCreate] = useState(false);
   const [detailAgent, setDetailAgent] = useState<HermesAgent | null>(null);
   const [editAgent, setEditAgent] = useState<HermesAgent | null>(null);
@@ -147,13 +149,7 @@ export function HermesAgentsPage({ selectedAgentId, onSelectAgent }: HermesAgent
 
   return (
     <div className="flex flex-col h-full overflow-hidden" onClick={() => setContextMenu(null)}>
-      <div className="flex items-center justify-end px-4 pt-2 pb-1 shrink-0">
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => void refetch()} disabled={isFetching}>
-          <RefreshCw className={cn("w-3.5 h-3.5", isFetching && "animate-spin")} />
-        </Button>
-      </div>
-
-      <div className="flex-1 min-h-0 overflow-hidden px-4 pb-4 flex flex-col gap-4">
+      <div className="flex-1 min-h-0 overflow-hidden px-4 pt-2 pb-4 flex flex-col gap-3">
         <div className="shrink-0">
           {isLoading ? (
             <EmptyState pulse>{t("common.loading", { defaultValue: "加载中..." })}</EmptyState>
@@ -161,7 +157,7 @@ export function HermesAgentsPage({ selectedAgentId, onSelectAgent }: HermesAgent
             <div className="flex flex-col items-center justify-center h-40 text-center gap-3">
               <p className="text-sm text-muted-foreground">{t("hermes.agents.loadError", { defaultValue: "加载失败" })}</p>
               {error && <p className="text-xs text-destructive/80 max-w-sm break-all font-mono">{String(error)}</p>}
-              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => void refetch()}>
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => void queryClient.invalidateQueries({ queryKey: ["hermesAgents"] })}>
                 {t("hermes.agents.retry", { defaultValue: "重试" })}
               </Button>
             </div>
@@ -197,7 +193,7 @@ export function HermesAgentsPage({ selectedAgentId, onSelectAgent }: HermesAgent
         {showCreate && (
           <CreateAgentForm
             onClose={() => setShowCreate(false)}
-            onCreated={() => { setShowCreate(false); void refetch(); }}
+            onCreated={() => { setShowCreate(false); void queryClient.invalidateQueries({ queryKey: ["hermesAgents"] }); }}
           />
         )}
 
@@ -208,7 +204,7 @@ export function HermesAgentsPage({ selectedAgentId, onSelectAgent }: HermesAgent
             onSaved={(updated) => {
               setEditAgent(null);
               setDetailAgent(updated);
-              void refetch();
+              void queryClient.invalidateQueries({ queryKey: ["hermesAgents"] });
             }}
           />
         )}
