@@ -63,8 +63,8 @@ import { cn } from "@/lib/utils";
 interface UnifiedSkillsPanelProps {
   onOpenDiscovery: () => void;
   currentApp: AppId;
-  agentId?: string | null;
-  onSelectAgent?: (agentId: string | null) => void;
+  agentId: string;
+  onSelectAgent?: (agentId: string) => void;
 }
 
 export interface UnifiedSkillsPanelHandle {
@@ -855,11 +855,11 @@ const UnifiedSkillsPanel = React.forwardRef<UnifiedSkillsPanelHandle, UnifiedSki
             </span>
             {showAgentSelector && onSelectAgent && (
               <select
-                value={agentId ?? ""}
-                onChange={(e) => onSelectAgent(e.target.value === "" ? null : e.target.value)}
+                value={agentId}
+                onChange={(e) => onSelectAgent(e.target.value)}
                 className="ml-2 flex-1 min-w-0 h-6 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               >
-                <option value="">default</option>
+                <option value="default">default</option>
                 {nonDefaultAgents.map((a) => (
                   <option key={a.name} value={a.name}>{a.name}</option>
                 ))}

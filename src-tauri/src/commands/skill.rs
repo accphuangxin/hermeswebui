@@ -29,10 +29,10 @@ fn parse_app_type(app: &str) -> Result<AppType, String> {
 /// 获取所有已安装的 Skills
 #[tauri::command]
 pub fn get_installed_skills(
-    agent_id: Option<String>,
+    agent_id: String,
     app_state: State<'_, AppState>,
 ) -> Result<Vec<InstalledSkill>, String> {
-    SkillService::get_all_installed(&app_state.db, agent_id.as_deref()).map_err(|e| e.to_string())
+    SkillService::get_all_installed(&app_state.db, &agent_id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -100,25 +100,18 @@ pub fn toggle_skill_app(
     Ok(true)
 }
 
-/// 切换 Skill 的常用标记（支持 agent 级别隔离）
+/// 切换 Skill 的常用标记（agent 级别隔离）
 #[tauri::command]
 pub fn toggle_skill_favorite(
     id: String,
     is_favorite: bool,
-    agent_id: Option<String>,
+    agent_id: String,
     app_state: State<'_, AppState>,
 ) -> Result<bool, String> {
-    if let Some(aid) = agent_id {
-        app_state
-            .db
-            .toggle_skill_agent_favorite(&id, &aid, is_favorite)
-            .map_err(|e| e.to_string())
-    } else {
-        app_state
-            .db
-            .toggle_skill_favorite(&id, is_favorite)
-            .map_err(|e| e.to_string())
-    }
+    app_state
+        .db
+        .toggle_skill_agent_favorite(&id, &agent_id, is_favorite)
+        .map_err(|e| e.to_string())
 }
 
 /// 扫描未管理的 Skills
@@ -303,8 +296,8 @@ pub fn uninstall_skill_for_app(
 ) -> Result<SkillUninstallResult, String> {
     let _ = parse_app_type(&app)?; // 验证参数
 
-    // 通过 directory 找到对应的 skill id
-    let skills = SkillService::get_all_installed(&app_state.db, None).map_err(|e| e.to_string())?;
+    // 通过 directory 找到对应的 skill id（旧 API，使用 default agent）
+    let skills = SkillService::get_all_installed(&app_state.db, "default").map_err(|e| e.to_string())?;
 
     let skill = skills
         .into_iter()

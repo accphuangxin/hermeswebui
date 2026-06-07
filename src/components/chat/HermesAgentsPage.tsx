@@ -1,28 +1,34 @@
 import { useState } from "react";
-import { Check, Plus, RefreshCw, Trash2, X } from "lucide-react";
+import { Check, Plus, RefreshCw, Trash2, X, Play, Square, RotateCcw, Pencil } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { useHermesAgents, useCreateAgent, useDeleteAgent } from "@/hooks/useHermesChat";
+import {
+  useHermesAgents, useCreateAgent, useDeleteAgent,
+  useStartAgent, useStopAgent, useRestartAgent, useUpdateAgent,
+} from "@/hooks/useHermesChat";
 import type { HermesAgent } from "@/lib/api/agents";
+import type { UpdateAgentInput } from "@/lib/api/agents";
 import { toast } from "sonner";
 
 interface HermesAgentsPageProps {
-  selectedAgentId: string | null;
-  onSelectAgent: (agentId: string | null, port?: number, key?: string) => void;
+  selectedAgentId: string;
+  onSelectAgent: (agentId: string, port?: number, key?: string) => void;
 }
 
 interface AgentItem {
-  id: string | null;
+  id: string;
   name: string;
   description?: string;
   model?: string;
   port?: number;
   key?: string;
   status?: string;
+  isDefault?: boolean;
+  rawId: string;
 }
 
 export function HermesAgentsPage({ selectedAgentId, onSelectAgent }: HermesAgentsPageProps) {
@@ -30,9 +36,20 @@ export function HermesAgentsPage({ selectedAgentId, onSelectAgent }: HermesAgent
   const { data: agents = [], isLoading, isError, error, refetch, isFetching } = useHermesAgents();
   const [showCreate, setShowCreate] = useState(false);
   const [detailAgent, setDetailAgent] = useState<HermesAgent | null>(null);
+  const [editAgent, setEditAgent] = useState<HermesAgent | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AgentItem | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; item: AgentItem } | null>(null);
+
   const deleteMutation = useDeleteAgent();
+  const startMutation = useStartAgent();
+  const stopMutation = useStopAgent();
+  const restartMutation = useRestartAgent();
+
+  const tStart = t("hermes.agents.start");
+  const tStop = t("hermes.agents.stop");
+  const tRestart = t("hermes.agents.restart");
+  const tEdit = t("hermes.agents.edit");
+  const tDelete = t("hermes.agents.delete");
 
   const seen = new Set<string>();
   const agentItems: AgentItem[] = agents
@@ -42,24 +59,28 @@ export function HermesAgentsPage({ selectedAgentId, onSelectAgent }: HermesAgent
       return true;
     })
     .map((a: HermesAgent) => ({
-      id: (a.isDefault || a.name === "default") ? null : a.name,
+      id: (a.isDefault || a.name === "default") ? "default" : a.name,
       name: a.name,
       description: a.description,
       model: a.model ?? (a.provider ? `${a.provider}` : undefined),
       port: a.apiServerPort,
       key: a.apiServerKey,
       status: a.status,
+      isDefault: a.isDefault || a.name === "default",
+      rawId: a.id,
     }));
 
   const sorted = [
-    ...agentItems.filter((a) => a.id === null),
-    ...agentItems.filter((a) => a.id !== null),
+    ...agentItems.filter((a) => a.id === "default"),
+    ...agentItems.filter((a) => a.id !== "default"),
   ];
 
   const handleCardClick = (item: AgentItem) => {
     onSelectAgent(item.id, item.port, item.key);
     const raw = agents.find((a) => a.name === item.name) ?? null;
     setDetailAgent(raw);
+    setEditAgent(null);
+    setShowCreate(false);
     setContextMenu(null);
   };
 
@@ -72,13 +93,57 @@ export function HermesAgentsPage({ selectedAgentId, onSelectAgent }: HermesAgent
     if (!deleteTarget) return;
     try {
       await deleteMutation.mutateAsync(deleteTarget.name);
-      toast.success(`智能体 "${deleteTarget.name}" 已删除`);
+      toast.success(`${deleteTarget.name} — ${t("hermes.agents.deleteConfirmTitle")}`);
       if (detailAgent?.name === deleteTarget.name) setDetailAgent(null);
-    } catch (e) {
-      toast.error("删除失败", { description: String(e) });
+      if (editAgent?.name === deleteTarget.name) setEditAgent(null);
+    } catch (err) {
+      toast.error(t("hermes.agents.delete"), { description: String(err) });
     }
     setDeleteTarget(null);
   };
+
+  const handleStart = async (item: AgentItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await startMutation.mutateAsync(item.rawId);
+      toast.success(`${item.name} — ${t("hermes.agents.startSuccess")}`);
+    } catch (err) {
+      toast.error(t("hermes.agents.startFail"), { description: String(err) });
+    }
+  };
+
+  const handleStop = async (item: AgentItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await stopMutation.mutateAsync(item.rawId);
+      toast.success(`${item.name} — ${t("hermes.agents.stopSuccess")}`);
+    } catch (err) {
+      toast.error(t("hermes.agents.stopFail"), { description: String(err) });
+    }
+  };
+
+  const handleRestart = async (item: AgentItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await restartMutation.mutateAsync(item.rawId);
+      toast.success(`${item.name} — ${t("hermes.agents.restartSuccess")}`);
+    } catch (err) {
+      toast.error(t("hermes.agents.restartFail"), { description: String(err) });
+    }
+  };
+
+  const handleEdit = (item: AgentItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const raw = agents.find((a) => a.name === item.name) ?? null;
+    setEditAgent(raw);
+    setDetailAgent(raw);
+    setShowCreate(false);
+    setContextMenu(null);
+  };
+
+  const isStartPending = (item: AgentItem) => startMutation.isPending && startMutation.variables === item.rawId;
+  const isStopPending = (item: AgentItem) => stopMutation.isPending && stopMutation.variables === item.rawId;
+  const isRestartPending = (item: AgentItem) => restartMutation.isPending && restartMutation.variables === item.rawId;
 
   return (
     <div className="flex flex-col h-full overflow-hidden" onClick={() => setContextMenu(null)}>
@@ -89,7 +154,6 @@ export function HermesAgentsPage({ selectedAgentId, onSelectAgent }: HermesAgent
       </div>
 
       <div className="flex-1 min-h-0 overflow-hidden px-4 pb-4 flex flex-col gap-4">
-        {/* Cards row — fixed height */}
         <div className="shrink-0">
           {isLoading ? (
             <EmptyState pulse>{t("common.loading", { defaultValue: "加载中..." })}</EmptyState>
@@ -106,16 +170,26 @@ export function HermesAgentsPage({ selectedAgentId, onSelectAgent }: HermesAgent
               {sorted.map((item) => (
                 <AgentCard
                   key={item.id ?? "__default__"}
-                  name={item.name}
-                  description={item.description}
-                  model={item.model}
-                  status={item.status}
+                  item={item}
                   isSelected={selectedAgentId === item.id}
                   onSelect={() => handleCardClick(item)}
                   onContextMenu={(e) => handleContextMenu(e, item)}
+                  onStart={(e) => void handleStart(item, e)}
+                  onStop={(e) => void handleStop(item, e)}
+                  onRestart={(e) => void handleRestart(item, e)}
+                  onEdit={(e) => handleEdit(item, e)}
+                  onDelete={(e) => { e.stopPropagation(); setDeleteTarget(item); }}
+                  isStartPending={isStartPending(item)}
+                  isStopPending={isStopPending(item)}
+                  isRestartPending={isRestartPending(item)}
+                  tStart={tStart}
+                  tStop={tStop}
+                  tRestart={tRestart}
+                  tEdit={tEdit}
+                  tDelete={tDelete}
                 />
               ))}
-              <AddAgentCard onClick={() => setShowCreate(true)} active={showCreate} />
+              <AddAgentCard onClick={() => { setShowCreate(true); setEditAgent(null); }} active={showCreate} />
             </div>
           )}
         </div>
@@ -127,51 +201,107 @@ export function HermesAgentsPage({ selectedAgentId, onSelectAgent }: HermesAgent
           />
         )}
 
-        {/* Agent detail panel — fills remaining space */}
-        {detailAgent && !showCreate && (
+        {editAgent && !showCreate && (
+          <EditAgentForm
+            agent={editAgent}
+            onClose={() => setEditAgent(null)}
+            onSaved={(updated) => {
+              setEditAgent(null);
+              setDetailAgent(updated);
+              void refetch();
+            }}
+          />
+        )}
+
+        {detailAgent && !showCreate && !editAgent && (
           <div className="flex-1 min-h-0">
             <AgentDetailPanel agent={detailAgent} />
           </div>
         )}
       </div>
 
-      {/* Right-click context menu */}
       {contextMenu && (
         <div
-          className="fixed z-50 bg-popover border rounded-md shadow-md py-1 min-w-[120px]"
+          className="fixed z-50 bg-popover border rounded-md shadow-md py-1 min-w-[140px]"
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onClick={(e) => e.stopPropagation()}
         >
-          <button
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-destructive hover:bg-muted transition-colors"
-            onClick={() => { setDeleteTarget(contextMenu.item); setContextMenu(null); }}
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            删除
-          </button>
+          {contextMenu.item.status === "running" ? (
+            <ContextMenuItem
+              onClick={() => { void handleStop(contextMenu.item, { stopPropagation: () => {} } as React.MouseEvent); setContextMenu(null); }}
+              icon={<Square className="w-3.5 h-3.5" />}
+              label={tStop}
+            />
+          ) : (
+            <ContextMenuItem
+              onClick={() => { void handleStart(contextMenu.item, { stopPropagation: () => {} } as React.MouseEvent); setContextMenu(null); }}
+              icon={<Play className="w-3.5 h-3.5" />}
+              label={tStart}
+            />
+          )}
+          <ContextMenuItem
+            onClick={() => { void handleRestart(contextMenu.item, { stopPropagation: () => {} } as React.MouseEvent); setContextMenu(null); }}
+            icon={<RotateCcw className="w-3.5 h-3.5" />}
+            label={tRestart}
+          />
+          <ContextMenuItem
+            onClick={(e) => { handleEdit(contextMenu.item, e); setContextMenu(null); }}
+            icon={<Pencil className="w-3.5 h-3.5" />}
+            label={tEdit}
+          />
+          {!contextMenu.item.isDefault && (
+            <>
+              <div className="border-t my-1" />
+              <ContextMenuItem
+                onClick={() => { setDeleteTarget(contextMenu.item); setContextMenu(null); }}
+                icon={<Trash2 className="w-3.5 h-3.5" />}
+                label={tDelete}
+                destructive
+              />
+            </>
+          )}
         </div>
       )}
 
-      {/* Delete confirm dialog */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-card rounded-xl border shadow-lg p-6 w-80 space-y-4">
-            <p className="text-sm font-semibold">确认删除智能体</p>
+            <p className="text-sm font-semibold">{t("hermes.agents.deleteConfirmTitle")}</p>
             <p className="text-sm text-muted-foreground">
-              确定要删除 <span className="font-medium text-foreground">"{deleteTarget.name}"</span> 吗？此操作不可撤销。
+              {t("hermes.agents.deleteConfirmDesc", { name: deleteTarget.name })}
             </p>
             <div className="flex gap-2 justify-end">
               <Button variant="outline" size="sm" onClick={() => setDeleteTarget(null)} disabled={deleteMutation.isPending}>
-                取消
+                {t("common.cancel", { defaultValue: "取消" })}
               </Button>
               <Button variant="destructive" size="sm" onClick={() => void handleDeleteConfirm()} disabled={deleteMutation.isPending}>
-                {deleteMutation.isPending ? "删除中..." : "确认删除"}
+                {deleteMutation.isPending ? t("common.deleting", { defaultValue: "删除中..." }) : t("common.confirmDelete", { defaultValue: "确认删除" })}
               </Button>
             </div>
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+function ContextMenuItem({ onClick, icon, label, destructive }: {
+  onClick: (e: React.MouseEvent) => void;
+  icon: React.ReactNode;
+  label: string;
+  destructive?: boolean;
+}) {
+  return (
+    <button
+      className={cn(
+        "w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted transition-colors",
+        destructive && "text-destructive",
+      )}
+      onClick={onClick}
+    >
+      {icon}
+      {label}
+    </button>
   );
 }
 
@@ -183,10 +313,33 @@ function EmptyState({ children, pulse }: { children: React.ReactNode; pulse?: bo
   );
 }
 
-function AgentCard({ name, description, model, status, isSelected, onSelect, onContextMenu }: {
-  name: string; description?: string; model?: string; status?: string; isSelected: boolean; onSelect: () => void; onContextMenu?: (e: React.MouseEvent) => void;
+function AgentCard({
+  item, isSelected, onSelect, onContextMenu,
+  onStart, onStop, onRestart, onEdit, onDelete,
+  isStartPending, isStopPending, isRestartPending,
+  tStart, tStop, tRestart, tEdit, tDelete,
+}: {
+  item: AgentItem;
+  isSelected: boolean;
+  onSelect: () => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
+  onStart: (e: React.MouseEvent) => void;
+  onStop: (e: React.MouseEvent) => void;
+  onRestart: (e: React.MouseEvent) => void;
+  onEdit: (e: React.MouseEvent) => void;
+  onDelete: (e: React.MouseEvent) => void;
+  isStartPending: boolean;
+  isStopPending: boolean;
+  isRestartPending: boolean;
+  tStart: string;
+  tStop: string;
+  tRestart: string;
+  tEdit: string;
+  tDelete: string;
 }) {
-  const isStopped = status === "stopped";
+  const isRunning = item.status === "running";
+  const isStopped = item.status === "stopped";
+
   return (
     <button
       onClick={onSelect}
@@ -199,11 +352,59 @@ function AgentCard({ name, description, model, status, isSelected, onSelect, onC
     >
       {isSelected && <Check className="absolute top-2.5 right-2.5 w-3.5 h-3.5 text-primary" />}
       <div className="flex items-center gap-1.5 pr-5">
+        {isRunning && <span className="shrink-0 w-2 h-2 rounded-full bg-green-500" />}
         {isStopped && <span className="shrink-0 w-2 h-2 rounded-full bg-destructive" />}
-        <p className="text-sm font-semibold leading-snug truncate">{name}</p>
+        <p className="text-sm font-semibold leading-snug truncate">{item.name}</p>
       </div>
-      {description && <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed">{description}</p>}
-      {model && <p className="text-[10px] text-muted-foreground/50 font-mono truncate mt-auto pt-1">{model}</p>}
+      {item.description && <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed">{item.description}</p>}
+      {item.model && <p className="text-[10px] text-muted-foreground/50 font-mono truncate mt-auto pt-1">{item.model}</p>}
+
+      {/* Action buttons — right-aligned */}
+      <div className="flex items-center justify-end gap-0.5 pt-1 mt-auto" onClick={(e) => e.stopPropagation()}>
+        {isRunning ? (
+          <ActionBtn onClick={onStop} label={tStop} disabled={isStopPending}>
+            <Square className={cn("w-3 h-3", isStopPending && "animate-pulse")} />
+          </ActionBtn>
+        ) : (
+          <ActionBtn onClick={onStart} label={tStart} disabled={isStartPending}>
+            <Play className={cn("w-3 h-3", isStartPending && "animate-pulse")} />
+          </ActionBtn>
+        )}
+        <ActionBtn onClick={onRestart} label={tRestart} disabled={isRestartPending}>
+          <RotateCcw className={cn("w-3 h-3", isRestartPending && "animate-spin")} />
+        </ActionBtn>
+        <ActionBtn onClick={onEdit} label={tEdit}>
+          <Pencil className="w-3 h-3" />
+        </ActionBtn>
+        {!item.isDefault && (
+          <ActionBtn onClick={onDelete} label={tDelete} destructive>
+            <Trash2 className="w-3 h-3" />
+          </ActionBtn>
+        )}
+      </div>
+    </button>
+  );
+}
+
+function ActionBtn({ onClick, label, children, disabled, destructive }: {
+  onClick: (e: React.MouseEvent) => void;
+  label: string;
+  children: React.ReactNode;
+  disabled?: boolean;
+  destructive?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={label}
+      disabled={disabled}
+      className={cn(
+        "flex items-center gap-0.5 px-1 py-0.5 rounded hover:bg-muted transition-colors disabled:opacity-40 text-muted-foreground",
+        destructive && "hover:text-destructive",
+      )}
+    >
+      {children}
+      <span className="text-[10px]">{label}</span>
     </button>
   );
 }
@@ -272,7 +473,7 @@ function CreateAgentForm({ onClose, onCreated }: { onClose: () => void; onCreate
           value={soul}
           onChange={(e) => setSoul(e.target.value)}
           className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs resize-y min-h-[240px] focus:outline-none focus:ring-1 focus:ring-ring"
-          placeholder={t("hermes.agents.soulPlaceholder", { defaultValue: "系统提示词（可选）" })}
+          placeholder={t("hermes.agents.soulPlaceholder")}
         />
       </Field>
 
@@ -293,6 +494,95 @@ function CreateAgentForm({ onClose, onCreated }: { onClose: () => void; onCreate
         </Button>
         <Button size="sm" className="flex-1 h-8 text-xs" onClick={handleSubmit} disabled={isPending || !name.trim()}>
           {isPending ? t("common.creating", { defaultValue: "创建中..." }) : t("common.create", { defaultValue: "创建" })}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function EditAgentForm({ agent, onClose, onSaved }: {
+  agent: HermesAgent;
+  onClose: () => void;
+  onSaved: (updated: HermesAgent) => void;
+}) {
+  const { t } = useTranslation();
+  const { mutate: updateAgent, isPending, error } = useUpdateAgent();
+  const [description, setDescription] = useState(agent.description ?? "");
+  const [soul, setSoul] = useState(agent.soul ?? "");
+  const [model, setModel] = useState(agent.model ?? "");
+  const [provider, setProvider] = useState(agent.provider ?? "");
+  const [apiServerPort, setApiServerPort] = useState(agent.apiServerPort ? String(agent.apiServerPort) : "");
+  const [apiServerKey, setApiServerKey] = useState(agent.apiServerKey ?? "");
+
+  function handleSubmit() {
+    const input: UpdateAgentInput = {};
+    if (description !== (agent.description ?? "")) input.description = description.trim() || undefined;
+    if (soul !== (agent.soul ?? ""))               input.soul = soul.trim() || undefined;
+    if (model !== (agent.model ?? ""))             input.model = model.trim() || undefined;
+    if (provider !== (agent.provider ?? ""))       input.provider = provider.trim() || undefined;
+    const portNum = apiServerPort ? Number(apiServerPort) : undefined;
+    if (portNum !== agent.apiServerPort)           input.api_server_port = portNum;
+    if (apiServerKey !== (agent.apiServerKey ?? "")) input.api_server_key = apiServerKey.trim() || undefined;
+
+    updateAgent(
+      { agentId: agent.id, input },
+      {
+        onSuccess: (updated) => {
+          toast.success(`${agent.name} — ${t("hermes.agents.updateSuccess")}`);
+          onSaved(updated);
+        },
+      },
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold">{t("hermes.agents.editTitle", { name: agent.name })}</p>
+        <Button variant="ghost" size="icon" className="h-6 w-6 -mr-1" onClick={onClose}>
+          <X className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="描述">
+          <Input value={description} onChange={(e) => setDescription(e.target.value)} className="h-8 text-xs" />
+        </Field>
+        <Field label="Model">
+          <Input value={model} onChange={(e) => setModel(e.target.value)} className="h-8 text-xs" placeholder={agent.model ?? ""} />
+        </Field>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Provider">
+          <Input value={provider} onChange={(e) => setProvider(e.target.value)} className="h-8 text-xs" placeholder={agent.provider ?? ""} />
+        </Field>
+        <Field label="API Port">
+          <Input value={apiServerPort} onChange={(e) => setApiServerPort(e.target.value)} className="h-8 text-xs" placeholder={agent.apiServerPort ? String(agent.apiServerPort) : "8701"} />
+        </Field>
+      </div>
+
+      <Field label="API Key">
+        <Input type="password" value={apiServerKey} onChange={(e) => setApiServerKey(e.target.value)} className="h-8 text-xs" />
+      </Field>
+
+      <Field label="Soul">
+        <textarea
+          value={soul}
+          onChange={(e) => setSoul(e.target.value)}
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs resize-y min-h-[240px] focus:outline-none focus:ring-1 focus:ring-ring"
+          placeholder="系统提示词"
+        />
+      </Field>
+
+      {error && <p className="text-xs text-destructive break-all font-mono">{String(error)}</p>}
+
+      <div className="flex gap-2 pt-1">
+        <Button variant="outline" size="sm" className="flex-1 h-8 text-xs" onClick={onClose} disabled={isPending}>
+          {t("common.cancel", { defaultValue: "取消" })}
+        </Button>
+        <Button size="sm" className="flex-1 h-8 text-xs" onClick={handleSubmit} disabled={isPending}>
+          {isPending ? t("common.saving", { defaultValue: "保存中..." }) : t("common.save", { defaultValue: "保存" })}
         </Button>
       </div>
     </div>
@@ -345,11 +635,9 @@ function AgentDetailPanel({ agent }: { agent: HermesAgent }) {
 
   return (
     <div className="h-full rounded-xl border border-border bg-card p-4 flex gap-4 overflow-hidden">
-      {/* Left 1/4: all meta fields, scrollable */}
       <div className="w-1/4 shrink-0 overflow-y-auto space-y-3">
         {allMetaRows.map((r) => <DetailRow key={r.label} label={r.label} value={r.value} />)}
       </div>
-      {/* Right 3/4: soul with scrollbar */}
       <div className="flex-1 min-w-0 flex flex-col gap-1 overflow-hidden">
         <span className="text-[10px] text-muted-foreground uppercase tracking-wide shrink-0">Soul</span>
         {agent.soul ? (

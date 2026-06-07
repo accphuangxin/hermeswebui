@@ -500,6 +500,11 @@ impl Database {
                         Self::migrate_v14_to_v15(conn)?;
                         Self::set_user_version(conn, 15)?;
                     }
+                    15 => {
+                        log::info!("迁移数据库从 v15 到 v16（移除全局 skills，agent 完全隔离）");
+                        Self::migrate_v15_to_v16(conn)?;
+                        Self::set_user_version(conn, 16)?;
+                    }
                     _ => {
                         return Err(AppError::Database(format!(
                             "未知的数据库版本 {version}，无法迁移到 {SCHEMA_VERSION}"
@@ -1364,6 +1369,74 @@ impl Database {
         )
         .map_err(|e| AppError::Database(format!("创建 agent_skill_cache 表失败: {e}")))?;
         log::info!("v14 -> v15 迁移完成：新增 agent_skill_cache 表");
+        Ok(())
+    }
+
+    fn migrate_v15_to_v16(conn: &Connection) -> Result<(), AppError> {
+        // Step 1: 将 skills 表中的全局收藏迁移到 skill_agent_favorites 表
+        // 所有 is_favorite=1 的技能，为 default agent 创建收藏记录
+        conn.execute(
+            "INSERT INTO skill_agent_favorites (skill_id, agent_id)
+             SELECT id, 'default'
+             FROM skills
+             WHERE is_favorite = 1
+             ON CONFLICT DO NOTHING",
+            [],
+        )
+        .map_err(|e| AppError::Database(format!("迁移全局收藏到 default agent 失败: {e}")))?;
+
+        // Step 2: 更新 agent_skill_cache 表，将空字符串 agent_id 替换为 'default'
+        conn.execute(
+            "UPDATE agent_skill_cache SET agent_id = 'default' WHERE agent_id = ''",
+            [],
+        )
+        .map_err(|e| AppError::Database(format!("更新 agent_skill_cache 表失败: {e}")))?;
+
+        // Step 3: 删除 skills 表中的 is_favorite 列
+        // SQLite 不支持 DROP COLUMN，需要重建表
+        conn.execute(
+            "CREATE TABLE skills_new (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT,
+                directory TEXT NOT NULL,
+                repo_owner TEXT,
+                repo_name TEXT,
+                repo_branch TEXT DEFAULT 'main',
+                readme_url TEXT,
+                enabled_claude BOOLEAN NOT NULL DEFAULT 0,
+                enabled_codex BOOLEAN NOT NULL DEFAULT 0,
+                enabled_gemini BOOLEAN NOT NULL DEFAULT 0,
+                enabled_opencode BOOLEAN NOT NULL DEFAULT 0,
+                enabled_hermes BOOLEAN NOT NULL DEFAULT 0,
+                installed_at INTEGER NOT NULL DEFAULT 0,
+                content_hash TEXT,
+                updated_at INTEGER NOT NULL DEFAULT 0
+            )",
+            [],
+        )
+        .map_err(|e| AppError::Database(format!("创建 skills_new 表失败: {e}")))?;
+
+        // 复制数据（不包括 is_favorite 列）
+        conn.execute(
+            "INSERT INTO skills_new SELECT
+                id, name, description, directory, repo_owner, repo_name, repo_branch,
+                readme_url, enabled_claude, enabled_codex, enabled_gemini,
+                enabled_opencode, enabled_hermes, installed_at, content_hash, updated_at
+             FROM skills",
+            [],
+        )
+        .map_err(|e| AppError::Database(format!("复制 skills 数据失败: {e}")))?;
+
+        // 删除旧表
+        conn.execute("DROP TABLE skills", [])
+            .map_err(|e| AppError::Database(format!("删除旧 skills 表失败: {e}")))?;
+
+        // 重命名新表
+        conn.execute("ALTER TABLE skills_new RENAME TO skills", [])
+            .map_err(|e| AppError::Database(format!("重命名 skills 表失败: {e}")))?;
+
+        log::info!("v15 -> v16 迁移完成：移除全局收藏，agent 完全隔离");
         Ok(())
     }
 

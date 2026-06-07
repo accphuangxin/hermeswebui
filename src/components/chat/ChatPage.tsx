@@ -32,10 +32,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface ChatPageProps {
   selectedModel: string;
-  selectedAgentId: string | null;
+  selectedAgentId: string;
   selectedAgentPort: number | null;
   selectedAgentKey: string | null;
-  onSelectAgent?: (agentId: string | null, port?: number, key?: string) => void;
+  onSelectAgent?: (agentId: string, port?: number, key?: string) => void;
 }
 
 export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort, selectedAgentKey, onSelectAgent }: ChatPageProps) {

@@ -400,7 +400,7 @@ pub async fn getHermesChatStatus() -> Result<HermesChatStatus, String> {
     let host = cfg.host.clone();
     let port = cfg.port;
     let base_url = format!("http://{}:{}", cfg.host, cfg.port);
-    let probe_url = format!("{base_url}/v1/models");
+    let probe_url = format!("{base_url}/v1/health");
 
     let client = reqwest::Client::builder()
         .timeout(Duration::from_millis(5000))
@@ -412,7 +412,7 @@ pub async fn getHermesChatStatus() -> Result<HermesChatStatus, String> {
     if !cfg.key.is_empty() {
         req = req.header("Authorization", format!("Bearer {}", cfg.key));
     }
-    let online = req.send().await.is_ok();
+    let online = req.send().await.map(|r| r.status().is_success()).unwrap_or(false);
 
     let model_config = hermes_config::get_model_config().ok().flatten();
     let default_model = model_config.as_ref().and_then(|m| m.default.clone());
@@ -625,11 +625,10 @@ pub fn setActiveHermesAgent(
 #[tauri::command]
 pub fn getHermesSkillsPath() -> String {
     let hermes_dir = crate::hermes_config::get_hermes_dir();
-    let path = if let Some(agent_id) = crate::store::get_active_hermes_agent() {
-        hermes_dir.join("profiles").join(agent_id).join("skills")
-    } else {
-        hermes_dir.join("skills")
-    };
+    // 所有 agent 统一使用 profiles/{agent_id}/skills/ 路径
+    let agent_id = crate::store::get_active_hermes_agent()
+        .unwrap_or_else(|| "default".to_string());
+    let path = hermes_dir.join("profiles").join(agent_id).join("skills");
     path.to_string_lossy().into_owned()
 }
 
@@ -707,16 +706,90 @@ pub async fn deleteHermesAgent(agent_id: String) -> Result<(), String> {
         .no_proxy()
         .build()
         .map_err(|e| format!("failed to build client: {e}"))?;
-    let host = read_api_server_config().host;
-    let url = format!("http://{host}:8640/v1/agents/{agent_id}");
-    let resp = client.delete(&url).send().await
-        .map_err(|e| format!("request failed: {e}"))?;
+    let cfg = read_api_server_config();
+    let url = format!("http://{}:8640/v1/agents/{agent_id}", cfg.host);
+    let mut req = client.delete(&url);
+    if !cfg.key.is_empty() { req = req.bearer_auth(&cfg.key); }
+    let resp = req.send().await.map_err(|e| format!("request failed: {e}"))?;
     if !resp.status().is_success() {
         let status = resp.status();
         let text = resp.text().await.unwrap_or_default();
         return Err(format!("HTTP {status}: {text}"));
     }
     Ok(())
+}
+
+#[tauri::command]
+pub async fn startHermesAgent(agent_id: String) -> Result<(), String> {
+    agent_lifecycle_action(&agent_id, "start").await
+}
+
+#[tauri::command]
+pub async fn stopHermesAgent(agent_id: String) -> Result<(), String> {
+    agent_lifecycle_action(&agent_id, "stop").await
+}
+
+#[tauri::command]
+pub async fn restartHermesAgent(agent_id: String) -> Result<(), String> {
+    agent_lifecycle_action(&agent_id, "restart").await
+}
+
+async fn agent_lifecycle_action(agent_id: &str, action: &str) -> Result<(), String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .no_proxy()
+        .build()
+        .map_err(|e| format!("failed to build client: {e}"))?;
+    let cfg = read_api_server_config();
+    let url = format!("http://{}:8640/v1/agents/{agent_id}/{action}", cfg.host);
+    let mut req = client.post(&url);
+    if !cfg.key.is_empty() { req = req.bearer_auth(&cfg.key); }
+    let resp = req.send().await.map_err(|e| format!("request failed: {e}"))?;
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        return Err(format!("HTTP {status}: {text}"));
+    }
+    Ok(())
+}
+
+#[derive(serde::Deserialize)]
+pub struct UpdateAgentInput {
+    pub description: Option<String>,
+    pub soul: Option<String>,
+    pub model: Option<String>,
+    pub provider: Option<String>,
+    pub api_server_port: Option<u16>,
+    pub api_server_key: Option<String>,
+}
+
+#[tauri::command]
+pub async fn updateHermesAgent(agent_id: String, input: UpdateAgentInput) -> Result<HermesAgent, String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .no_proxy()
+        .build()
+        .map_err(|e| format!("failed to build client: {e}"))?;
+    let cfg = read_api_server_config();
+    let url = format!("http://{}:8640/v1/agents/{agent_id}", cfg.host);
+
+    let mut body = serde_json::json!({});
+    if let Some(v) = input.description    { body["description"] = serde_json::json!(v); }
+    if let Some(v) = input.soul          { body["soul"] = serde_json::json!(v); }
+    if let Some(v) = input.model         { body["model"] = serde_json::json!(v); }
+    if let Some(v) = input.provider      { body["provider"] = serde_json::json!(v); }
+    if let Some(v) = input.api_server_port { body["api_server_port"] = serde_json::json!(v); }
+    if let Some(v) = input.api_server_key  { body["api_server_key"] = serde_json::json!(v); }
+
+    let mut req = client.patch(&url).json(&body);
+    if !cfg.key.is_empty() { req = req.bearer_auth(&cfg.key); }
+    let resp = req.send().await.map_err(|e| format!("request failed: {e}"))?;
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        return Err(format!("HTTP {status}: {text}"));
+    }
+    resp.json::<HermesAgent>().await.map_err(|e| format!("deserialize failed: {e}"))
 }
 
 #[derive(Serialize)]

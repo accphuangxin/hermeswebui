@@ -21,9 +21,9 @@ import { mergeImportedSkills } from "@/hooks/useSkills.helpers";
  * 使用 staleTime: Infinity 和 placeholderData: keepPreviousData
  * 实现首次进入使用缓存，只有刷新时才重新获取
  */
-export function useInstalledSkills(agentId?: string | null) {
+export function useInstalledSkills(agentId: string) {
   return useQuery({
-    queryKey: ["skills", "installed", agentId ?? null],
+    queryKey: ["skills", "installed", agentId],
     queryFn: () => skillsApi.getInstalled(agentId),
     staleTime: Infinity,
     placeholderData: keepPreviousData,
@@ -196,14 +196,14 @@ export function useToggleSkillApp() {
  * 切换 Skill 的常用标记
  * 成功后直接更新缓存，收藏的排前面
  */
-export function useToggleSkillFavorite(agentId?: string | null) {
+export function useToggleSkillFavorite(agentId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, isFavorite }: { id: string; isFavorite: boolean }) =>
       skillsApi.toggleFavorite(id, isFavorite, agentId),
     onSuccess: (_result, { id, isFavorite }) => {
       queryClient.setQueryData<InstalledSkill[]>(
-        ["skills", "installed", agentId ?? null],
+        ["skills", "installed", agentId],
         (oldData) => {
           if (!oldData) return oldData;
           return oldData
@@ -303,15 +303,8 @@ export function useInstallSkillsFromZip() {
       filePath: string;
       currentApp: AppId;
     }) => skillsApi.installFromZip(filePath, currentApp),
-    onSuccess: (installedSkills) => {
-      // 直接更新 installed 缓存
-      queryClient.setQueryData<InstalledSkill[]>(
-        ["skills", "installed"],
-        (oldData) => {
-          if (!oldData) return installedSkills;
-          return [...oldData, ...installedSkills];
-        },
-      );
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["skills", "installed"] });
     },
   });
 }

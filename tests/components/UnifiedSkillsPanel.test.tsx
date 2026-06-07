@@ -107,6 +107,7 @@ describe("UnifiedSkillsPanel", () => {
         ref={ref}
         onOpenDiscovery={() => {}}
         currentApp="claude"
+        agentId="default"
       />,
     );
 

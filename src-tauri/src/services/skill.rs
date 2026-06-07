@@ -553,12 +553,10 @@ impl SkillService {
             AppType::OpenClaw => home.join(".openclaw").join("skills"),
             AppType::Hermes => {
                 let hermes_dir = crate::hermes_config::get_hermes_dir();
-                // If an agent is active, use its profile-specific skills dir
-                if let Some(agent_id) = crate::store::get_active_hermes_agent() {
-                    hermes_dir.join("profiles").join(agent_id).join("skills")
-                } else {
-                    hermes_dir.join("skills")
-                }
+                // 所有 agent 统一使用 profiles/{agent_id}/skills/ 路径
+                let agent_id = crate::store::get_active_hermes_agent()
+                    .unwrap_or_else(|| "default".to_string());
+                hermes_dir.join("profiles").join(agent_id).join("skills")
             }
         })
     }
@@ -566,40 +564,32 @@ impl SkillService {
     // ========== 统一管理方法 ==========
 
     /// 获取所有已安装的 Skills
-    /// - 先扫描全局 ~/.hermes/skills/（始终执行）
-    /// - 再扫描 agent 专属 ~/.hermes/profiles/<agent_id>/skills/（有 agent 时追加，同 id 以 agent 路径覆盖）
-    /// - 结果 upsert 到 agent_skill_cache（agent_id="" 表示全局），并清除 stale 条目
-    /// - DB 只用于读取收藏标签（skill_agent_favorites 表）
-    pub fn get_all_installed(db: &Arc<Database>, agent_id: Option<&str>) -> Result<Vec<InstalledSkill>> {
+    /// - 扫描 agent 专属目录 ~/.hermes/profiles/<agent_id>/skills/
+    /// - 所有 agent（包括 default）使用统一路径格式，完全隔离
+    /// - 结果 upsert 到 agent_skill_cache，并清除 stale 条目
+    /// - DB 用于读取 agent 专属收藏标签（skill_agent_favorites 表）
+    pub fn get_all_installed(db: &Arc<Database>, agent_id: &str) -> Result<Vec<InstalledSkill>> {
         let hermes_dir = crate::hermes_config::get_hermes_dir();
 
-        // 1. 扫描全局 skills
-        let global_dir = hermes_dir.join("skills");
+        // 统一路径规则：所有 agent 都使用 profiles/{agent_id}/skills/
+        let agent_skills_dir = hermes_dir
+            .join("profiles")
+            .join(agent_id)
+            .join("skills");
+
         let mut skills: indexmap::IndexMap<String, InstalledSkill> = indexmap::IndexMap::new();
-        if global_dir.exists() {
+
+        // 只扫描当前 agent 的目录
+        if agent_skills_dir.exists() {
             Self::scan_hermes_skills_recursive(
-                &global_dir,
-                &global_dir,
+                &agent_skills_dir,
+                &agent_skills_dir,
                 &std::collections::HashSet::new(),
                 &mut skills,
             );
         }
 
-        // 2. 如果有 agent，再扫描 agent 专属目录（同 id 会覆盖全局条目）
-        if let Some(aid) = agent_id {
-            let agent_dir = hermes_dir.join("profiles").join(aid).join("skills");
-            if agent_dir.exists() {
-                Self::scan_hermes_skills_recursive(
-                    &agent_dir,
-                    &agent_dir,
-                    &std::collections::HashSet::new(),
-                    &mut skills,
-                );
-            }
-        }
-
-        // 3. upsert 到 agent_skill_cache，并清除 stale 条目
-        let cache_agent_id = agent_id.unwrap_or("");
+        // upsert 到 agent_skill_cache，使用具体 agent_id（不再是空字符串）
         let now_ts = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -609,7 +599,7 @@ impl SkillService {
             .map(|s| {
                 (
                     s.id.clone(),
-                    cache_agent_id.to_string(),
+                    agent_id.to_string(),
                     s.name.clone(),
                     s.description.clone(),
                     s.directory.clone(),
@@ -619,21 +609,28 @@ impl SkillService {
             .collect();
         let _ = db.upsert_agent_skill_cache(&cache_entries);
         let current_ids: Vec<String> = skills.keys().cloned().collect();
-        let _ = db.delete_stale_agent_skills(cache_agent_id, &current_ids);
+        let _ = db.delete_stale_agent_skills(agent_id, &current_ids);
 
-        // 4. 读取收藏集合（纯标签，不影响技能列表）
-        let favorites: std::collections::HashSet<String> = if let Some(aid) = agent_id {
-            db.get_agent_favorite_skill_ids(aid).unwrap_or_default()
-        } else {
-            db.get_global_favorite_skill_ids().unwrap_or_default()
-        };
+        // 读取 agent 专属收藏（不再区分全局）
+        let favorites: std::collections::HashSet<String> =
+            db.get_agent_favorite_skill_ids(agent_id).unwrap_or_default();
 
-        // 5. 附加收藏标签
+        // 附加收藏标签
         for skill in skills.values_mut() {
             skill.is_favorite = favorites.contains(&skill.id);
         }
 
-        Ok(skills.into_values().collect())
+        // 按收藏 + 名称排序
+        let mut result: Vec<InstalledSkill> = skills.into_values().collect();
+        result.sort_by(|a, b| {
+            match (b.is_favorite, a.is_favorite) {
+                (true, false) => std::cmp::Ordering::Greater,
+                (false, true) => std::cmp::Ordering::Less,
+                _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+            }
+        });
+
+        Ok(result)
     }
 
     /// 递归扫描 hermes skills 目录，把有 SKILL.md 的子目录作为技能补充进 skills map

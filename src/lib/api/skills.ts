@@ -137,9 +137,9 @@ export interface SkillRepo {
 export const skillsApi = {
   // ========== 统一管理 API (v3.10.0+) ==========
 
-  /** 获取所有已安装的 Skills（agentId 非空时 isFavorite 按 agent 隔离） */
-  async getInstalled(agentId?: string | null): Promise<InstalledSkill[]> {
-    return await invoke("get_installed_skills", { agentId: agentId ?? null });
+  /** 获取所有已安装的 Skills（按 agent 完全隔离） */
+  async getInstalled(agentId: string): Promise<InstalledSkill[]> {
+    return await invoke("get_installed_skills", { agentId });
   },
 
   /** 获取可恢复的 Skill 备份列表 */
@@ -178,9 +178,9 @@ export const skillsApi = {
     return await invoke("toggle_skill_app", { id, app, enabled });
   },
 
-  /** 切换 Skill 的常用标记（agentId 非空时按 agent 隔离） */
-  async toggleFavorite(id: string, isFavorite: boolean, agentId?: string | null): Promise<boolean> {
-    return await invoke("toggle_skill_favorite", { id, isFavorite, agentId: agentId ?? null });
+  /** 切换 Skill 的常用标记（按 agent 隔离） */
+  async toggleFavorite(id: string, isFavorite: boolean, agentId: string): Promise<boolean> {
+    return await invoke("toggle_skill_favorite", { id, isFavorite, agentId });
   },
 
   /** 扫描未管理的 Skills */

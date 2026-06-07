@@ -82,7 +82,7 @@ export const SkillsPage = forwardRef<SkillsPageHandle, SkillsPageProps>(
       isFetching: fetchingDiscoverable,
       refetch: refetchDiscoverable,
     } = useDiscoverableSkills();
-    const { data: installedSkills } = useInstalledSkills();
+    const { data: installedSkills } = useInstalledSkills("default");
     const { data: repos = [], refetch: refetchRepos } = useSkillRepos();
 
     // skills.sh 搜索

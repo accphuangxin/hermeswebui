@@ -95,7 +95,7 @@ export function SettingsPage({
     resetStatus,
   } = useImportExport({ onImportSuccess });
 
-  const { data: installedSkills } = useInstalledSkills();
+  const { data: installedSkills } = useInstalledSkills("default");
 
   const [activeTab, setActiveTab] = useState<string>("general");
   const [showRestartPrompt, setShowRestartPrompt] = useState(false);

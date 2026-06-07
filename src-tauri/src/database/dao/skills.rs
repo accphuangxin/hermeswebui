@@ -140,29 +140,6 @@ impl Database {
         Ok(())
     }
 
-    /// 切换 Skill 的常用标记（全局，无 agent 隔离）
-    /// 使用 upsert：skill 不在 DB 时也能写入收藏标记
-    pub fn toggle_skill_favorite(&self, id: &str, is_favorite: bool) -> Result<bool, AppError> {
-        let conn = lock_conn!(self.conn);
-        if is_favorite {
-            // upsert：存在则更新，不存在则插入最小记录
-            conn.execute(
-                "INSERT INTO skills (id, name, directory, installed_at, updated_at, is_favorite)
-                 VALUES (?1, ?1, ?1, 0, 0, 1)
-                 ON CONFLICT(id) DO UPDATE SET is_favorite = 1",
-                params![id],
-            )
-            .map_err(|e| AppError::Database(e.to_string()))?;
-        } else {
-            conn.execute(
-                "UPDATE skills SET is_favorite = 0 WHERE id = ?1",
-                params![id],
-            )
-            .map_err(|e| AppError::Database(e.to_string()))?;
-        }
-        Ok(true)
-    }
-
     /// 切换 Skill 的 Agent 级别常用标记
     pub fn toggle_skill_agent_favorite(
         &self,
@@ -185,24 +162,6 @@ impl Database {
             .map_err(|e| AppError::Database(e.to_string()))?;
         }
         Ok(true)
-    }
-
-    /// 获取全局收藏的 skill_id 集合（用于 default agent，读 skills.is_favorite 列）
-    pub fn get_global_favorite_skill_ids(
-        &self,
-    ) -> Result<std::collections::HashSet<String>, AppError> {
-        let conn = lock_conn!(self.conn);
-        let mut stmt = conn
-            .prepare("SELECT id FROM skills WHERE is_favorite = 1")
-            .map_err(|e| AppError::Database(e.to_string()))?;
-        let ids = stmt
-            .query_map([], |row| row.get::<_, String>(0))
-            .map_err(|e| AppError::Database(e.to_string()))?;
-        let mut set = std::collections::HashSet::new();
-        for id in ids {
-            set.insert(id.map_err(|e| AppError::Database(e.to_string()))?);
-        }
-        Ok(set)
     }
 
     /// 获取某 agent 下所有收藏的 skill_id 集合

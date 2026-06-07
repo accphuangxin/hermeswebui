@@ -205,7 +205,7 @@ function App() {
   const { data: hermesChatModels = [] } = useChatModels();
   const { data: hermesAgents = [] } = useHermesAgents();
   const [hermesSelectedModel, setHermesSelectedModel] = useState("");
-  const [hermesSelectedAgentId, setHermesSelectedAgentId] = useState<string | null>(null);
+  const [hermesSelectedAgentId, setHermesSelectedAgentId] = useState<string>("default");
   const [hermesSelectedAgentPort, setHermesSelectedAgentPort] = useState<number | null>(null);
   const [hermesSelectedAgentKey, setHermesSelectedAgentKey] = useState<string | null>(null);
   const prevApiHostRef = useRef<string>("");
@@ -1046,7 +1046,7 @@ function App() {
             <UnifiedSkillsPanel
               ref={unifiedSkillsPanelRef}
               onOpenDiscovery={() => setCurrentView("skills")}
-              currentApp={activeApp === "openclaw" ? "claude" : activeApp}
+              currentApp="hermes"
               agentId={hermesSelectedAgentId}
               onSelectAgent={(id) => {
                 setHermesSelectedAgentId(id);
@@ -1417,10 +1417,10 @@ function App() {
                       if (nonDefault.length === 0) return null;
                       return (
                         <Select
-                          value={hermesSelectedAgentId ?? "__default__"}
+                          value={hermesSelectedAgentId === "default" ? "__default__" : hermesSelectedAgentId}
                           onValueChange={(val) => {
                             const agent = hermesAgents.find((a) => a.name === val);
-                            const id = val === "__default__" ? null : val;
+                            const id = val === "__default__" ? "default" : val;
                             const port = agent?.apiServerPort;
                             const key = agent?.apiServerKey;
                             setHermesSelectedAgentId(id);

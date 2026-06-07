@@ -20,8 +20,8 @@ interface ChatInputProps {
   disabled?: boolean;
   favoriteSkills?: InstalledSkill[];
   agents?: HermesAgent[];
-  selectedAgentId?: string | null;
-  onSelectAgent?: (agentId: string | null, port?: number, key?: string) => void;
+  selectedAgentId?: string;
+  onSelectAgent?: (agentId: string, port?: number, key?: string) => void;
 }
 
 export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkills = [], agents = [], selectedAgentId, onSelectAgent }: ChatInputProps) {
@@ -153,7 +153,7 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkill
     setAgentTriggerPos(-1);
 
     if (onSelectAgent) {
-      const agentId = (agent.isDefault || agent.name === "default") ? null : agent.name;
+      const agentId = (agent.isDefault || agent.name === "default") ? "default" : agent.name;
       onSelectAgent(agentId, agent.apiServerPort, agent.apiServerKey);
     }
   };
