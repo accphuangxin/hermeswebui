@@ -43,10 +43,10 @@
     "notSet": "Not Set"
   },
   "firstRunNotice": {
-    "title": "Welcome to CC Switch",
-    "bodyDefault": "CC Switch lets you switch between multiple Claude Code / Codex / Gemini CLI providers with a single click. If you already had these tools configured, CC Switch has saved your existing setup as a provider named “default” so none of your previous configuration is lost.",
-    "bodyOfficial": "An “Official” preset is also included in the list — click it any time you want to switch back to the official default. CC Switch automatically backs up your current config to “default” before switching, so you can move back and forth freely. That's how CC Switch works 😊",
-    "confirm": "Got it"
+    "title": "Welcome to 111 Hermes",
+    "bodyDefault": "111 Hermes is a visual management tool for Hermes Agent, providing an intuitive GUI interface to manage and configure your agent system.",
+    "bodyOfficial": "Core features include: multi-agent management, skills library configuration, conversational chat interface, cron job scheduling, prompt management, MCP server integration, local proxy with failover, and more. With 111 Hermes, you can easily manage multiple agents' SOUL configurations, install and enable various skills, create scheduled tasks, and build your own AI assistant ecosystem 🚀",
+    "confirm": "Get Started"
   },
   "apiKeyInput": {
     "placeholder": "Enter API Key",

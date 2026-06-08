@@ -43,10 +43,10 @@
     "notSet": "未设置"
   },
   "firstRunNotice": {
-    "title": "欢迎使用 CC Switch",
-    "bodyDefault": "CC Switch 可以帮你在 Claude Code / Codex / Gemini CLI 的多个供应商之间一键切换。如果你之前已经配置过这些工具，CC Switch 会自动把现有设置保存为名为 “default” 的供应商，保证你的配置不会丢失。",
-    "bodyOfficial": "列表里还预置了 “官方（Official）” 供应商，随时点一下即可切回官方默认配置。切换前 CC Switch 会自动把当前配置备份回 default，可以放心来回切。CC Switch 就是这样工作的 😊",
-    "confirm": "我知道了"
+    "title": "欢迎使用 111 Hermes",
+    "bodyDefault": "111 Hermes 是 Hermes Agent 的可视化管理工具，提供直观的 GUI 界面来管理和配置您的智能体（Agent）系统。",
+    "bodyOfficial": "核心功能包括：多智能体（Agents）管理、技能库（Skills）配置、对话式交互（Chat）、定时任务（Cron）调度、提示词（Prompts）管理、MCP 服务器集成、本地代理与故障转移等强大特性。通过 111 Hermes，您可以轻松管理多个 Agent 的 SOUL 配置、安装和启用各类技能、创建定时执行任务，打造您的专属 AI 助手生态系统 🚀",
+    "confirm": "开始使用"
   },
   "apiKeyInput": {
     "placeholder": "请输入API Key",

@@ -194,6 +194,7 @@ function App() {
   }, []);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isWindowMaximized, setIsWindowMaximized] = useState(false);
+  const [showWelcomeDialog, setShowWelcomeDialog] = useState(false);
 
   useEffect(() => {
     localStorage.setItem(VIEW_STORAGE_KEY, currentView);
@@ -597,6 +598,13 @@ function App() {
       if (event.key === "," && (event.metaKey || event.ctrlKey)) {
         event.preventDefault();
         openSettings();
+        return;
+      }
+
+      // Ctrl+L / Cmd+L 打开欢迎对话框
+      if (event.key === "l" && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault();
+        setShowWelcomeDialog(true);
         return;
       }
 
@@ -1827,7 +1835,10 @@ function App() {
       />
 
       <DeepLinkImportDialog />
-      <FirstRunNoticeDialog />
+      <FirstRunNoticeDialog
+        forceOpen={showWelcomeDialog}
+        onForceClose={() => setShowWelcomeDialog(false)}
+      />
     </div>
   );
 }

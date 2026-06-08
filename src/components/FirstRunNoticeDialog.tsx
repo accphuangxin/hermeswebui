@@ -13,24 +13,35 @@ import { Button } from "@/components/ui/button";
 import { useSettingsQuery } from "@/lib/query";
 import { settingsApi } from "@/lib/api";
 
-/** 首次运行欢迎提示：仅当后端启动阶段保留 firstRunNoticeConfirmed 为空时弹出。 */
-export function FirstRunNoticeDialog() {
+/** 首次运行欢迎提示：可通过 firstRun 标志自动弹出，也可通过 forceOpen 手动触发 */
+export function FirstRunNoticeDialog({ forceOpen = false, onForceClose }: { forceOpen?: boolean; onForceClose?: () => void }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { data: settings } = useSettingsQuery();
 
-  // 后端启动时已经决定好要不要弹：条件不满足的话字段会立即被写成 true，
-  // 所以前端这里只需要判空即可——完全对齐 streamCheckConfirmed 等既有 flag 的模式。
-  const isOpen = settings != null && settings.firstRunNoticeConfirmed !== true;
+  // 首次运行检查：后端启动时已经决定好要不要弹
+  const isFirstRun = settings != null && settings.firstRunNoticeConfirmed !== true;
+
+  // 对话框打开状态：首次运行 或 手动触发
+  const isOpen = isFirstRun || forceOpen;
 
   const handleAcknowledge = async () => {
     if (!settings) return;
-    try {
-      const { webdavSync: _, ...rest } = settings;
-      await settingsApi.save({ ...rest, firstRunNoticeConfirmed: true });
-      await queryClient.invalidateQueries({ queryKey: ["settings"] });
-    } catch (error) {
-      console.error("Failed to save firstRunNoticeConfirmed:", error);
+
+    // 如果是首次运行，保存确认标志
+    if (isFirstRun) {
+      try {
+        const { webdavSync: _, ...rest } = settings;
+        await settingsApi.save({ ...rest, firstRunNoticeConfirmed: true });
+        await queryClient.invalidateQueries({ queryKey: ["settings"] });
+      } catch (error) {
+        console.error("Failed to save firstRunNoticeConfirmed:", error);
+      }
+    }
+
+    // 如果是手动触发，调用回调
+    if (forceOpen && onForceClose) {
+      onForceClose();
     }
   };
 
