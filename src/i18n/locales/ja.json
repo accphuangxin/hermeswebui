@@ -1868,6 +1868,11 @@
       "noSelection": "削除する環境変数を選択してください"
     }
   },
+  "kanban": {
+    "title": "カンバン",
+    "board": "ボード",
+    "task": "タスク"
+  },
   "skills": {
     "manage": "ローカル Skills",
     "title": "Skills 管理",

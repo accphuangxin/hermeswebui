@@ -1254,6 +1254,15 @@ function App() {
                   <Sparkles className="w-3.5 h-3.5" />
                   {t("skills.title", { defaultValue: "技能" })}
                 </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setCurrentView("hermesKanban")}
+                  className="hover:bg-black/5 dark:hover:bg-white/5 shrink-0 gap-1.5 text-xs"
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  {t("kanban.title", { defaultValue: "看板" })}
+                </Button>
                 <UpdateBadge onClick={() => openSettings("general")} showLabel />
               </div>
             ) : currentView !== "providers" ? (

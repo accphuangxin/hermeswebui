@@ -1868,6 +1868,11 @@
       "noSelection": "Please select environment variables to delete"
     }
   },
+  "kanban": {
+    "title": "Kanban",
+    "board": "Board",
+    "task": "Task"
+  },
   "skills": {
     "manage": "Local Skills",
     "title": "Skills Management",
