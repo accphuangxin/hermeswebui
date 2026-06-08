@@ -1368,7 +1368,7 @@ function App() {
                   <span className={cn("text-xs font-medium shrink-0", online ? "text-green-600 dark:text-green-400" : "text-destructive")}>
                     {online ? t("hermes.chat.connected") : t("hermes.chat.disconnected")}
                   </span>
-                  {name && (
+                  {name && name !== "default" && (
                     <>
                       <span className="text-muted-foreground/40 text-xs shrink-0">|</span>
                       <Bot className="w-3 h-3 text-primary shrink-0" />
