@@ -478,21 +478,22 @@ pub fn create_tray_menu(
     let mut section_handles: std::collections::HashMap<AppType, Submenu<tauri::Wry>> =
         std::collections::HashMap::new();
 
-    // 顶部：打开主界面 / 打开官方网站
+    // 顶部：打开主界面
     let show_main_item =
         MenuItem::with_id(app, "show_main", tray_texts.show_main, true, None::<&str>)
             .map_err(|e| AppError::Message(format!("创建打开主界面菜单失败: {e}")))?;
-    let open_website_item = MenuItem::with_id(
-        app,
-        "open_website",
-        tray_texts.open_website,
-        true,
-        None::<&str>,
-    )
-    .map_err(|e| AppError::Message(format!("创建打开官方网站菜单失败: {e}")))?;
+    // 暂时隐藏"打开官方网站"菜单
+    // let open_website_item = MenuItem::with_id(
+    //     app,
+    //     "open_website",
+    //     tray_texts.open_website,
+    //     true,
+    //     None::<&str>,
+    // )
+    // .map_err(|e| AppError::Message(format!("创建打开官方网站菜单失败: {e}")))?;
     menu_builder = menu_builder
         .item(&show_main_item)
-        .item(&open_website_item)
+        // .item(&open_website_item)  // 隐藏
         .separator();
 
     // Pre-compute proxy running state (used to disable official providers in tray menu)
