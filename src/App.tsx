@@ -91,6 +91,7 @@ import AgentsDefaultsPanel from "@/components/openclaw/AgentsDefaultsPanel";
 import OpenClawHealthBanner from "@/components/openclaw/OpenClawHealthBanner";
 import HermesMemoryPanel from "@/components/hermes/HermesMemoryPanel";
 import { ChatPage } from "@/components/chat/ChatPage";
+import { KanbanPage } from "@/components/kanban/KanbanPage";
 
 import { HermesAgentsPage } from "@/components/chat/HermesAgentsPage";
 import { useChatStatus, useChatModels, useHermesAgents } from "@/hooks/useHermesChat";
@@ -118,7 +119,8 @@ type View =
   | "openclawAgents"
   | "hermesMemory"
   | "hermesChat"
-  | "hermesAgents";
+  | "hermesAgents"
+  | "hermesKanban";
 
 interface WebDavSyncStatusUpdatedPayload {
   source?: string;
@@ -892,7 +894,7 @@ function App() {
   };
 
   const renderContent = () => {
-    const isHermesView = currentView === "hermesChat" || currentView === "skills" || currentView === "hermesAgents";
+    const isHermesView = currentView === "hermesChat" || currentView === "skills" || currentView === "hermesAgents" || currentView === "hermesKanban";
 
     const content = (() => {
       switch (currentView) {
@@ -1064,6 +1066,9 @@ function App() {
               }}
             />
           </div>
+          <div className={cn("flex-1 min-h-0 flex flex-col overflow-hidden h-full", currentView !== "hermesKanban" && "hidden")}>
+            <KanbanPage />
+          </div>
           <div className={cn("flex-1 min-h-0 flex flex-col overflow-hidden h-full", currentView !== "hermesAgents" && "hidden")}>
             <HermesAgentsPage
               selectedAgentId={hermesSelectedAgentId}
@@ -1187,7 +1192,18 @@ function App() {
             className="flex items-center gap-1"
             style={{ WebkitAppRegion: "no-drag" } as any}
           >
-            {currentView === "hermesAgents" ? (
+            {currentView === "hermesKanban" ? (
+              <div className="flex items-center gap-2 flex-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setCurrentView("hermesChat")}
+                  className="hover:bg-black/5 dark:hover:bg-white/5 shrink-0"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </Button>
+              </div>
+            ) : currentView === "hermesAgents" ? (
               <div className="flex items-center gap-2 flex-1">
                 <Button
                   variant="ghost"

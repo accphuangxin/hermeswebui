@@ -1337,6 +1337,18 @@ pub fn run() {
             commands::triggerCronJob,
             commands::list_cron_outputs,
             commands::read_cron_output,
+            // Kanban boards and tasks
+            commands::listKanbanBoards,
+            commands::createKanbanBoard,
+            commands::getKanbanBoard,
+            commands::listKanbanTasks,
+            commands::createKanbanTask,
+            commands::updateKanbanTask,
+            commands::deleteKanbanTask,
+            commands::getKanbanTask,
+            commands::linkKanbanTasks,
+            commands::getTaskParents,
+            commands::getTaskChildren,
             // Global upstream proxy
             commands::get_global_proxy_url,
             commands::set_global_proxy_url,

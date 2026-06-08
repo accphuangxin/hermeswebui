@@ -678,3 +678,59 @@ export interface HermesChatModel {
   isDefault: boolean;
   supportsVision: boolean;
 }
+
+// ============================================================================
+// Kanban Types
+// ============================================================================
+
+export interface KanbanBoard {
+  slug: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+}
+
+export interface CreateBoardInput {
+  slug: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+}
+
+export type TaskStatus = "ready" | "running" | "blocked" | "done" | "failed";
+
+export interface KanbanTask {
+  task_id: string;
+  title: string;
+  body?: string;
+  status: TaskStatus;
+  assignee?: string;
+  priority?: number;
+  created_at: string;
+  started_at?: string | null;
+  completed_at?: string | null;
+  result?: string | null;
+  parents: string[];
+  children: string[];
+  worker_pid?: number | null;
+  last_heartbeat?: string | null;
+  max_retries?: number;
+  retry_count?: number;
+}
+
+export interface CreateTaskInput {
+  title: string;
+  body?: string;
+  assignee?: string;
+  priority?: number;
+}
+
+export interface UpdateTaskInput {
+  title?: string;
+  body?: string;
+  assignee?: string;
+  priority?: number;
+  status?: TaskStatus;
+}
