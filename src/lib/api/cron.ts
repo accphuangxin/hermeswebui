@@ -19,7 +19,7 @@ export interface CronJobRaw {
 export interface CronJob {
   id: string;
   name: string;
-  schedule: string;       // always the cron expr string
+  schedule: string; // always the cron expr string
   prompt: string;
   enabled: boolean;
   model?: string | null;
@@ -48,7 +48,7 @@ function normalizeJob(raw: CronJobRaw): CronJob {
   const scheduleExpr =
     typeof raw.schedule === "string"
       ? raw.schedule
-      : raw.schedule?.expr ?? raw.schedule_display ?? "";
+      : (raw.schedule?.expr ?? raw.schedule_display ?? "");
   return {
     id: raw.id,
     name: raw.name,
@@ -64,7 +64,9 @@ function normalizeJob(raw: CronJobRaw): CronJob {
 
 export const cronApi = {
   list: async (includeDisabled = true): Promise<CronJob[]> => {
-    const raws = await invoke<CronJobRaw[]>("listCronJobs", { includeDisabled });
+    const raws = await invoke<CronJobRaw[]>("listCronJobs", {
+      includeDisabled,
+    });
     return raws.map(normalizeJob);
   },
 
@@ -78,7 +80,10 @@ export const cronApi = {
     return normalizeJob(raw);
   },
 
-  update: async (jobId: string, job: UpdateCronJobRequest): Promise<CronJob> => {
+  update: async (
+    jobId: string,
+    job: UpdateCronJobRequest,
+  ): Promise<CronJob> => {
     const raw = await invoke<CronJobRaw>("updateCronJob", { jobId, job });
     return normalizeJob(raw);
   },

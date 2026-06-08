@@ -8,7 +8,11 @@ interface UpdateBadgeProps {
   showLabel?: boolean;
 }
 
-export function UpdateBadge({ className = "", onClick, showLabel }: UpdateBadgeProps) {
+export function UpdateBadge({
+  className = "",
+  onClick,
+  showLabel,
+}: UpdateBadgeProps) {
   const { t } = useTranslation();
 
   return (

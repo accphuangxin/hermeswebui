@@ -56,7 +56,10 @@ export const agentsApi = {
   async restartAgent(agentId: string): Promise<void> {
     return await invoke("restartHermesAgent", { agentId });
   },
-  async updateAgent(agentId: string, input: UpdateAgentInput): Promise<HermesAgent> {
+  async updateAgent(
+    agentId: string,
+    input: UpdateAgentInput,
+  ): Promise<HermesAgent> {
     return await invoke("updateHermesAgent", { agentId, input });
   },
 };

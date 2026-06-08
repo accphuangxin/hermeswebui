@@ -13,7 +13,7 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
       onClick={onClick}
       className={cn(
         "p-3 rounded-lg border bg-card cursor-pointer",
-        "hover:shadow-md transition-shadow"
+        "hover:shadow-md transition-shadow",
       )}
     >
       {/* Title and Priority */}
@@ -37,14 +37,14 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
           </span>
         )}
 
-        {task.parents.length > 0 && (
+        {task.parents && task.parents.length > 0 && (
           <span className="flex items-center gap-1" title="依赖的父任务">
             <ArrowUp className="h-3 w-3" />
             {task.parents.length}
           </span>
         )}
 
-        {task.children.length > 0 && (
+        {task.children && task.children.length > 0 && (
           <span className="flex items-center gap-1" title="后续子任务">
             <ArrowDown className="h-3 w-3" />
             {task.children.length}
@@ -64,7 +64,7 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
 
       {/* Task ID (small) */}
       <div className="mt-2 text-xs text-muted-foreground/60">
-        {task.task_id}
+        {task.id || task.task_id}
       </div>
     </div>
   );

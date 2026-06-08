@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
 interface CronJobFormProps {
-  job: CronJob | null;   // null = new job
+  job: CronJob | null; // null = new job
   onCancel: () => void;
   onSubmit: (data: CreateCronJobRequest) => void;
   isPending: boolean;
@@ -30,12 +30,29 @@ const SCHEDULE_PRESETS = [
   { label: "每周一 9:00", value: "0 9 * * 1" },
 ];
 
-export function CronJobForm({ job, onCancel, onSubmit, isPending }: CronJobFormProps) {
+export function CronJobForm({
+  job,
+  onCancel,
+  onSubmit,
+  isPending,
+}: CronJobFormProps) {
   const { t } = useTranslation();
-  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } =
-    useForm<FormValues>({
-      defaultValues: { name: "", schedule: "0 * * * *", prompt: "", enabled: true, model: "" },
-    });
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<FormValues>({
+    defaultValues: {
+      name: "",
+      schedule: "0 * * * *",
+      prompt: "",
+      enabled: true,
+      model: "",
+    },
+  });
 
   useEffect(() => {
     reset({
@@ -71,9 +88,11 @@ export function CronJobForm({ job, onCancel, onSubmit, isPending }: CronJobFormP
       </div>
 
       {/* Form body — scrollable */}
-      <form onSubmit={handleSubmit(onValid)} className="flex flex-col flex-1 min-h-0">
+      <form
+        onSubmit={handleSubmit(onValid)}
+        className="flex flex-col flex-1 min-h-0"
+      >
         <div className="flex-1 overflow-auto px-6 py-5 space-y-5">
-
           {/* Name */}
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
@@ -82,7 +101,9 @@ export function CronJobForm({ job, onCancel, onSubmit, isPending }: CronJobFormP
             </label>
             <Input
               {...register("name", { required: true })}
-              placeholder={t("cron.form.namePlaceholder", { defaultValue: "例：每日早报" })}
+              placeholder={t("cron.form.namePlaceholder", {
+                defaultValue: "例：每日早报",
+              })}
               className={cn("h-9", errors.name && "border-destructive")}
               autoFocus
             />
@@ -97,7 +118,10 @@ export function CronJobForm({ job, onCancel, onSubmit, isPending }: CronJobFormP
             <Input
               {...register("schedule", { required: true })}
               placeholder="0 8 * * *"
-              className={cn("h-9 font-mono tracking-wide", errors.schedule && "border-destructive")}
+              className={cn(
+                "h-9 font-mono tracking-wide",
+                errors.schedule && "border-destructive",
+              )}
             />
             <div className="flex flex-wrap gap-1.5 pt-0.5">
               {SCHEDULE_PRESETS.map((p) => (
@@ -121,9 +145,14 @@ export function CronJobForm({ job, onCancel, onSubmit, isPending }: CronJobFormP
             </label>
             <Textarea
               {...register("prompt", { required: true })}
-              placeholder={t("cron.form.promptPlaceholder", { defaultValue: "输入要定期执行的任务描述..." })}
+              placeholder={t("cron.form.promptPlaceholder", {
+                defaultValue: "输入要定期执行的任务描述...",
+              })}
               rows={6}
-              className={cn("resize-none leading-relaxed", errors.prompt && "border-destructive")}
+              className={cn(
+                "resize-none leading-relaxed",
+                errors.prompt && "border-destructive",
+              )}
             />
           </div>
 
@@ -138,7 +167,9 @@ export function CronJobForm({ job, onCancel, onSubmit, isPending }: CronJobFormP
               </label>
               <Input
                 {...register("model")}
-                placeholder={t("cron.form.modelPlaceholder", { defaultValue: "留空使用默认" })}
+                placeholder={t("cron.form.modelPlaceholder", {
+                  defaultValue: "留空使用默认",
+                })}
                 className="h-9"
               />
             </div>
@@ -146,7 +177,10 @@ export function CronJobForm({ job, onCancel, onSubmit, isPending }: CronJobFormP
               <span className="text-sm">
                 {t("cron.form.enabled", { defaultValue: "启用" })}
               </span>
-              <Switch checked={enabled} onCheckedChange={(v) => setValue("enabled", v)} />
+              <Switch
+                checked={enabled}
+                onCheckedChange={(v) => setValue("enabled", v)}
+              />
             </div>
           </div>
         </div>
@@ -156,7 +190,12 @@ export function CronJobForm({ job, onCancel, onSubmit, isPending }: CronJobFormP
           <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
             {t("common.cancel", { defaultValue: "取消" })}
           </Button>
-          <Button type="submit" size="sm" disabled={isPending} className="min-w-[64px]">
+          <Button
+            type="submit"
+            size="sm"
+            disabled={isPending}
+            className="min-w-[64px]"
+          >
             {isPending
               ? t("common.saving", { defaultValue: "保存中..." })
               : t("common.save", { defaultValue: "保存" })}

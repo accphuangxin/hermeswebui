@@ -1,7 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { kanbanApi } from "@/lib/api/kanban";
 import { toast } from "sonner";
-import type { CreateBoardInput, CreateTaskInput, UpdateTaskInput } from "@/types";
+import type {
+  CreateBoardInput,
+  CreateTaskInput,
+  UpdateTaskInput,
+} from "@/types";
 
 // ============================================================================
 // Query Keys
@@ -118,8 +122,13 @@ export function useLinkTasks(boardSlug: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ parentId, childId }: { parentId: string; childId: string }) =>
-      kanbanApi.linkTasks(boardSlug, parentId, childId),
+    mutationFn: ({
+      parentId,
+      childId,
+    }: {
+      parentId: string;
+      childId: string;
+    }) => kanbanApi.linkTasks(boardSlug, parentId, childId),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: kanbanKeys.tasks(boardSlug),

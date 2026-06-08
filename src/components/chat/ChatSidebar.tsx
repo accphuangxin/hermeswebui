@@ -131,13 +131,29 @@ export function ChatSidebar({
       </ScrollArea>
 
       {/* Delete confirm dialog */}
-      <Dialog open={!!deletingId} onOpenChange={(o) => { if (!o) setDeletingId(null); }}>
-        <DialogContent className="sm:max-w-sm focus:outline-none" onInteractOutside={() => setDeletingId(null)}>
+      <Dialog
+        open={!!deletingId}
+        onOpenChange={(o) => {
+          if (!o) setDeletingId(null);
+        }}
+      >
+        <DialogContent
+          className="sm:max-w-sm focus:outline-none"
+          onInteractOutside={() => setDeletingId(null)}
+        >
           <DialogHeader>
-            <DialogTitle className="text-sm">{t("hermes.chat.deleteConfirm", { defaultValue: "删除聊天记录？此操作无法撤销。" })}</DialogTitle>
+            <DialogTitle className="text-sm">
+              {t("hermes.chat.deleteConfirm", {
+                defaultValue: "删除聊天记录？此操作无法撤销。",
+              })}
+            </DialogTitle>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="ghost" size="sm" onClick={() => setDeletingId(null)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setDeletingId(null)}
+            >
               {t("common.cancel", { defaultValue: "取消" })}
             </Button>
             <Button

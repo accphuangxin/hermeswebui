@@ -124,7 +124,9 @@ export function useUninstallSkill() {
       // local: skills live in agent_skill_cache, not the skills table —
       // invalidate to re-scan so the list reflects the deletion.
       if (_vars.id.startsWith("local:")) {
-        void queryClient.invalidateQueries({ queryKey: ["skills", "installed"] });
+        void queryClient.invalidateQueries({
+          queryKey: ["skills", "installed"],
+        });
         return;
       }
 
@@ -209,7 +211,8 @@ export function useToggleSkillFavorite(agentId: string) {
           return oldData
             .map((s) => (s.id === id ? { ...s, isFavorite } : s))
             .sort((a, b) => {
-              if (a.isFavorite === b.isFavorite) return a.name.localeCompare(b.name);
+              if (a.isFavorite === b.isFavorite)
+                return a.name.localeCompare(b.name);
               return a.isFavorite ? -1 : 1;
             });
         },

@@ -38,10 +38,15 @@ export function HermesServerConfigButton() {
   const handleSave = async () => {
     try {
       await invoke("setHermesApiServerConfig", { host, port, key });
-      toast.success(t("hermes.serverConfig.saved", { defaultValue: "连接配置已保存" }));
+      toast.success(
+        t("hermes.serverConfig.saved", { defaultValue: "连接配置已保存" }),
+      );
       setOpen(false);
     } catch (e) {
-      toast.error(t("hermes.serverConfig.saveFailed", { defaultValue: "保存失败" }), { description: String(e) });
+      toast.error(
+        t("hermes.serverConfig.saveFailed", { defaultValue: "保存失败" }),
+        { description: String(e) },
+      );
     }
   };
 
@@ -52,7 +57,9 @@ export function HermesServerConfigButton() {
           variant="ghost"
           size="icon"
           className="h-7 w-7 shrink-0"
-          title={t("hermes.serverConfig.title", { defaultValue: "API Server 配置" })}
+          title={t("hermes.serverConfig.title", {
+            defaultValue: "API Server 配置",
+          })}
         >
           <Settings2 className="w-3.5 h-3.5" />
         </Button>
@@ -63,7 +70,9 @@ export function HermesServerConfigButton() {
         </p>
         <div className="space-y-2.5">
           <div>
-            <label className="text-xs text-muted-foreground block mb-1">Host</label>
+            <label className="text-xs text-muted-foreground block mb-1">
+              Host
+            </label>
             <input
               value={host}
               onChange={(e) => setHost(e.target.value)}
@@ -72,7 +81,9 @@ export function HermesServerConfigButton() {
             />
           </div>
           <div>
-            <label className="text-xs text-muted-foreground block mb-1">Port</label>
+            <label className="text-xs text-muted-foreground block mb-1">
+              Port
+            </label>
             <input
               value={port}
               onChange={(e) => setPort(e.target.value)}
@@ -81,12 +92,16 @@ export function HermesServerConfigButton() {
             />
           </div>
           <div>
-            <label className="text-xs text-muted-foreground block mb-1">API Key</label>
+            <label className="text-xs text-muted-foreground block mb-1">
+              API Key
+            </label>
             <input
               type="password"
               value={key}
               onChange={(e) => setKey(e.target.value)}
-              placeholder={t("hermes.serverConfig.keyPlaceholder", { defaultValue: "留空则不验证" })}
+              placeholder={t("hermes.serverConfig.keyPlaceholder", {
+                defaultValue: "留空则不验证",
+              })}
               className="w-full text-sm rounded-md border bg-transparent px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>

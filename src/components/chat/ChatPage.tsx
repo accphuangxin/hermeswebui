@@ -18,7 +18,13 @@ import {
   useHermesAgents,
 } from "@/hooks/useHermesChat";
 import { useInstalledSkills } from "@/hooks/useSkills";
-import { useChatStream, type ToolActivity, type ApprovalRequest, type RunUsage, type StreamFile } from "@/hooks/useChatStream";
+import {
+  useChatStream,
+  type ToolActivity,
+  type ApprovalRequest,
+  type RunUsage,
+  type StreamFile,
+} from "@/hooks/useChatStream";
 import { chatApi } from "@/lib/api/chat";
 import { compressContext } from "@/lib/contextCompression";
 import { ChatSidebar } from "./ChatSidebar";
@@ -38,19 +44,31 @@ interface ChatPageProps {
   onSelectAgent?: (agentId: string, port?: number, key?: string) => void;
 }
 
-export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort, selectedAgentKey, onSelectAgent }: ChatPageProps) {
+export function ChatPage({
+  selectedModel,
+  selectedAgentId,
+  selectedAgentPort,
+  selectedAgentKey,
+  onSelectAgent,
+}: ChatPageProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [streamingContent, setStreamingContent] = useState("");
   const [toolActivities, setToolActivities] = useState<ToolActivity[]>([]);
-  const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(null);
+  const [pendingApproval, setPendingApproval] =
+    useState<ApprovalRequest | null>(null);
   const [hermesSessionId, setHermesSessionId] = useState<string | null>(null);
   const [lastUsage, setLastUsage] = useState<RunUsage | null>(null);
-  const [compressionInfo, setCompressionInfo] = useState<{ wasCompressed: boolean; droppedCount: number } | null>(null);
+  const [compressionInfo, setCompressionInfo] = useState<{
+    wasCompressed: boolean;
+    droppedCount: number;
+  } | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("chat");
-  const [areaMenu, setAreaMenu] = useState<{ x: number; y: number } | null>(null);
+  const [areaMenu, setAreaMenu] = useState<{ x: number; y: number } | null>(
+    null,
+  );
   const areaMenuRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollBottomRef = useRef<HTMLDivElement>(null);
@@ -77,18 +95,21 @@ export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort, se
   const isOnline = status?.online ?? false;
 
   const activeContextWindow = (() => {
-    const modelId = selectedModel?.replace(/^custom_[^:]+:/, "").replace("__default__", "");
+    const modelId = selectedModel
+      ?.replace(/^custom_[^:]+:/, "")
+      .replace("__default__", "");
     const model = chatModels.find((m) => m.id === modelId);
     return model?.contextLength ?? 100000;
   })();
 
   const activeModelSupportsVision = (() => {
-    const modelId = selectedModel?.replace(/^custom_[^:]+:/, "").replace("__default__", "");
+    const modelId = selectedModel
+      ?.replace(/^custom_[^:]+:/, "")
+      .replace("__default__", "");
     const model = chatModels.find((m) => m.id === modelId);
     // default model: unknown, optimistically allow vision
     return model?.supportsVision ?? true;
   })();
-
 
   // Auto-select first session
   useEffect(() => {
@@ -158,25 +179,47 @@ export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort, se
       const pastedImageFiles: StreamFile[] = activeModelSupportsVision
         ? files
             .filter((f) => !f.sourcePath && f.mimeType?.startsWith("image/"))
-            .map((f) => ({ filename: f.filename, content: f.content, mimeType: f.mimeType }))
+            .map((f) => ({
+              filename: f.filename,
+              content: f.content,
+              mimeType: f.mimeType,
+            }))
         : [];
 
       const inlineFiles = files.filter(
-        (f) => !f.sourcePath && (!f.mimeType?.startsWith("image/") || !activeModelSupportsVision),
+        (f) =>
+          !f.sourcePath &&
+          (!f.mimeType?.startsWith("image/") || !activeModelSupportsVision),
       );
-      const fileBlocks = inlineFiles.length > 0
-        ? inlineFiles.map((f) => `<file name="${f.filename}">\n${f.content}\n</file>`).join("\n\n")
-        : "";
-      const fullText = fileBlocks && text ? `${fileBlocks}\n\n${text}` : fileBlocks || text;
+      const fileBlocks =
+        inlineFiles.length > 0
+          ? inlineFiles
+              .map((f) => `<file name="${f.filename}">\n${f.content}\n</file>`)
+              .join("\n\n")
+          : "";
+      const fullText =
+        fileBlocks && text ? `${fileBlocks}\n\n${text}` : fileBlocks || text;
 
-      const fileRefsForDb = files.length > 0
-        ? JSON.stringify(files.map(({ filename, mimeType, sizeBytes }) => ({ filename, mimeType, sizeBytes })))
-        : null;
+      const fileRefsForDb =
+        files.length > 0
+          ? JSON.stringify(
+              files.map(({ filename, mimeType, sizeBytes }) => ({
+                filename,
+                mimeType,
+                sizeBytes,
+              })),
+            )
+          : null;
 
       const userMsgId = crypto.randomUUID();
       await saveMessage.mutateAsync({
         sessionId: activeSessionId,
-        message: { id: userMsgId, role: "user", content: text, fileRefs: fileRefsForDb },
+        message: {
+          id: userMsgId,
+          role: "user",
+          content: text,
+          fileRefs: fileRefsForDb,
+        },
       });
 
       setStreamingContent("");
@@ -189,10 +232,19 @@ export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort, se
           ? selectedModel.replace(/^custom_[^:]+:/, "")
           : undefined;
 
-      const { compressedInput, wasCompressed, droppedCount } = compressContext(messages, fullText, activeContextWindow);
+      const { compressedInput, wasCompressed, droppedCount } = compressContext(
+        messages,
+        fullText,
+        activeContextWindow,
+      );
       setCompressionInfo({ wasCompressed, droppedCount });
       if (wasCompressed) {
-        toast.info(t("hermes.chat.contextCompressed", { count: droppedCount, defaultValue: `上下文过长，已省略最旧的 ${droppedCount} 条消息` }));
+        toast.info(
+          t("hermes.chat.contextCompressed", {
+            count: droppedCount,
+            defaultValue: `上下文过长，已省略最旧的 ${droppedCount} 条消息`,
+          }),
+        );
       }
 
       userCancelledRef.current = false;
@@ -204,7 +256,13 @@ export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort, se
         if (userCancelledRef.current) break;
         if (attempt > 0) {
           await new Promise((r) => setTimeout(r, 1500 * attempt));
-          toast.info(t("hermes.chat.retrying", { attempt, max: MAX_RETRIES, defaultValue: `请求失败，正在重试 (${attempt}/${MAX_RETRIES})...` }));
+          toast.info(
+            t("hermes.chat.retrying", {
+              attempt,
+              max: MAX_RETRIES,
+              defaultValue: `请求失败，正在重试 (${attempt}/${MAX_RETRIES})...`,
+            }),
+          );
           setStreamingContent("");
           setToolActivities([]);
         }
@@ -226,7 +284,10 @@ export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort, se
             setStreamingContent(fullContent);
           },
           onToolStarted: (tool, preview) => {
-            setToolActivities((prev) => [...prev, { tool, preview, status: "running" }]);
+            setToolActivities((prev) => [
+              ...prev,
+              { tool, preview, status: "running" },
+            ]);
           },
           onToolCompleted: (tool, duration, error) => {
             setToolActivities((prev) =>
@@ -247,7 +308,9 @@ export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort, se
             const content = fullContent || output;
             // No content means the server responded but produced nothing — treat as failure
             if (!content) {
-              lastError = t("hermes.chat.emptyResponse", { defaultValue: "服务器无返回内容" });
+              lastError = t("hermes.chat.emptyResponse", {
+                defaultValue: "服务器无返回内容",
+              });
               return;
             }
 
@@ -268,7 +331,8 @@ export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort, se
 
             if (messages.length === 0) {
               const titleBase = text || files.map((f) => f.filename).join(", ");
-              const title = titleBase.slice(0, 50) + (titleBase.length > 50 ? "..." : "");
+              const title =
+                titleBase.slice(0, 50) + (titleBase.length > 50 ? "..." : "");
               await chatApi.updateSession(activeSessionId, title);
             }
           },
@@ -288,18 +352,36 @@ export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort, se
         const errMsgId = crypto.randomUUID();
         await saveMessage.mutateAsync({
           sessionId: activeSessionId,
-          message: { id: errMsgId, role: "assistant", content: `**错误**: ${lastError}` },
+          message: {
+            id: errMsgId,
+            role: "assistant",
+            content: `**错误**: ${lastError}`,
+          },
         });
       }
     },
-    [isOnline, activeSessionId, messages, selectedModel, selectedAgentId, selectedAgentPort, activeContextWindow, hermesSessionId, sendRun, saveMessage, t],
+    [
+      isOnline,
+      activeSessionId,
+      messages,
+      selectedModel,
+      selectedAgentId,
+      selectedAgentPort,
+      activeContextWindow,
+      hermesSessionId,
+      sendRun,
+      saveMessage,
+      t,
+    ],
   );
 
   const handleClearMessages = useCallback(async () => {
     if (!activeSessionId) return;
     setHermesSessionId(null);
     await chatApi.clearMessages(activeSessionId);
-    void queryClient.invalidateQueries({ queryKey: chatKeys.messages(activeSessionId) });
+    void queryClient.invalidateQueries({
+      queryKey: chatKeys.messages(activeSessionId),
+    });
     toast.success(t("hermes.chat.newSession"));
   }, [activeSessionId, queryClient, t]);
 
@@ -307,7 +389,10 @@ export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort, se
   useEffect(() => {
     if (!areaMenu) return;
     const handle = (e: MouseEvent) => {
-      if (areaMenuRef.current && !areaMenuRef.current.contains(e.target as Node)) {
+      if (
+        areaMenuRef.current &&
+        !areaMenuRef.current.contains(e.target as Node)
+      ) {
         setAreaMenu(null);
       }
     };
@@ -374,7 +459,6 @@ export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort, se
           <Clock className="w-3.5 h-3.5" />
           {t("cron.title", { defaultValue: "定时任务" })}
         </button>
-
       </div>
 
       <div className="flex flex-1 min-h-0">
@@ -385,130 +469,173 @@ export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort, se
 
         {/* Chat: always mounted so in-progress runs survive tab switches */}
         <div className={cn("contents", sidebarTab !== "chat" && "hidden")}>
-      <ChatSidebar
-        sessions={sessions}
-        activeSessionId={activeSessionId}
-        onSelectSession={setActiveSessionId}
-        onNewSession={handleNewSession}
-        onDeleteSession={handleDeleteSession}
-        onRenameSession={handleRenameSession}
-      />
-      <div
-        className="flex-1 flex flex-col min-w-0"
-        onContextMenu={(e) => {
-          const bubble = (e.target as HTMLElement).closest("[data-message-bubble]");
-          if (bubble) return;
-          e.preventDefault();
-          setAreaMenu({ x: e.clientX, y: e.clientY });
-        }}
-      >
-        <ScrollArea className="flex-1" ref={scrollRef}>
-          <div className="py-4">
-            {!activeSessionId ? (
-              <div className="flex items-center justify-center h-full text-muted-foreground text-sm py-20">
-                {t("hermes.chat.noSessions")}
-              </div>
-            ) : (
-              <>
-                {messages
-                  .filter((m) => m.role !== "tool")
-                  .map((msg) => (
-                    <ChatMessageBubble
-                      key={msg.id}
-                      message={msg}
-                      onDelete={(id) => deleteMessage.mutate(id)}
-                      onResend={(content) => void doSendToAgent(content)}
-                    />
-                  ))}
-                {/* Thinking indicator */}
-                {(isSending || isWaiting || (isStreaming && !streamingContent)) && (
-                  <div className="px-3 py-2 text-sm text-muted-foreground animate-pulse">
-                    {t("hermes.chat.thinking")}
+          <ChatSidebar
+            sessions={sessions}
+            activeSessionId={activeSessionId}
+            onSelectSession={setActiveSessionId}
+            onNewSession={handleNewSession}
+            onDeleteSession={handleDeleteSession}
+            onRenameSession={handleRenameSession}
+          />
+          <div
+            className="flex-1 flex flex-col min-w-0"
+            onContextMenu={(e) => {
+              const bubble = (e.target as HTMLElement).closest(
+                "[data-message-bubble]",
+              );
+              if (bubble) return;
+              e.preventDefault();
+              setAreaMenu({ x: e.clientX, y: e.clientY });
+            }}
+          >
+            <ScrollArea className="flex-1" ref={scrollRef}>
+              <div className="py-4">
+                {!activeSessionId ? (
+                  <div className="flex items-center justify-center h-full text-muted-foreground text-sm py-20">
+                    {t("hermes.chat.noSessions")}
                   </div>
-                )}
-                {/* Tool activities during streaming */}
-                {toolActivities.length > 0 && (
-                  <div className="border-l-2 border-muted ml-5 my-2">
-                    {toolActivities.map((activity, i) => (
-                      <ToolActivityBlock key={`${activity.tool}-${i}`} activity={activity} />
-                    ))}
-                  </div>
-                )}
-                {/* Streaming assistant response */}
-                {isStreaming && streamingContent && (
-                  <ChatMessageBubble
-                    message={{
-                      id: "__streaming__",
-                      sessionId: activeSessionId,
-                      role: "assistant",
-                      content: streamingContent,
-                      toolCalls: null,
-                      toolCallId: null,
-                      name: null,
-                      fileRefs: null,
-                      createdAt: Date.now(),
-                    }}
-                  />
-                )}
-                {/* Approval card */}
-                {pendingApproval && (
-                  <ApprovalCard
-                    approval={pendingApproval}
-                    onApprove={handleApprove}
-                    onDeny={handleDeny}
-                  />
-                )}
-              </>
-            )}
-              <div ref={scrollBottomRef} />
-            </div>
-          </ScrollArea>
-          {/* Token usage & compression status bar */}
-          {activeSessionId && messages.length > 0 && (() => {
-            const modelName = lastUsage?.model || selectedModel || "";
-            const displayModel = modelName.replace(/^custom_[^:]+:/, "").replace("__default__", "");
-            const activeModel = chatModels.find((m) => m.id === displayModel || m.id === selectedModel);
-            const estimatedTokens = lastUsage?.inputTokens
-              ? lastUsage.inputTokens + lastUsage.outputTokens
-              : Math.ceil(messages.reduce((s, m) => s + m.content.length, 0) / 4);
-            const contextWindow = activeModel?.contextLength ?? 100000;
-            const pct = Math.min(100, Math.round((estimatedTokens / contextWindow) * 100));
-            const barColor = pct > 80 ? "bg-red-500" : pct > 50 ? "bg-amber-500" : "bg-green-500";
-            return (
-              <div className="flex items-center gap-2 px-3 py-1 text-[10px] font-mono border-t border-border/40 bg-muted/20 text-muted-foreground/60 select-none">
-                {displayModel && <span className="text-muted-foreground/80 truncate max-w-[120px]">{displayModel}</span>}
-                {displayModel && <span className="opacity-30">|</span>}
-                <span title={lastUsage?.inputTokens ? "实际 tokens" : "估算 tokens（1 token ≈ 4 字符）"}>
-                  {lastUsage?.inputTokens ? "" : "~"}{estimatedTokens.toLocaleString()}/{contextWindow >= 1000 ? `${contextWindow / 1000}K` : contextWindow}
-                </span>
-                <div className="flex items-center gap-1">
-                  <div className="w-16 h-1.5 rounded-full bg-muted-foreground/20 overflow-hidden">
-                    <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
-                  </div>
-                  <span>{pct}%</span>
-                </div>
-                {compressionInfo?.wasCompressed && (
+                ) : (
                   <>
-                    <span className="opacity-30">|</span>
-                    <span className="text-amber-500/80" title={`已省略最旧 ${compressionInfo.droppedCount} 条消息`}>
-                      ⚡ -{compressionInfo.droppedCount}
-                    </span>
+                    {messages
+                      .filter((m) => m.role !== "tool")
+                      .map((msg) => (
+                        <ChatMessageBubble
+                          key={msg.id}
+                          message={msg}
+                          onDelete={(id) => deleteMessage.mutate(id)}
+                          onResend={(content) => void doSendToAgent(content)}
+                        />
+                      ))}
+                    {/* Thinking indicator */}
+                    {(isSending ||
+                      isWaiting ||
+                      (isStreaming && !streamingContent)) && (
+                      <div className="px-3 py-2 text-sm text-muted-foreground animate-pulse">
+                        {t("hermes.chat.thinking")}
+                      </div>
+                    )}
+                    {/* Tool activities during streaming */}
+                    {toolActivities.length > 0 && (
+                      <div className="border-l-2 border-muted ml-5 my-2">
+                        {toolActivities.map((activity, i) => (
+                          <ToolActivityBlock
+                            key={`${activity.tool}-${i}`}
+                            activity={activity}
+                          />
+                        ))}
+                      </div>
+                    )}
+                    {/* Streaming assistant response */}
+                    {isStreaming && streamingContent && (
+                      <ChatMessageBubble
+                        message={{
+                          id: "__streaming__",
+                          sessionId: activeSessionId,
+                          role: "assistant",
+                          content: streamingContent,
+                          toolCalls: null,
+                          toolCallId: null,
+                          name: null,
+                          fileRefs: null,
+                          createdAt: Date.now(),
+                        }}
+                      />
+                    )}
+                    {/* Approval card */}
+                    {pendingApproval && (
+                      <ApprovalCard
+                        approval={pendingApproval}
+                        onApprove={handleApprove}
+                        onDeny={handleDeny}
+                      />
+                    )}
                   </>
                 )}
+                <div ref={scrollBottomRef} />
               </div>
-            );
-          })()}
-          <ChatInput
-            onSend={handleSend}
-            onStop={handleStop}
-            isStreaming={isStreaming}
-            disabled={!isOnline || !activeSessionId}
-            favoriteSkills={favoriteSkills}
-            agents={agents}
-            selectedAgentId={selectedAgentId}
-            onSelectAgent={onSelectAgent}
-          />
-        </div>
+            </ScrollArea>
+            {/* Token usage & compression status bar */}
+            {activeSessionId &&
+              messages.length > 0 &&
+              (() => {
+                const modelName = lastUsage?.model || selectedModel || "";
+                const displayModel = modelName
+                  .replace(/^custom_[^:]+:/, "")
+                  .replace("__default__", "");
+                const activeModel = chatModels.find(
+                  (m) => m.id === displayModel || m.id === selectedModel,
+                );
+                const estimatedTokens = lastUsage?.inputTokens
+                  ? lastUsage.inputTokens + lastUsage.outputTokens
+                  : Math.ceil(
+                      messages.reduce((s, m) => s + m.content.length, 0) / 4,
+                    );
+                const contextWindow = activeModel?.contextLength ?? 100000;
+                const pct = Math.min(
+                  100,
+                  Math.round((estimatedTokens / contextWindow) * 100),
+                );
+                const barColor =
+                  pct > 80
+                    ? "bg-red-500"
+                    : pct > 50
+                      ? "bg-amber-500"
+                      : "bg-green-500";
+                return (
+                  <div className="flex items-center gap-2 px-3 py-1 text-[10px] font-mono border-t border-border/40 bg-muted/20 text-muted-foreground/60 select-none">
+                    {displayModel && (
+                      <span className="text-muted-foreground/80 truncate max-w-[120px]">
+                        {displayModel}
+                      </span>
+                    )}
+                    {displayModel && <span className="opacity-30">|</span>}
+                    <span
+                      title={
+                        lastUsage?.inputTokens
+                          ? "实际 tokens"
+                          : "估算 tokens（1 token ≈ 4 字符）"
+                      }
+                    >
+                      {lastUsage?.inputTokens ? "" : "~"}
+                      {estimatedTokens.toLocaleString()}/
+                      {contextWindow >= 1000
+                        ? `${contextWindow / 1000}K`
+                        : contextWindow}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <div className="w-16 h-1.5 rounded-full bg-muted-foreground/20 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${barColor}`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <span>{pct}%</span>
+                    </div>
+                    {compressionInfo?.wasCompressed && (
+                      <>
+                        <span className="opacity-30">|</span>
+                        <span
+                          className="text-amber-500/80"
+                          title={`已省略最旧 ${compressionInfo.droppedCount} 条消息`}
+                        >
+                          ⚡ -{compressionInfo.droppedCount}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
+            <ChatInput
+              onSend={handleSend}
+              onStop={handleStop}
+              isStreaming={isStreaming}
+              disabled={!isOnline || !activeSessionId}
+              favoriteSkills={favoriteSkills}
+              agents={agents}
+              selectedAgentId={selectedAgentId}
+              onSelectAgent={onSelectAgent}
+            />
+          </div>
         </div>
       </div>
 
@@ -521,7 +648,10 @@ export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort, se
         >
           <button
             className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-muted transition-colors text-left text-destructive"
-            onClick={() => { void handleClearMessages(); setAreaMenu(null); }}
+            onClick={() => {
+              void handleClearMessages();
+              setAreaMenu(null);
+            }}
             disabled={!activeSessionId || messages.length === 0}
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -532,4 +662,3 @@ export function ChatPage({ selectedModel, selectedAgentId, selectedAgentPort, se
     </div>
   );
 }
-

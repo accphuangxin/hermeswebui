@@ -37,13 +37,17 @@ export function TaskDetailPanel({
 
   const handleDelete = async () => {
     if (!confirm("确定要删除此任务吗？")) return;
-    await deleteMutation.mutateAsync(task.task_id);
+    const taskId = task.id || task.task_id;
+    if (!taskId) return;
+    await deleteMutation.mutateAsync(taskId);
     onClose();
   };
 
   const handleRetry = async () => {
+    const taskId = task.id || task.task_id;
+    if (!taskId) return;
     await updateMutation.mutateAsync({
-      taskId: task.task_id,
+      taskId,
       input: { status: "ready" },
     });
   };
@@ -57,7 +61,7 @@ export function TaskDetailPanel({
             <div
               className={cn(
                 "w-2 h-2 rounded-full",
-                STATUS_COLORS[task.status as keyof typeof STATUS_COLORS]
+                STATUS_COLORS[task.status as keyof typeof STATUS_COLORS],
               )}
             />
             <span className="text-xs font-medium text-muted-foreground">
@@ -78,33 +82,40 @@ export function TaskDetailPanel({
           <section>
             <h3 className="text-sm font-medium mb-2">基本信息</h3>
             <div className="space-y-2 text-sm">
-              <InfoRow label="任务 ID">{task.task_id}</InfoRow>
+              <InfoRow label="任务 ID">{task.id || task.task_id}</InfoRow>
               <InfoRow label="分配给">{task.assignee || "未分配"}</InfoRow>
               {task.priority !== undefined && (
                 <InfoRow label="优先级">P{task.priority}</InfoRow>
               )}
               <InfoRow label="创建时间">
-                {new Date(task.created_at).toLocaleString("zh-CN")}
+                {typeof task.created_at === "number"
+                  ? new Date(task.created_at * 1000).toLocaleString("zh-CN")
+                  : new Date(task.created_at).toLocaleString("zh-CN")}
               </InfoRow>
               {task.started_at && (
                 <InfoRow label="开始时间">
-                  {new Date(task.started_at).toLocaleString("zh-CN")}
+                  {typeof task.started_at === "number"
+                    ? new Date(task.started_at * 1000).toLocaleString("zh-CN")
+                    : new Date(task.started_at).toLocaleString("zh-CN")}
                 </InfoRow>
               )}
               {task.completed_at && (
                 <InfoRow label="完成时间">
-                  {new Date(task.completed_at).toLocaleString("zh-CN")}
+                  {typeof task.completed_at === "number"
+                    ? new Date(task.completed_at * 1000).toLocaleString("zh-CN")
+                    : new Date(task.completed_at).toLocaleString("zh-CN")}
                 </InfoRow>
               )}
             </div>
           </section>
 
           {/* Dependencies */}
-          {(task.parents.length > 0 || task.children.length > 0) && (
+          {((task.parents && task.parents.length > 0) ||
+            (task.children && task.children.length > 0)) && (
             <section>
               <h3 className="text-sm font-medium mb-2">依赖关系</h3>
               <div className="space-y-2">
-                {task.parents.length > 0 && (
+                {task.parents && task.parents.length > 0 && (
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">
                       依赖任务 ({task.parents.length})
@@ -122,7 +133,7 @@ export function TaskDetailPanel({
                   </div>
                 )}
 
-                {task.children.length > 0 && (
+                {task.children && task.children.length > 0 && (
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">
                       后续任务 ({task.children.length})

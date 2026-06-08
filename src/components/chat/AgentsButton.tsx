@@ -15,7 +15,10 @@ export function AgentsButton({ isActive, onClick }: AgentsButtonProps) {
     <Button
       variant="ghost"
       size="icon"
-      className={cn("h-7 w-7 shrink-0 hover:bg-black/5 dark:hover:bg-white/5", isActive && "text-primary")}
+      className={cn(
+        "h-7 w-7 shrink-0 hover:bg-black/5 dark:hover:bg-white/5",
+        isActive && "text-primary",
+      )}
       title={t("hermes.agents.button", { defaultValue: "智能体" })}
       onClick={onClick}
     >

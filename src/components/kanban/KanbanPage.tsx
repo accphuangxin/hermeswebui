@@ -9,15 +9,27 @@ import { CreateBoardDialog } from "./CreateBoardDialog";
 import { CreateTaskDialog } from "./CreateTaskDialog";
 
 export function KanbanPage() {
-  const [selectedBoardSlug, setSelectedBoardSlug] = useState<string | null>(null);
+  const [selectedBoardSlug, setSelectedBoardSlug] = useState<string | null>(
+    null,
+  );
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [createBoardOpen, setCreateBoardOpen] = useState(false);
   const [createTaskOpen, setCreateTaskOpen] = useState(false);
 
-  const { data: boards = [], isLoading: boardsLoading, refetch: refetchBoards } = useBoards();
-  const { data: tasks = [], isLoading: tasksLoading, refetch: refetchTasks } = useTasks(selectedBoardSlug);
+  const {
+    data: boards = [],
+    isLoading: boardsLoading,
+    refetch: refetchBoards,
+  } = useBoards();
+  const {
+    data: tasks = [],
+    isLoading: tasksLoading,
+    refetch: refetchTasks,
+  } = useTasks(selectedBoardSlug);
 
-  const selectedTask = tasks.find((t) => t.task_id === selectedTaskId);
+  const selectedTask = tasks.find(
+    (t) => (t.id || t.task_id) === selectedTaskId,
+  );
   const selectedBoard = boards.find((b) => b.slug === selectedBoardSlug);
 
   // Auto-select first board if none selected
@@ -26,7 +38,7 @@ export function KanbanPage() {
   }
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full overflow-hidden">
       {/* Left Sidebar - Board List */}
       <BoardSidebar
         boards={boards}
@@ -37,13 +49,13 @@ export function KanbanPage() {
       />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
         <div className="h-14 border-b flex items-center justify-between px-4 shrink-0">
           <div className="flex items-center gap-3">
             <KanbanIcon className="h-5 w-5 text-muted-foreground" />
             <h1 className="text-lg font-semibold">
-              {selectedBoard?.name || "看板管理"}
+              {selectedBoard?.displayName || selectedBoard?.name || "看板管理"}
             </h1>
             {selectedBoard?.description && (
               <span className="text-sm text-muted-foreground">

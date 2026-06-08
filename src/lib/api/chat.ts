@@ -1,5 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { ChatSession, ChatMessage, HermesChatStatus, HermesChatModel } from "@/types";
+import type {
+  ChatSession,
+  ChatMessage,
+  HermesChatStatus,
+  HermesChatModel,
+} from "@/types";
 
 export interface SaveMessageInput {
   id: string;
@@ -102,7 +107,12 @@ export const chatApi = {
     return await invoke("getChatRunStatus", { runId });
   },
 
-  async readFile(path: string): Promise<{ filename: string; content: string; sizeBytes: number; mimeType: string }> {
+  async readFile(path: string): Promise<{
+    filename: string;
+    content: string;
+    sizeBytes: number;
+    mimeType: string;
+  }> {
     return await invoke("readChatFile", { path });
   },
 };

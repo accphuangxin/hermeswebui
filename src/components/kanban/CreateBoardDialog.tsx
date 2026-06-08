@@ -27,8 +27,7 @@ export function CreateBoardDialog({ open, onClose }: CreateBoardDialogProps) {
 
   const createMutation = useCreateBoard();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     if (!slug || !name) return;
 
     await createMutation.mutateAsync({
@@ -47,13 +46,13 @@ export function CreateBoardDialog({ open, onClose }: CreateBoardDialogProps) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>创建新看板</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-4 p-4">
           <div>
             <Label htmlFor="slug">看板标识 (slug) *</Label>
             <Input
@@ -61,7 +60,6 @@ export function CreateBoardDialog({ open, onClose }: CreateBoardDialogProps) {
               value={slug}
               onChange={(e) => setSlug(e.target.value)}
               placeholder="health-family"
-              required
             />
             <p className="text-xs text-muted-foreground mt-1">
               英文字母、数字和连字符，用于 URL
@@ -75,7 +73,6 @@ export function CreateBoardDialog({ open, onClose }: CreateBoardDialogProps) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="家庭健康档案"
-              required
             />
           </div>
 
@@ -107,16 +104,19 @@ export function CreateBoardDialog({ open, onClose }: CreateBoardDialogProps) {
               ))}
             </div>
           </div>
+        </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
-              取消
-            </Button>
-            <Button type="submit" disabled={createMutation.isPending}>
-              创建
-            </Button>
-          </DialogFooter>
-        </form>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            取消
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={!slug || !name || createMutation.isPending}
+          >
+            创建
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

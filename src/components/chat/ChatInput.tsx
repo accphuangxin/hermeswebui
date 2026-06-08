@@ -24,7 +24,16 @@ interface ChatInputProps {
   onSelectAgent?: (agentId: string, port?: number, key?: string) => void;
 }
 
-export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkills = [], agents = [], selectedAgentId, onSelectAgent }: ChatInputProps) {
+export function ChatInput({
+  onSend,
+  onStop,
+  isStreaming,
+  disabled,
+  favoriteSkills = [],
+  agents = [],
+  selectedAgentId,
+  onSelectAgent,
+}: ChatInputProps) {
   const { t } = useTranslation();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [files, setFiles] = useState<ChatFileRef[]>([]);
@@ -53,9 +62,10 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkill
     c.cmd.startsWith(commandFilter || "/"),
   );
 
-  const filteredSkills = favoriteSkills.filter((s) =>
-    s.name.toLowerCase().includes(mentionFilter.toLowerCase()) ||
-    s.directory.toLowerCase().includes(mentionFilter.toLowerCase()),
+  const filteredSkills = favoriteSkills.filter(
+    (s) =>
+      s.name.toLowerCase().includes(mentionFilter.toLowerCase()) ||
+      s.directory.toLowerCase().includes(mentionFilter.toLowerCase()),
   );
 
   const filteredAgents = agents.filter((a) => {
@@ -81,14 +91,20 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkill
   // scroll the highlighted mention item into view
   useEffect(() => {
     if (!showMentions || !mentionMenuRef.current) return;
-    const el = mentionMenuRef.current.querySelectorAll<HTMLButtonElement>("button")[mentionSelectedIndex];
+    const el =
+      mentionMenuRef.current.querySelectorAll<HTMLButtonElement>("button")[
+        mentionSelectedIndex
+      ];
     el?.scrollIntoView({ block: "nearest" });
   }, [mentionSelectedIndex, showMentions]);
 
   // scroll the highlighted agent item into view
   useEffect(() => {
     if (!showAgents || !agentMenuRef.current) return;
-    const el = agentMenuRef.current.querySelectorAll<HTMLButtonElement>("button")[agentSelectedIndex];
+    const el =
+      agentMenuRef.current.querySelectorAll<HTMLButtonElement>("button")[
+        agentSelectedIndex
+      ];
     el?.scrollIntoView({ block: "nearest" });
   }, [agentSelectedIndex, showAgents]);
 
@@ -153,7 +169,8 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkill
     setAgentTriggerPos(-1);
 
     if (onSelectAgent) {
-      const agentId = (agent.isDefault || agent.name === "default") ? "default" : agent.name;
+      const agentId =
+        agent.isDefault || agent.name === "default" ? "default" : agent.name;
       onSelectAgent(agentId, agent.apiServerPort, agent.apiServerKey);
     }
   };
@@ -168,7 +185,9 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkill
       }
       if (e.key === "ArrowUp") {
         e.preventDefault();
-        setAgentSelectedIndex((i) => (i - 1 + filteredAgents.length) % filteredAgents.length);
+        setAgentSelectedIndex(
+          (i) => (i - 1 + filteredAgents.length) % filteredAgents.length,
+        );
         return;
       }
       if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
@@ -192,7 +211,9 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkill
       }
       if (e.key === "ArrowUp") {
         e.preventDefault();
-        setMentionSelectedIndex((i) => (i - 1 + filteredSkills.length) % filteredSkills.length);
+        setMentionSelectedIndex(
+          (i) => (i - 1 + filteredSkills.length) % filteredSkills.length,
+        );
         return;
       }
       if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
@@ -215,7 +236,9 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkill
       }
       if (e.key === "ArrowUp") {
         e.preventDefault();
-        setSelectedIndex((i) => (i - 1 + filteredCommands.length) % filteredCommands.length);
+        setSelectedIndex(
+          (i) => (i - 1 + filteredCommands.length) % filteredCommands.length,
+        );
         return;
       }
       if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
@@ -301,8 +324,12 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkill
     const paths = Array.isArray(selected) ? selected : [selected];
     for (const path of paths) {
       try {
-        const { filename, content, sizeBytes, mimeType } = await chatApi.readFile(path);
-        setFiles((prev) => [...prev, { filename, content, sizeBytes, mimeType, sourcePath: path }]);
+        const { filename, content, sizeBytes, mimeType } =
+          await chatApi.readFile(path);
+        setFiles((prev) => [
+          ...prev,
+          { filename, content, sizeBytes, mimeType, sourcePath: path },
+        ]);
       } catch (err) {
         console.error("Failed to read file:", err);
       }
@@ -317,7 +344,12 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkill
         const base64 = dataUrl.split(",")[1] ?? dataUrl;
         setFiles((prev) => [
           ...prev,
-          { filename, content: base64, sizeBytes: blob.size, mimeType: blob.type },
+          {
+            filename,
+            content: base64,
+            sizeBytes: blob.size,
+            mimeType: blob.type,
+          },
         ]);
         resolve();
       };
@@ -325,28 +357,31 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkill
     });
   };
 
-  const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const items = Array.from(e.clipboardData.items);
+  const handlePaste = useCallback(
+    async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      const items = Array.from(e.clipboardData.items);
 
-    const fileItems = items.filter((item) => item.kind === "file");
-    if (fileItems.length === 0) return;
+      const fileItems = items.filter((item) => item.kind === "file");
+      if (fileItems.length === 0) return;
 
-    e.preventDefault();
-    for (const item of fileItems) {
-      const blob = item.getAsFile();
-      if (!blob) continue;
+      e.preventDefault();
+      for (const item of fileItems) {
+        const blob = item.getAsFile();
+        if (!blob) continue;
 
-      if (item.type.startsWith("image/")) {
-        const ext = item.type.split("/")[1]?.replace("jpeg", "jpg") ?? "png";
-        const filename = `paste_${Date.now()}.${ext}`;
-        await addFileFromBlob(blob, filename);
-      } else {
-        const file = blob as File;
-        const filename = file.name || `paste_${Date.now()}`;
-        await addFileFromBlob(blob, filename);
+        if (item.type.startsWith("image/")) {
+          const ext = item.type.split("/")[1]?.replace("jpeg", "jpg") ?? "png";
+          const filename = `paste_${Date.now()}.${ext}`;
+          await addFileFromBlob(blob, filename);
+        } else {
+          const file = blob as File;
+          const filename = file.name || `paste_${Date.now()}`;
+          await addFileFromBlob(blob, filename);
+        }
       }
-    }
-  }, []);
+    },
+    [],
+  );
 
   const removeFile = (index: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
@@ -368,7 +403,10 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkill
         >
           {filteredAgents.map((a, i) => {
             const name = a.name;
-            const isSelected = (a.isDefault || a.name === "default") ? selectedAgentId === null : a.name === selectedAgentId;
+            const isSelected =
+              a.isDefault || a.name === "default"
+                ? selectedAgentId === null
+                : a.name === selectedAgentId;
             return (
               <button
                 key={a.name}
@@ -381,12 +419,20 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkill
               >
                 <Bot className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
                 <span className="font-medium flex-shrink-0">{name}</span>
-                {isSelected && <span className="text-[10px] text-primary font-medium ml-0.5">●</span>}
+                {isSelected && (
+                  <span className="text-[10px] text-primary font-medium ml-0.5">
+                    ●
+                  </span>
+                )}
                 {a.description && (
-                  <span className="text-muted-foreground text-xs min-w-0 truncate">{a.description}</span>
+                  <span className="text-muted-foreground text-xs min-w-0 truncate">
+                    {a.description}
+                  </span>
                 )}
                 {a.model && (
-                  <span className="text-muted-foreground/50 text-[10px] font-mono ml-auto flex-shrink-0">{a.model}</span>
+                  <span className="text-muted-foreground/50 text-[10px] font-mono ml-auto flex-shrink-0">
+                    {a.model}
+                  </span>
                 )}
               </button>
             );
@@ -413,7 +459,9 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkill
               <Sparkles className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
               <span className="font-medium flex-shrink-0">{s.name}</span>
               {s.description && (
-                <span className="text-muted-foreground text-xs min-w-0 truncate">{s.description}</span>
+                <span className="text-muted-foreground text-xs min-w-0 truncate">
+                  {s.description}
+                </span>
               )}
             </button>
           ))}
@@ -439,7 +487,9 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkill
               <span className="font-mono font-medium text-primary w-24 flex-shrink-0">
                 {c.cmd}
               </span>
-              <span className="text-muted-foreground text-xs truncate">{c.desc}</span>
+              <span className="text-muted-foreground text-xs truncate">
+                {c.desc}
+              </span>
             </button>
           ))}
         </div>
@@ -460,8 +510,13 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkill
                 />
               )}
               <span className="truncate max-w-[120px]">{f.filename}</span>
-              <span className="text-muted-foreground">({formatSize(f.sizeBytes)})</span>
-              <button onClick={() => removeFile(i)} className="hover:text-destructive ml-0.5">
+              <span className="text-muted-foreground">
+                ({formatSize(f.sizeBytes)})
+              </span>
+              <button
+                onClick={() => removeFile(i)}
+                className="hover:text-destructive ml-0.5"
+              >
                 <X className="w-3 h-3" />
               </button>
             </div>
@@ -490,7 +545,12 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, favoriteSkill
           className="flex-1 resize-none rounded-md border bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50 min-h-[36px] max-h-[160px]"
         />
         {isStreaming ? (
-          <Button size="icon" variant="destructive" onClick={onStop} className="h-9 w-9">
+          <Button
+            size="icon"
+            variant="destructive"
+            onClick={onStop}
+            className="h-9 w-9"
+          >
             <Square className="w-4 h-4" />
           </Button>
         ) : (

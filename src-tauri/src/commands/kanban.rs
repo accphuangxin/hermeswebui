@@ -12,13 +12,22 @@ use std::time::Duration;
 #[serde(rename_all = "camelCase")]
 pub struct KanbanBoard {
     pub slug: String,
-    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>, // 新 API 字段
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>, // 旧 API 字段（兼容）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub archived: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -36,7 +45,10 @@ pub struct CreateBoardInput {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct KanbanTask {
-    pub task_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>, // 新 API 字段
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_id: Option<String>, // 旧 API 字段（兼容）
     pub title: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub body: Option<String>,
@@ -45,17 +57,17 @@ pub struct KanbanTask {
     pub assignee: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub priority: Option<i32>,
-    pub created_at: String,
+    pub created_at: serde_json::Value, // 支持数字或字符串
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub started_at: Option<String>,
+    pub started_at: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub completed_at: Option<String>,
+    pub completed_at: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<String>,
-    #[serde(default)]
-    pub parents: Vec<String>,
-    #[serde(default)]
-    pub children: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parents: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub children: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub worker_pid: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -64,6 +76,10 @@ pub struct KanbanTask {
     pub max_retries: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub retry_count: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tenant: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub board: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -200,7 +216,10 @@ async fn kanban_delete(path: &str) -> Result<(), String> {
 #[tauri::command]
 pub async fn listKanbanBoards() -> Result<Vec<KanbanBoard>, String> {
     let val = kanban_get("/v1/boards").await?;
-    serde_json::from_value(val).map_err(|e| format!("parse boards failed: {e}"))
+    // API 返回格式: {"boards": [...]}
+    let boards = val.get("boards")
+        .ok_or_else(|| "missing 'boards' field".to_string())?;
+    serde_json::from_value(boards.clone()).map_err(|e| format!("parse boards failed: {e}"))
 }
 
 /// POST /v1/boards

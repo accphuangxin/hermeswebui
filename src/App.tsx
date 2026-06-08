@@ -94,7 +94,11 @@ import { ChatPage } from "@/components/chat/ChatPage";
 import { KanbanPage } from "@/components/kanban/KanbanPage";
 
 import { HermesAgentsPage } from "@/components/chat/HermesAgentsPage";
-import { useChatStatus, useChatModels, useHermesAgents } from "@/hooks/useHermesChat";
+import {
+  useChatStatus,
+  useChatModels,
+  useHermesAgents,
+} from "@/hooks/useHermesChat";
 import {
   Select,
   SelectContent,
@@ -209,21 +213,27 @@ function App() {
   const { data: hermesChatModels = [] } = useChatModels();
   const { data: hermesAgents = [] } = useHermesAgents();
   const [hermesSelectedModel, setHermesSelectedModel] = useState("");
-  const [hermesSelectedAgentId, setHermesSelectedAgentId] = useState<string>("default");
-  const [hermesSelectedAgentPort, setHermesSelectedAgentPort] = useState<number | null>(null);
-  const [hermesSelectedAgentKey, setHermesSelectedAgentKey] = useState<string | null>(null);
+  const [hermesSelectedAgentId, setHermesSelectedAgentId] =
+    useState<string>("default");
+  const [hermesSelectedAgentPort, setHermesSelectedAgentPort] = useState<
+    number | null
+  >(null);
+  const [hermesSelectedAgentKey, setHermesSelectedAgentKey] = useState<
+    string | null
+  >(null);
   const prevApiHostRef = useRef<string>("");
   useEffect(() => {
     const host = hermesChatStatus?.host ?? "127.0.0.1";
-    const hostChanged = prevApiHostRef.current !== "" && prevApiHostRef.current !== host;
+    const hostChanged =
+      prevApiHostRef.current !== "" && prevApiHostRef.current !== host;
     prevApiHostRef.current = host;
 
     if ((!hermesSelectedModel || hostChanged) && hermesChatModels.length > 0) {
-      const def = hermesChatModels.find((m) => m.isDefault) ?? hermesChatModels[0];
+      const def =
+        hermesChatModels.find((m) => m.isDefault) ?? hermesChatModels[0];
       setHermesSelectedModel(`custom_${def.provider}:${def.id}`);
     }
   }, [hermesChatModels, hermesSelectedModel, hermesChatStatus]);
-
 
   const useAppWindowControls =
     isLinux() && (settingsData?.useAppWindowControls ?? false);
@@ -541,7 +551,6 @@ function App() {
     void syncWindowDecorations();
   }, [useAppWindowControls, settingsData]);
 
-
   useEffect(() => {
     const checkMigration = async () => {
       try {
@@ -587,7 +596,6 @@ function App() {
 
     checkSkillsMigration();
   }, [t, queryClient]);
-
 
   const currentViewRef = useRef(currentView);
 
@@ -894,7 +902,11 @@ function App() {
   };
 
   const renderContent = () => {
-    const isHermesView = currentView === "hermesChat" || currentView === "skills" || currentView === "hermesAgents" || currentView === "hermesKanban";
+    const isHermesView =
+      currentView === "hermesChat" ||
+      currentView === "skills" ||
+      currentView === "hermesAgents" ||
+      currentView === "hermesKanban";
 
     const content = (() => {
       switch (currentView) {
@@ -950,7 +962,10 @@ function App() {
         default:
           return (
             <div className="px-6 flex flex-col flex-1 min-h-0 overflow-hidden">
-              <div ref={mainScrollRef} className="flex-1 overflow-y-auto overflow-x-hidden pb-12 px-1">
+              <div
+                ref={mainScrollRef}
+                className="flex-1 overflow-y-auto overflow-x-hidden pb-12 px-1"
+              >
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={activeApp}
@@ -1019,8 +1034,18 @@ function App() {
     return (
       <>
         {/* Always-mounted hermes views — hidden via CSS to preserve streaming state */}
-        <div className={cn("flex-1 min-h-0 overflow-hidden", !isHermesView && "hidden")}>
-          <div className={cn("flex-1 min-h-0 flex flex-col overflow-hidden h-full", currentView !== "hermesChat" && "hidden")}>
+        <div
+          className={cn(
+            "flex-1 min-h-0 overflow-hidden",
+            !isHermesView && "hidden",
+          )}
+        >
+          <div
+            className={cn(
+              "flex-1 min-h-0 flex flex-col overflow-hidden h-full",
+              currentView !== "hermesChat" && "hidden",
+            )}
+          >
             <ChatPage
               selectedModel={hermesSelectedModel}
               selectedAgentId={hermesSelectedAgentId}
@@ -1030,30 +1055,74 @@ function App() {
                 setHermesSelectedAgentId(id);
                 setHermesSelectedAgentPort(port ?? null);
                 setHermesSelectedAgentKey(key ?? null);
-                void invoke("setActiveHermesAgent", { agentId: id, apiServerPort: port ?? null, apiServerKey: key ?? null }).then(async () => {
-                  const cfg = await invoke<{ host: string; port: number; key: string }>("getHermesApiServerConfig").catch(() => null);
+                void invoke("setActiveHermesAgent", {
+                  agentId: id,
+                  apiServerPort: port ?? null,
+                  apiServerKey: key ?? null,
+                }).then(async () => {
+                  const cfg = await invoke<{
+                    host: string;
+                    port: number;
+                    key: string;
+                  }>("getHermesApiServerConfig").catch(() => null);
                   if (!cfg) return;
                   const newHost = cfg.host;
-                  const newPort = port != null ? String(port) : String(cfg.port);
+                  const newPort =
+                    port != null ? String(port) : String(cfg.port);
                   const newKey = key != null ? key : cfg.key;
                   try {
-                    await invoke("setHermesApiServerConfig", { host: newHost, port: newPort, key: newKey });
+                    await invoke("setHermesApiServerConfig", {
+                      host: newHost,
+                      port: newPort,
+                      key: newKey,
+                    });
                     setHermesSelectedModel("");
-                    queryClient.removeQueries({ queryKey: ["hermesChat", "models"] });
-                    void queryClient.invalidateQueries({ queryKey: ["hermesChat", "status"], refetchType: "all" });
-                    void queryClient.invalidateQueries({ queryKey: ["hermesChat", "models"], refetchType: "all" });
-                    void queryClient.invalidateQueries({ queryKey: ["hermesChat", "agents"], refetchType: "all" });
-                    void queryClient.invalidateQueries({ queryKey: ["skills", "installed"], refetchType: "all" });
-                    void queryClient.invalidateQueries({ queryKey: ["cron"], refetchType: "all" });
-                    toast.success(t("hermes.serverConfig.saved", { defaultValue: "连接配置已保存" }));
+                    queryClient.removeQueries({
+                      queryKey: ["hermesChat", "models"],
+                    });
+                    void queryClient.invalidateQueries({
+                      queryKey: ["hermesChat", "status"],
+                      refetchType: "all",
+                    });
+                    void queryClient.invalidateQueries({
+                      queryKey: ["hermesChat", "models"],
+                      refetchType: "all",
+                    });
+                    void queryClient.invalidateQueries({
+                      queryKey: ["hermesChat", "agents"],
+                      refetchType: "all",
+                    });
+                    void queryClient.invalidateQueries({
+                      queryKey: ["skills", "installed"],
+                      refetchType: "all",
+                    });
+                    void queryClient.invalidateQueries({
+                      queryKey: ["cron"],
+                      refetchType: "all",
+                    });
+                    toast.success(
+                      t("hermes.serverConfig.saved", {
+                        defaultValue: "连接配置已保存",
+                      }),
+                    );
                   } catch (e) {
-                    toast.error(t("hermes.serverConfig.saveFailed", { defaultValue: "保存失败" }), { description: String(e) });
+                    toast.error(
+                      t("hermes.serverConfig.saveFailed", {
+                        defaultValue: "保存失败",
+                      }),
+                      { description: String(e) },
+                    );
                   }
                 });
               }}
             />
           </div>
-          <div className={cn("flex-1 min-h-0 flex flex-col overflow-hidden h-full", currentView !== "skills" && "hidden")}>
+          <div
+            className={cn(
+              "flex-1 min-h-0 flex flex-col overflow-hidden h-full",
+              currentView !== "skills" && "hidden",
+            )}
+          >
             <UnifiedSkillsPanel
               ref={unifiedSkillsPanelRef}
               onOpenDiscovery={() => setCurrentView("skills")}
@@ -1061,36 +1130,84 @@ function App() {
               agentId={hermesSelectedAgentId}
               onSelectAgent={(id) => {
                 setHermesSelectedAgentId(id);
-                void invoke("setActiveHermesAgent", { agentId: id, apiServerPort: null, apiServerKey: null });
-                void queryClient.invalidateQueries({ queryKey: ["skills", "installed", id] });
+                void invoke("setActiveHermesAgent", {
+                  agentId: id,
+                  apiServerPort: null,
+                  apiServerKey: null,
+                });
+                void queryClient.invalidateQueries({
+                  queryKey: ["skills", "installed", id],
+                });
               }}
             />
           </div>
-          <div className={cn("flex-1 min-h-0 flex flex-col overflow-hidden h-full", currentView !== "hermesKanban" && "hidden")}>
+          <div
+            className={cn(
+              "flex-1 min-h-0 flex flex-col overflow-hidden h-full",
+              currentView !== "hermesKanban" && "hidden",
+            )}
+          >
             <KanbanPage />
           </div>
-          <div className={cn("flex-1 min-h-0 flex flex-col overflow-hidden h-full", currentView !== "hermesAgents" && "hidden")}>
+          <div
+            className={cn(
+              "flex-1 min-h-0 flex flex-col overflow-hidden h-full",
+              currentView !== "hermesAgents" && "hidden",
+            )}
+          >
             <HermesAgentsPage
               selectedAgentId={hermesSelectedAgentId}
               onSelectAgent={(id, port, key) => {
                 setHermesSelectedAgentId(id);
                 setHermesSelectedAgentPort(port ?? null);
                 setHermesSelectedAgentKey(key ?? null);
-                void invoke("setActiveHermesAgent", { agentId: id, apiServerPort: port ?? null, apiServerKey: key ?? null }).then(async () => {
-                  const cfg = await invoke<{ host: string; port: number; key: string }>("getHermesApiServerConfig").catch(() => null);
+                void invoke("setActiveHermesAgent", {
+                  agentId: id,
+                  apiServerPort: port ?? null,
+                  apiServerKey: key ?? null,
+                }).then(async () => {
+                  const cfg = await invoke<{
+                    host: string;
+                    port: number;
+                    key: string;
+                  }>("getHermesApiServerConfig").catch(() => null);
                   if (!cfg) return;
                   const newHost = cfg.host;
-                  const newPort = port != null ? String(port) : String(cfg.port);
+                  const newPort =
+                    port != null ? String(port) : String(cfg.port);
                   const newKey = key != null ? key : cfg.key;
                   try {
-                    await invoke("setHermesApiServerConfig", { host: newHost, port: newPort, key: newKey });
-                    void queryClient.invalidateQueries({ queryKey: ["skills", "installed"], refetchType: "all" });
-                    void queryClient.invalidateQueries({ queryKey: ["hermesChat", "status"], refetchType: "all" });
-                    queryClient.removeQueries({ queryKey: ["hermesChat", "models"] });
-                    void queryClient.invalidateQueries({ queryKey: ["hermesChat", "models"], refetchType: "all" });
-                    void queryClient.invalidateQueries({ queryKey: ["cron"], refetchType: "all" });
+                    await invoke("setHermesApiServerConfig", {
+                      host: newHost,
+                      port: newPort,
+                      key: newKey,
+                    });
+                    void queryClient.invalidateQueries({
+                      queryKey: ["skills", "installed"],
+                      refetchType: "all",
+                    });
+                    void queryClient.invalidateQueries({
+                      queryKey: ["hermesChat", "status"],
+                      refetchType: "all",
+                    });
+                    queryClient.removeQueries({
+                      queryKey: ["hermesChat", "models"],
+                    });
+                    void queryClient.invalidateQueries({
+                      queryKey: ["hermesChat", "models"],
+                      refetchType: "all",
+                    });
+                    void queryClient.invalidateQueries({
+                      queryKey: ["cron"],
+                      refetchType: "all",
+                    });
                   } catch (e) {
-                    toast.error(t("hermes.serverConfig.saveFailed", { defaultValue: "保存失败" }), { description: String(e) });
+                    toast.error(
+                      t("hermes.serverConfig.saveFailed", {
+                        defaultValue: "保存失败",
+                      }),
+                      { description: String(e) },
+                    );
                   }
                 });
               }}
@@ -1222,7 +1339,11 @@ function App() {
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 shrink-0"
-                  onClick={() => void queryClient.invalidateQueries({ queryKey: ["hermesAgents"] })}
+                  onClick={() =>
+                    void queryClient.invalidateQueries({
+                      queryKey: ["hermesAgents"],
+                    })
+                  }
                 >
                   <RefreshCw className="w-4 h-4" />
                 </Button>
@@ -1263,7 +1384,10 @@ function App() {
                   <LayoutDashboard className="w-3.5 h-3.5" />
                   {t("kanban.title", { defaultValue: "看板" })}
                 </Button>
-                <UpdateBadge onClick={() => openSettings("general")} showLabel />
+                <UpdateBadge
+                  onClick={() => openSettings("general")}
+                  showLabel
+                />
               </div>
             ) : currentView !== "providers" ? (
               <div className="flex items-center gap-2">
@@ -1304,20 +1428,30 @@ function App() {
                       onChange={(e) => {
                         const newId = e.target.value;
                         setHermesSelectedAgentId(newId);
-                        void invoke("setActiveHermesAgent", { agentId: newId, apiServerPort: null, apiServerKey: null });
-                        void queryClient.invalidateQueries({ queryKey: ["skills", "installed", newId] });
+                        void invoke("setActiveHermesAgent", {
+                          agentId: newId,
+                          apiServerPort: null,
+                          apiServerKey: null,
+                        });
+                        void queryClient.invalidateQueries({
+                          queryKey: ["skills", "installed", newId],
+                        });
                       }}
                       className="text-sm text-foreground focus:outline-none pr-5 bg-transparent border-none cursor-pointer"
                       style={{
-                        WebkitAppearance: 'none',
-                        MozAppearance: 'none',
-                        appearance: 'none',
+                        WebkitAppearance: "none",
+                        MozAppearance: "none",
+                        appearance: "none",
                       }}
                     >
                       <option value="default">default</option>
-                      {hermesAgents.filter((a) => !a.isDefault && a.name !== "default").map((a) => (
-                        <option key={a.name} value={a.name}>{a.name}</option>
-                      ))}
+                      {hermesAgents
+                        .filter((a) => !a.isDefault && a.name !== "default")
+                        .map((a) => (
+                          <option key={a.name} value={a.name}>
+                            {a.name}
+                          </option>
+                        ))}
                     </select>
                     <ChevronDown className="w-3.5 h-3.5 text-muted-foreground pointer-events-none absolute right-3" />
                   </div>
@@ -1381,39 +1515,61 @@ function App() {
           </div>
 
           {/* Center: agent + connection status */}
-          <div className="flex-1 flex items-center justify-center pointer-events-none" {...DRAG_REGION_ATTR} style={{ ...DRAG_REGION_STYLE } as any}>
-            {currentView === "hermesChat" && (() => {
-              const agent = hermesSelectedAgentId ? hermesAgents.find((a) => a.name === hermesSelectedAgentId) : null;
-              const name = agent ? agent.name : null;
-              const description = agent?.description;
-              const online = hermesChatStatus?.online ?? false;
-              return (
-                <button
-                  className="pointer-events-auto flex items-center gap-2 px-3 py-1 rounded-full bg-muted/60 hover:bg-muted transition-colors border border-border max-w-sm"
-                  style={{ WebkitAppRegion: "no-drag" } as any}
-                  onClick={() => setCurrentView("hermesAgents")}
-                >
-                  {online ? (
-                    <Wifi className="w-3 h-3 text-green-500 shrink-0" />
-                  ) : (
-                    <WifiOff className="w-3 h-3 text-destructive shrink-0" />
-                  )}
-                  <span className={cn("text-xs font-medium shrink-0", online ? "text-green-600 dark:text-green-400" : "text-destructive")}>
-                    {online ? t("hermes.chat.connected") : t("hermes.chat.disconnected")}
-                  </span>
-                  {name && name !== "default" && (
-                    <>
-                      <span className="text-muted-foreground/40 text-xs shrink-0">|</span>
-                      <Bot className="w-3 h-3 text-primary shrink-0" />
-                      <span className="text-xs font-medium text-primary shrink-0">{name}</span>
-                      {description && (
-                        <span className="text-[10px] text-muted-foreground truncate">{description}</span>
+          <div
+            className="flex-1 flex items-center justify-center pointer-events-none"
+            {...DRAG_REGION_ATTR}
+            style={{ ...DRAG_REGION_STYLE } as any}
+          >
+            {currentView === "hermesChat" &&
+              (() => {
+                const agent = hermesSelectedAgentId
+                  ? hermesAgents.find((a) => a.name === hermesSelectedAgentId)
+                  : null;
+                const name = agent ? agent.name : null;
+                const description = agent?.description;
+                const online = hermesChatStatus?.online ?? false;
+                return (
+                  <button
+                    className="pointer-events-auto flex items-center gap-2 px-3 py-1 rounded-full bg-muted/60 hover:bg-muted transition-colors border border-border max-w-sm"
+                    style={{ WebkitAppRegion: "no-drag" } as any}
+                    onClick={() => setCurrentView("hermesAgents")}
+                  >
+                    {online ? (
+                      <Wifi className="w-3 h-3 text-green-500 shrink-0" />
+                    ) : (
+                      <WifiOff className="w-3 h-3 text-destructive shrink-0" />
+                    )}
+                    <span
+                      className={cn(
+                        "text-xs font-medium shrink-0",
+                        online
+                          ? "text-green-600 dark:text-green-400"
+                          : "text-destructive",
                       )}
-                    </>
-                  )}
-                </button>
-              );
-            })()}
+                    >
+                      {online
+                        ? t("hermes.chat.connected")
+                        : t("hermes.chat.disconnected")}
+                    </span>
+                    {name && name !== "default" && (
+                      <>
+                        <span className="text-muted-foreground/40 text-xs shrink-0">
+                          |
+                        </span>
+                        <Bot className="w-3 h-3 text-primary shrink-0" />
+                        <span className="text-xs font-medium text-primary shrink-0">
+                          {name}
+                        </span>
+                        {description && (
+                          <span className="text-[10px] text-muted-foreground truncate">
+                            {description}
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </button>
+                );
+              })()}
           </div>
 
           <div className="flex min-w-0 items-center justify-end gap-1.5">
@@ -1456,72 +1612,156 @@ function App() {
                         if (match) {
                           const [, providerId, modelId] = match;
                           try {
-                            await invoke("switchHermesModel", { modelId, providerId });
-                            toast.success(t("hermes.chat.modelSwitched", { model: modelId, provider: providerId, defaultValue: `已切换到 ${modelId} (${providerId})` }));
+                            await invoke("switchHermesModel", {
+                              modelId,
+                              providerId,
+                            });
+                            toast.success(
+                              t("hermes.chat.modelSwitched", {
+                                model: modelId,
+                                provider: providerId,
+                                defaultValue: `已切换到 ${modelId} (${providerId})`,
+                              }),
+                            );
                           } catch (e) {
-                            toast.error(t("hermes.chat.modelSwitchFailed", { defaultValue: "模型切换失败" }), { description: String(e) });
+                            toast.error(
+                              t("hermes.chat.modelSwitchFailed", {
+                                defaultValue: "模型切换失败",
+                              }),
+                              { description: String(e) },
+                            );
                           }
                         }
                       }}
-                      disabled={!hermesChatStatus?.online || hermesChatModels.length === 0}
+                      disabled={
+                        !hermesChatStatus?.online ||
+                        hermesChatModels.length === 0
+                      }
                     >
                       <SelectTrigger className="h-7 w-[240px] text-xs gap-1">
-                        <span className="text-muted-foreground shrink-0">模型</span>
-                        <SelectValue placeholder={t("hermes.chat.selectModel")} />
+                        <span className="text-muted-foreground shrink-0">
+                          模型
+                        </span>
+                        <SelectValue
+                          placeholder={t("hermes.chat.selectModel")}
+                        />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="__default__" className="text-xs">
-                          <span>{t("hermes.chat.defaultModel", { defaultValue: "默认" })}</span>
-                          <span className="ml-2 text-muted-foreground">{t("hermes.chat.defaultModelHint", { defaultValue: "(由服务端决定)" })}</span>
+                          <span>
+                            {t("hermes.chat.defaultModel", {
+                              defaultValue: "默认",
+                            })}
+                          </span>
+                          <span className="ml-2 text-muted-foreground">
+                            {t("hermes.chat.defaultModelHint", {
+                              defaultValue: "(由服务端决定)",
+                            })}
+                          </span>
                         </SelectItem>
                         {hermesChatModels.map((m) => (
-                          <SelectItem key={`${m.provider}/${m.id}`} value={`custom_${m.provider}:${m.id}`} className="text-xs">
+                          <SelectItem
+                            key={`${m.provider}/${m.id}`}
+                            value={`custom_${m.provider}:${m.id}`}
+                            className="text-xs"
+                          >
                             <span>{m.id}</span>
-                            <span className="ml-2 text-muted-foreground">({m.provider})</span>
-                            {m.isDefault && <span className="ml-1.5 text-[10px] text-primary font-medium">●</span>}
+                            <span className="ml-2 text-muted-foreground">
+                              ({m.provider})
+                            </span>
+                            {m.isDefault && (
+                              <span className="ml-1.5 text-[10px] text-primary font-medium">
+                                ●
+                              </span>
+                            )}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                     {(() => {
-                      const nonDefault = hermesAgents.filter((a) => !a.isDefault && a.name !== "default");
+                      const nonDefault = hermesAgents.filter(
+                        (a) => !a.isDefault && a.name !== "default",
+                      );
                       if (nonDefault.length === 0) return null;
                       return (
                         <Select
-                          value={hermesSelectedAgentId === "default" ? "__default__" : hermesSelectedAgentId}
+                          value={
+                            hermesSelectedAgentId === "default"
+                              ? "__default__"
+                              : hermesSelectedAgentId
+                          }
                           onValueChange={(val) => {
-                            const agent = hermesAgents.find((a) => a.name === val);
+                            const agent = hermesAgents.find(
+                              (a) => a.name === val,
+                            );
                             const id = val === "__default__" ? "default" : val;
                             const port = agent?.apiServerPort;
                             const key = agent?.apiServerKey;
                             setHermesSelectedAgentId(id);
                             setHermesSelectedAgentPort(port ?? null);
                             setHermesSelectedAgentKey(key ?? null);
-                            void invoke("setActiveHermesAgent", { agentId: id, apiServerPort: port ?? null, apiServerKey: key ?? null }).then(async () => {
-                              const cfg = await invoke<{ host: string; port: number; key: string }>("getHermesApiServerConfig").catch(() => null);
+                            void invoke("setActiveHermesAgent", {
+                              agentId: id,
+                              apiServerPort: port ?? null,
+                              apiServerKey: key ?? null,
+                            }).then(async () => {
+                              const cfg = await invoke<{
+                                host: string;
+                                port: number;
+                                key: string;
+                              }>("getHermesApiServerConfig").catch(() => null);
                               if (!cfg) return;
-                              const newPort = port != null ? String(port) : String(cfg.port);
+                              const newPort =
+                                port != null ? String(port) : String(cfg.port);
                               const newKey = key != null ? key : cfg.key;
                               try {
-                                await invoke("setHermesApiServerConfig", { host: cfg.host, port: newPort, key: newKey });
+                                await invoke("setHermesApiServerConfig", {
+                                  host: cfg.host,
+                                  port: newPort,
+                                  key: newKey,
+                                });
                                 setHermesSelectedModel("");
-                                queryClient.removeQueries({ queryKey: ["hermesChat", "models"] });
-                                void queryClient.invalidateQueries({ queryKey: ["hermesChat", "status"], refetchType: "all" });
-                                void queryClient.invalidateQueries({ queryKey: ["hermesChat", "models"], refetchType: "all" });
-                                void queryClient.invalidateQueries({ queryKey: ["skills", "installed"], refetchType: "all" });
-                                void queryClient.invalidateQueries({ queryKey: ["cron"], refetchType: "all" });
+                                queryClient.removeQueries({
+                                  queryKey: ["hermesChat", "models"],
+                                });
+                                void queryClient.invalidateQueries({
+                                  queryKey: ["hermesChat", "status"],
+                                  refetchType: "all",
+                                });
+                                void queryClient.invalidateQueries({
+                                  queryKey: ["hermesChat", "models"],
+                                  refetchType: "all",
+                                });
+                                void queryClient.invalidateQueries({
+                                  queryKey: ["skills", "installed"],
+                                  refetchType: "all",
+                                });
+                                void queryClient.invalidateQueries({
+                                  queryKey: ["cron"],
+                                  refetchType: "all",
+                                });
                               } catch {}
                             });
                           }}
                         >
                           <SelectTrigger className="h-7 w-[160px] text-xs gap-1">
-                            <span className="text-muted-foreground shrink-0">智能体</span>
+                            <span className="text-muted-foreground shrink-0">
+                              智能体
+                            </span>
                             <SelectValue placeholder="default" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="__default__" className="text-xs">default</SelectItem>
+                            <SelectItem value="__default__" className="text-xs">
+                              default
+                            </SelectItem>
                             {nonDefault.map((a) => (
-                              <SelectItem key={a.name} value={a.name} className="text-xs">{a.name}</SelectItem>
+                              <SelectItem
+                                key={a.name}
+                                value={a.name}
+                                className="text-xs"
+                              >
+                                {a.name}
+                              </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>

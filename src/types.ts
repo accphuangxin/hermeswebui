@@ -659,7 +659,7 @@ export interface ChatFileRef {
   mimeType: string;
   sizeBytes: number;
   content: string;
-  sourcePath?: string;  // local file path when attached via file picker
+  sourcePath?: string; // local file path when attached via file picker
 }
 
 export interface HermesChatStatus {
@@ -685,15 +685,20 @@ export interface HermesChatModel {
 
 export interface KanbanBoard {
   slug: string;
-  name: string;
+  displayName?: string; // 新 API 字段
+  name?: string; // 旧 API 字段（兼容）
   description?: string;
   icon?: string;
   color?: string;
+  createdAt?: number; // 新 API 字段
+  created_at?: number; // 旧 API 字段（兼容）
+  updatedAt?: number;
+  archived?: boolean;
 }
 
 export interface CreateBoardInput {
   slug: string;
-  name: string;
+  name: string; // 前端统一使用 name，后端会自动映射到 displayName
   description?: string;
   icon?: string;
   color?: string;
@@ -702,22 +707,25 @@ export interface CreateBoardInput {
 export type TaskStatus = "ready" | "running" | "blocked" | "done" | "failed";
 
 export interface KanbanTask {
-  task_id: string;
+  id?: string; // 新 API 字段
+  task_id?: string; // 旧 API 字段（兼容）
   title: string;
   body?: string;
   status: TaskStatus;
   assignee?: string;
   priority?: number;
-  created_at: string;
-  started_at?: string | null;
-  completed_at?: string | null;
+  created_at: number | string; // 支持时间戳和字符串
+  started_at?: number | string | null;
+  completed_at?: number | string | null;
   result?: string | null;
-  parents: string[];
-  children: string[];
+  parents?: string[]; // 可选，某些任务可能没有
+  children?: string[]; // 可选，某些任务可能没有
   worker_pid?: number | null;
   last_heartbeat?: string | null;
   max_retries?: number;
   retry_count?: number;
+  tenant?: string | null;
+  board?: string; // 所属看板
 }
 
 export interface CreateTaskInput {

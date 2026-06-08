@@ -259,7 +259,6 @@ export function SettingsPage({
                 ) : null}
               </TabsContent>
 
-
               <TabsContent value="advanced" className="space-y-6 mt-0 pb-4">
                 {settings ? (
                   <motion.div
@@ -448,7 +447,6 @@ export function SettingsPage({
                   </motion.div>
                 ) : null}
               </TabsContent>
-
 
               <TabsContent value="usage" className="mt-0">
                 <UsageDashboard />

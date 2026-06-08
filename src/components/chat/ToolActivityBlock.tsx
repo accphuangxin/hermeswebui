@@ -21,7 +21,12 @@ export function ToolActivityBlock({ activity }: ToolActivityBlockProps) {
       )}
       {activity.status === "completed" && (
         <span className="ml-auto flex items-center gap-1">
-          <Check className={cn("w-3 h-3", activity.duration !== undefined && "text-green-500")} />
+          <Check
+            className={cn(
+              "w-3 h-3",
+              activity.duration !== undefined && "text-green-500",
+            )}
+          />
           {activity.duration !== undefined && (
             <span>{activity.duration.toFixed(1)}s</span>
           )}

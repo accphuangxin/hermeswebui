@@ -9,13 +9,18 @@
 }
 
 /* Restore non-selectable behavior for interactive controls */
-button, [role="button"], label, [data-tauri-drag-region] {
+button,
+[role="button"],
+label,
+[data-tauri-drag-region] {
   -webkit-user-select: none;
   user-select: none;
 }
 
 /* Inputs and textareas stay selectable/editable */
-input, textarea, select {
+input,
+textarea,
+select {
   -webkit-user-select: text;
   user-select: text;
 }

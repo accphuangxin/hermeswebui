@@ -46,12 +46,14 @@ export function BoardSidebar({
                 className={cn(
                   "w-full text-left px-3 py-2 rounded-md text-sm transition-colors",
                   "hover:bg-accent",
-                  selectedSlug === board.slug && "bg-accent font-medium"
+                  selectedSlug === board.slug && "bg-accent font-medium",
                 )}
               >
                 <div className="flex items-center gap-2">
                   <span className="text-base">{board.icon || "📋"}</span>
-                  <span className="truncate flex-1">{board.name}</span>
+                  <span className="truncate flex-1">
+                    {board.displayName || board.name}
+                  </span>
                 </div>
                 {board.description && (
                   <div className="text-xs text-muted-foreground truncate mt-0.5">

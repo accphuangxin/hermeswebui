@@ -1,15 +1,21 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { chatApi, type SaveMessageInput } from "@/lib/api/chat";
-import { agentsApi, type CreateAgentInput, type UpdateAgentInput } from "@/lib/api/agents";
+import {
+  agentsApi,
+  type CreateAgentInput,
+  type UpdateAgentInput,
+} from "@/lib/api/agents";
 
 export const chatKeys = {
   all: ["hermesChat"] as const,
   status: ["hermesChat", "status"] as const,
   models: ["hermesChat", "models"] as const,
   agents: ["hermesChat", "agents"] as const,
-  sessions: (agentId: string | null) => ["hermesChat", "sessions", agentId] as const,
+  sessions: (agentId: string | null) =>
+    ["hermesChat", "sessions", agentId] as const,
   session: (id: string) => ["hermesChat", "session", id] as const,
-  messages: (sessionId: string) => ["hermesChat", "messages", sessionId] as const,
+  messages: (sessionId: string) =>
+    ["hermesChat", "messages", sessionId] as const,
 };
 
 export function useChatStatus(enabled: boolean) {
@@ -94,8 +100,13 @@ export function useRestartAgent() {
 export function useUpdateAgent() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ agentId, input }: { agentId: string; input: UpdateAgentInput }) =>
-      agentsApi.updateAgent(agentId, input),
+    mutationFn: ({
+      agentId,
+      input,
+    }: {
+      agentId: string;
+      input: UpdateAgentInput;
+    }) => agentsApi.updateAgent(agentId, input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: chatKeys.agents });
     },
@@ -137,7 +148,9 @@ export function useCreateChatSession() {
         params.agentId,
       ),
     onSuccess: (_data, variables) => {
-      void queryClient.invalidateQueries({ queryKey: chatKeys.sessions(variables.agentId ?? null) });
+      void queryClient.invalidateQueries({
+        queryKey: chatKeys.sessions(variables.agentId ?? null),
+      });
     },
   });
 }
@@ -152,7 +165,13 @@ export function useUpdateChatSession() {
       title?: string | null;
       model?: string | null;
       systemPrompt?: string | null;
-    }) => chatApi.updateSession(params.sessionId, params.title, params.model, params.systemPrompt),
+    }) =>
+      chatApi.updateSession(
+        params.sessionId,
+        params.title,
+        params.model,
+        params.systemPrompt,
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: sessionsBaseKey });
     },

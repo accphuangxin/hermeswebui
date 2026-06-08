@@ -34,7 +34,7 @@ export const kanbanApi = {
 
   createTask: async (
     boardSlug: string,
-    input: CreateTaskInput
+    input: CreateTaskInput,
   ): Promise<KanbanTask> => {
     return await invoke("createKanbanTask", { boardSlug, input });
   },
@@ -42,7 +42,7 @@ export const kanbanApi = {
   updateTask: async (
     boardSlug: string,
     taskId: string,
-    input: UpdateTaskInput
+    input: UpdateTaskInput,
   ): Promise<KanbanTask> => {
     return await invoke("updateKanbanTask", { boardSlug, taskId, input });
   },
@@ -62,21 +62,21 @@ export const kanbanApi = {
   linkTasks: async (
     boardSlug: string,
     parentId: string,
-    childId: string
+    childId: string,
   ): Promise<void> => {
     return await invoke("linkKanbanTasks", { boardSlug, parentId, childId });
   },
 
   getParents: async (
     boardSlug: string,
-    taskId: string
+    taskId: string,
   ): Promise<KanbanTask[]> => {
     return await invoke("getTaskParents", { boardSlug, taskId });
   },
 
   getChildren: async (
     boardSlug: string,
-    taskId: string
+    taskId: string,
   ): Promise<KanbanTask[]> => {
     return await invoke("getTaskChildren", { boardSlug, taskId });
   },

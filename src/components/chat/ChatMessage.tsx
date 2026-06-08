@@ -3,8 +3,20 @@ import { useTranslation } from "react-i18next";
 import Markdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { invoke } from "@tauri-apps/api/core";
-import { Copy, Check, User, Bot, Paperclip, Trash2, RotateCcw } from "lucide-react";
-import type { ChatMessage as ChatMessageType, ChatToolCall, ChatFileRef } from "@/types";
+import {
+  Copy,
+  Check,
+  User,
+  Bot,
+  Paperclip,
+  Trash2,
+  RotateCcw,
+} from "lucide-react";
+import type {
+  ChatMessage as ChatMessageType,
+  ChatToolCall,
+  ChatFileRef,
+} from "@/types";
 import { ToolCallBlock } from "./ToolCallBlock";
 import { cn } from "@/lib/utils";
 
@@ -14,23 +26,23 @@ function preprocessMediaLinks(content: string): string {
     /(?<!\()(MEDIA:[^\s"'<>]+\.(?:png|jpg|jpeg|gif|webp|svg|bmp))/gi,
     (_, p) => `![](${p})`,
   );
-  result = result.replace(
-    /(?<!\()(MEDIA:[^\s"'<>]+\.html?)/gi,
-    (_, p) => {
-      const name = p.split("/").pop() ?? "HTML";
-      return `[${name}](${p})`;
-    },
-  );
+  result = result.replace(/(?<!\()(MEDIA:[^\s"'<>]+\.html?)/gi, (_, p) => {
+    const name = p.split("/").pop() ?? "HTML";
+    return `[${name}](${p})`;
+  });
   return result;
 }
 
 function isLocalPath(src: string): boolean {
-  return src.startsWith("MEDIA:") || src.startsWith("file://") || src.startsWith("/");
+  return (
+    src.startsWith("MEDIA:") || src.startsWith("file://") || src.startsWith("/")
+  );
 }
 
 function extractLocalPath(src: string): string {
   if (src.startsWith("MEDIA:")) return src.slice("MEDIA:".length);
-  if (src.startsWith("file://")) return decodeURIComponent(src.slice("file://".length));
+  if (src.startsWith("file://"))
+    return decodeURIComponent(src.slice("file://".length));
   return src;
 }
 
@@ -43,11 +55,25 @@ function LocalImage({ src, alt }: { src: string; alt: string }) {
     const path = extractLocalPath(src);
     invoke<string>("read_local_image", { path })
       .then(setDataUrl)
-      .catch((e) => { setError(true); setErrorMsg(String(e)); console.error("[LocalImage] failed:", path, e); });
+      .catch((e) => {
+        setError(true);
+        setErrorMsg(String(e));
+        console.error("[LocalImage] failed:", path, e);
+      });
   }, [src]);
 
-  if (error) return <span className="text-xs text-muted-foreground italic">[图片加载失败: {errorMsg ?? extractLocalPath(src)}]</span>;
-  if (!dataUrl) return <span className="text-xs text-muted-foreground animate-pulse">加载图片中...</span>;
+  if (error)
+    return (
+      <span className="text-xs text-muted-foreground italic">
+        [图片加载失败: {errorMsg ?? extractLocalPath(src)}]
+      </span>
+    );
+  if (!dataUrl)
+    return (
+      <span className="text-xs text-muted-foreground animate-pulse">
+        加载图片中...
+      </span>
+    );
   return (
     <img
       src={dataUrl}
@@ -71,9 +97,12 @@ function LocalHtml({ path }: { path: string }) {
 
   const filename = path.split("/").pop() ?? "HTML";
 
-  if (error) return (
-    <span className="text-xs text-muted-foreground italic">[HTML 加载失败: {error}]</span>
-  );
+  if (error)
+    return (
+      <span className="text-xs text-muted-foreground italic">
+        [HTML 加载失败: {error}]
+      </span>
+    );
 
   return (
     <div className="my-2 rounded-lg border overflow-hidden">
@@ -81,20 +110,27 @@ function LocalHtml({ path }: { path: string }) {
         className="flex items-center justify-between px-3 py-1.5 bg-muted/50 cursor-pointer select-none"
         onClick={() => setExpanded((v) => !v)}
       >
-        <span className="text-xs font-medium text-muted-foreground">{filename}</span>
-        <span className="text-xs text-muted-foreground">{expanded ? "▲ 收起" : "▼ 展开"}</span>
+        <span className="text-xs font-medium text-muted-foreground">
+          {filename}
+        </span>
+        <span className="text-xs text-muted-foreground">
+          {expanded ? "▲ 收起" : "▼ 展开"}
+        </span>
       </div>
-      {expanded && (
-        html === null
-          ? <div className="p-3 text-xs text-muted-foreground animate-pulse">加载中...</div>
-          : <iframe
-              srcDoc={html}
-              sandbox="allow-scripts allow-same-origin"
-              className="w-full border-0"
-              style={{ height: "400px" }}
-              title={filename}
-            />
-      )}
+      {expanded &&
+        (html === null ? (
+          <div className="p-3 text-xs text-muted-foreground animate-pulse">
+            加载中...
+          </div>
+        ) : (
+          <iframe
+            srcDoc={html}
+            sandbox="allow-scripts allow-same-origin"
+            className="w-full border-0"
+            style={{ height: "400px" }}
+            title={filename}
+          />
+        ))}
     </div>
   );
 }
@@ -127,11 +163,23 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
   const isTool = message.role === "tool";
 
   const toolCalls: ChatToolCall[] = message.toolCalls
-    ? (() => { try { return JSON.parse(message.toolCalls); } catch { return []; } })()
+    ? (() => {
+        try {
+          return JSON.parse(message.toolCalls);
+        } catch {
+          return [];
+        }
+      })()
     : [];
 
   const fileRefs: ChatFileRef[] = message.fileRefs
-    ? (() => { try { return JSON.parse(message.fileRefs); } catch { return []; } })()
+    ? (() => {
+        try {
+          return JSON.parse(message.fileRefs);
+        } catch {
+          return [];
+        }
+      })()
     : [];
 
   const FILE_BLOCK_RE = /<file name="([^"]+)">([\s\S]*?)<\/file>/g;
@@ -160,11 +208,14 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
     setTimeout(() => setCopied(false), 1500);
   }, [isUser, displayContent, message.content]);
 
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    if (!isUser && !isAssistant) return;
-    e.preventDefault();
-    setContextMenu({ x: e.clientX, y: e.clientY });
-  }, [isUser, isAssistant]);
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      if (!isUser && !isAssistant) return;
+      e.preventDefault();
+      setContextMenu({ x: e.clientX, y: e.clientY });
+    },
+    [isUser, isAssistant],
+  );
 
   const closeMenu = useCallback(() => setContextMenu(null), []);
 
@@ -198,9 +249,18 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
           isUser ? "bg-primary/10" : "bg-muted",
         )}
       >
-        {isUser ? <User className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5" />}
+        {isUser ? (
+          <User className="w-3.5 h-3.5" />
+        ) : (
+          <Bot className="w-3.5 h-3.5" />
+        )}
       </div>
-      <div className={cn("flex-1 min-w-0 space-y-1", isUser && "flex flex-col items-end")}>
+      <div
+        className={cn(
+          "flex-1 min-w-0 space-y-1",
+          isUser && "flex flex-col items-end",
+        )}
+      >
         {isUser && (fileRefs.length > 0 || legacyFileChips.length > 0) && (
           <div className="flex flex-wrap gap-1 max-w-[85%] justify-end">
             {fileRefs.map((f, i) => (
@@ -234,13 +294,23 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
           onContextMenu={handleContextMenu}
         >
           {isUser ? (
-            <div className="whitespace-pre-wrap break-words">{displayContent || <span className="opacity-50">{t("hermes.chat.fileOnly", { defaultValue: "(附件)" })}</span>}</div>
+            <div className="whitespace-pre-wrap break-words">
+              {displayContent || (
+                <span className="opacity-50">
+                  {t("hermes.chat.fileOnly", { defaultValue: "(附件)" })}
+                </span>
+              )}
+            </div>
           ) : (
             <div className="prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
               <Markdown
                 remarkPlugins={[remarkGfm]}
                 urlTransform={(url) => {
-                  if (url.startsWith("MEDIA:") || url.startsWith("/") || url.startsWith("file://")) {
+                  if (
+                    url.startsWith("MEDIA:") ||
+                    url.startsWith("/") ||
+                    url.startsWith("file://")
+                  ) {
                     return url;
                   }
                   return defaultUrlTransform(url);
@@ -258,7 +328,10 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
                     };
                     return (
                       <div className="relative group my-1.5">
-                        <pre ref={preRef} className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded p-3 overflow-x-auto text-xs border border-zinc-200 dark:border-zinc-700">
+                        <pre
+                          ref={preRef}
+                          className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded p-3 overflow-x-auto text-xs border border-zinc-200 dark:border-zinc-700"
+                        >
                           {children}
                         </pre>
                         <button
@@ -266,7 +339,11 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
                           onClick={handleCopy}
                           className="absolute top-1.5 right-1.5 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-zinc-600 dark:text-zinc-300"
                         >
-                          {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                          {copied ? (
+                            <Check className="w-3 h-3 text-green-400" />
+                          ) : (
+                            <Copy className="w-3 h-3" />
+                          )}
                         </button>
                       </div>
                     );
@@ -275,14 +352,21 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
                     className ? (
                       <code className="text-xs">{children}</code>
                     ) : (
-                      <code className="bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-700 rounded px-1 py-0.5 text-xs">{children}</code>
+                      <code className="bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-700 rounded px-1 py-0.5 text-xs">
+                        {children}
+                      </code>
                     ),
                   a: ({ href, children }) => {
                     if (href && /MEDIA:[^\s"'<>]+\.html?$/i.test(href)) {
                       return <LocalHtml path={extractLocalPath(href)} />;
                     }
                     return (
-                      <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                      <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary underline"
+                      >
                         {children}
                       </a>
                     );
@@ -293,7 +377,11 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
                       return <LocalImage src={src} alt={alt ?? ""} />;
                     }
                     return (
-                      <img src={src} alt={alt ?? ""} className="max-w-full rounded-lg my-1" />
+                      <img
+                        src={src}
+                        alt={alt ?? ""}
+                        className="max-w-full rounded-lg my-1"
+                      />
                     );
                   },
                 }}
@@ -306,7 +394,10 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
         {(isAssistant || isUser) && message.createdAt > 0 && (
           <div className="opacity-0 group-hover:opacity-100 transition-opacity">
             <span className="text-[10px] text-muted-foreground select-none px-1">
-              {new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              {new Date(message.createdAt).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
             </span>
           </div>
         )}
@@ -332,15 +423,25 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
         >
           <button
             className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-muted transition-colors text-left"
-            onClick={() => { void handleCopy(); closeMenu(); }}
+            onClick={() => {
+              void handleCopy();
+              closeMenu();
+            }}
           >
-            {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+            {copied ? (
+              <Check className="w-3.5 h-3.5" />
+            ) : (
+              <Copy className="w-3.5 h-3.5" />
+            )}
             {t("hermes.chat.copy", { defaultValue: "复制" })}
           </button>
           {isUser && onResend && (
             <button
               className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-muted transition-colors text-left"
-              onClick={() => { onResend(displayContent); closeMenu(); }}
+              onClick={() => {
+                onResend(displayContent);
+                closeMenu();
+              }}
             >
               <RotateCcw className="w-3.5 h-3.5" />
               {t("hermes.chat.resend", { defaultValue: "重发" })}
@@ -351,7 +452,10 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
               <div className="my-1 border-t" />
               <button
                 className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-muted transition-colors text-left text-destructive"
-                onClick={() => { onDelete(message.id); closeMenu(); }}
+                onClick={() => {
+                  onDelete(message.id);
+                  closeMenu();
+                }}
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 {t("hermes.chat.deleteMessage", { defaultValue: "删除" })}

@@ -38,12 +38,30 @@ const SCHEDULE_PRESETS = [
   { label: "每周一 9:00", value: "0 9 * * 1" },
 ];
 
-export function CronJobFormDialog({ open, job, onClose, onSubmit, isPending }: CronJobFormDialogProps) {
+export function CronJobFormDialog({
+  open,
+  job,
+  onClose,
+  onSubmit,
+  isPending,
+}: CronJobFormDialogProps) {
   const { t } = useTranslation();
-  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } =
-    useForm<FormValues>({
-      defaultValues: { name: "", schedule: "0 * * * *", prompt: "", enabled: true, model: "" },
-    });
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<FormValues>({
+    defaultValues: {
+      name: "",
+      schedule: "0 * * * *",
+      prompt: "",
+      enabled: true,
+      model: "",
+    },
+  });
 
   useEffect(() => {
     if (open) {
@@ -70,7 +88,12 @@ export function CronJobFormDialog({ open, job, onClose, onSubmit, isPending }: C
   const enabled = watch("enabled");
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) onClose();
+      }}
+    >
       <DialogContent className="sm:max-w-xl p-0 gap-0 focus:outline-none overflow-hidden">
         <DialogHeader className="px-6 pt-6 pb-4 border-b">
           <DialogTitle className="text-base font-semibold">
@@ -82,7 +105,6 @@ export function CronJobFormDialog({ open, job, onClose, onSubmit, isPending }: C
 
         <form onSubmit={handleSubmit(onValid)}>
           <div className="px-6 py-5 space-y-5">
-
             {/* Name */}
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">
@@ -91,8 +113,14 @@ export function CronJobFormDialog({ open, job, onClose, onSubmit, isPending }: C
               </label>
               <Input
                 {...register("name", { required: true })}
-                placeholder={t("cron.form.namePlaceholder", { defaultValue: "例：每日早报" })}
-                className={cn("h-9", errors.name && "border-destructive focus-visible:ring-destructive")}
+                placeholder={t("cron.form.namePlaceholder", {
+                  defaultValue: "例：每日早报",
+                })}
+                className={cn(
+                  "h-9",
+                  errors.name &&
+                    "border-destructive focus-visible:ring-destructive",
+                )}
                 autoFocus
               />
             </div>
@@ -108,7 +136,8 @@ export function CronJobFormDialog({ open, job, onClose, onSubmit, isPending }: C
                 placeholder="0 8 * * *"
                 className={cn(
                   "h-9 font-mono tracking-wide",
-                  errors.schedule && "border-destructive focus-visible:ring-destructive",
+                  errors.schedule &&
+                    "border-destructive focus-visible:ring-destructive",
                 )}
               />
               <div className="flex flex-wrap gap-2 pt-0.5">
@@ -133,11 +162,14 @@ export function CronJobFormDialog({ open, job, onClose, onSubmit, isPending }: C
               </label>
               <Textarea
                 {...register("prompt", { required: true })}
-                placeholder={t("cron.form.promptPlaceholder", { defaultValue: "输入要定期执行的任务描述..." })}
+                placeholder={t("cron.form.promptPlaceholder", {
+                  defaultValue: "输入要定期执行的任务描述...",
+                })}
                 rows={5}
                 className={cn(
                   "resize-none leading-relaxed",
-                  errors.prompt && "border-destructive focus-visible:ring-destructive",
+                  errors.prompt &&
+                    "border-destructive focus-visible:ring-destructive",
                 )}
               />
             </div>
@@ -153,7 +185,9 @@ export function CronJobFormDialog({ open, job, onClose, onSubmit, isPending }: C
                 </label>
                 <Input
                   {...register("model")}
-                  placeholder={t("cron.form.modelPlaceholder", { defaultValue: "留空使用默认模型" })}
+                  placeholder={t("cron.form.modelPlaceholder", {
+                    defaultValue: "留空使用默认模型",
+                  })}
                   className="h-9"
                 />
               </div>
@@ -168,7 +202,6 @@ export function CronJobFormDialog({ open, job, onClose, onSubmit, isPending }: C
                 />
               </div>
             </div>
-
           </div>
 
           <DialogFooter className="px-6 py-4 border-t bg-muted/20 gap-2">

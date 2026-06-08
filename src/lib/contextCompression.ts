@@ -56,7 +56,10 @@ export function compressContext(
     let tokens = estimateTokens(msg.content);
     if (tokens > MAX_SINGLE_MSG_TOKENS) {
       const maxChars = MAX_SINGLE_MSG_TOKENS * CHARS_PER_TOKEN;
-      msg = { ...msg, content: msg.content.slice(-maxChars) + "\n[... 内容过长已截断]" };
+      msg = {
+        ...msg,
+        content: msg.content.slice(-maxChars) + "\n[... 内容过长已截断]",
+      };
       tokens = MAX_SINGLE_MSG_TOKENS;
     }
     if (accumulated + tokens > KEEP_RECENT_TOKENS) break;

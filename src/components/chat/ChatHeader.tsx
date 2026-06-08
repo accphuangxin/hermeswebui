@@ -87,13 +87,20 @@ export function ChatHeader({
         {/* API Server config popover */}
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
-            <Button size="icon" variant="ghost" className="h-7 w-7" title="API Server 配置">
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7"
+              title="API Server 配置"
+            >
               <Settings2 className="w-3.5 h-3.5" />
             </Button>
           </PopoverTrigger>
           <PopoverContent align="end" className="w-72 p-4 space-y-3">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              {t("hermes.serverConfig.title", { defaultValue: "API Server 配置" })}
+              {t("hermes.serverConfig.title", {
+                defaultValue: "API Server 配置",
+              })}
             </p>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
@@ -121,17 +128,25 @@ export function ChatHeader({
                 type="password"
                 value={apiConfigKey}
                 onChange={(e) => onApiConfigKeyChange(e.target.value)}
-                placeholder={t("hermes.serverConfig.keyPlaceholder", { defaultValue: "留空则不验证" })}
+                placeholder={t("hermes.serverConfig.keyPlaceholder", {
+                  defaultValue: "留空则不验证",
+                })}
                 className="h-8 text-xs"
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") { onApiConfigSave(); setOpen(false); }
+                  if (e.key === "Enter") {
+                    onApiConfigSave();
+                    setOpen(false);
+                  }
                 }}
               />
             </div>
             <Button
               size="sm"
               className="w-full h-8 text-xs"
-              onClick={() => { onApiConfigSave(); setOpen(false); }}
+              onClick={() => {
+                onApiConfigSave();
+                setOpen(false);
+              }}
             >
               {t("common.save", { defaultValue: "保存" })}
             </Button>
@@ -167,9 +182,13 @@ export function ChatHeader({
                 className="text-xs"
               >
                 <span>{m.id}</span>
-                <span className="ml-2 text-muted-foreground">({m.provider})</span>
+                <span className="ml-2 text-muted-foreground">
+                  ({m.provider})
+                </span>
                 {m.isDefault && (
-                  <span className="ml-1.5 text-[10px] text-primary font-medium">●</span>
+                  <span className="ml-1.5 text-[10px] text-primary font-medium">
+                    ●
+                  </span>
                 )}
               </SelectItem>
             ))}

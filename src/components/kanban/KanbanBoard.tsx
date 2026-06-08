@@ -50,10 +50,10 @@ export function KanbanBoard({
   }
 
   return (
-    <div className="flex-1 p-4 overflow-x-auto">
-      <div className="flex gap-4 h-full min-w-max">
+    <div className="flex-1 overflow-auto p-4">
+      <div className="flex gap-3 h-full min-w-max">
         {COLUMNS.map((column) => (
-          <div key={column.status} className="w-[280px] flex flex-col">
+          <div key={column.status} className="w-[240px] flex flex-col shrink-0">
             {/* Column Header */}
             <div className="mb-3 flex items-center gap-2">
               <div className={cn("w-2 h-2 rounded-full", column.color)} />
@@ -71,13 +71,16 @@ export function KanbanBoard({
                     暂无任务
                   </div>
                 ) : (
-                  tasksGrouped[column.status]?.map((task) => (
-                    <TaskCard
-                      key={task.task_id}
-                      task={task}
-                      onClick={() => onSelectTask(task.task_id)}
-                    />
-                  ))
+                  tasksGrouped[column.status]?.map((task) => {
+                    const taskId = task.id || task.task_id || "";
+                    return (
+                      <TaskCard
+                        key={taskId}
+                        task={task}
+                        onClick={() => onSelectTask(taskId)}
+                      />
+                    );
+                  })
                 )}
               </div>
             </ScrollArea>

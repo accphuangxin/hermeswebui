@@ -30,9 +30,14 @@ export function HermesServerConfigSection() {
   const handleSave = async () => {
     try {
       await invoke("setHermesApiServerConfig", { host, port, key });
-      toast.success(t("hermes.serverConfig.saved", { defaultValue: "连接配置已保存" }));
+      toast.success(
+        t("hermes.serverConfig.saved", { defaultValue: "连接配置已保存" }),
+      );
     } catch (e) {
-      toast.error(t("hermes.serverConfig.saveFailed", { defaultValue: "保存失败" }), { description: String(e) });
+      toast.error(
+        t("hermes.serverConfig.saveFailed", { defaultValue: "保存失败" }),
+        { description: String(e) },
+      );
     }
   };
 
@@ -40,10 +45,14 @@ export function HermesServerConfigSection() {
     <section className="space-y-3">
       <header className="space-y-1">
         <h3 className="text-sm font-medium">
-          {t("hermes.serverConfig.title", { defaultValue: "Hermes API Server 配置" })}
+          {t("hermes.serverConfig.title", {
+            defaultValue: "Hermes API Server 配置",
+          })}
         </h3>
         <p className="text-xs text-muted-foreground">
-          {t("hermes.serverConfig.description", { defaultValue: "配置连接到 Hermes API Server 的地址和认证信息" })}
+          {t("hermes.serverConfig.description", {
+            defaultValue: "配置连接到 Hermes API Server 的地址和认证信息",
+          })}
         </p>
       </header>
       <div className="grid grid-cols-2 gap-3 max-w-sm">
@@ -72,7 +81,9 @@ export function HermesServerConfigSection() {
           type="password"
           value={key}
           onChange={(e) => setKey(e.target.value)}
-          placeholder={t("hermes.serverConfig.keyPlaceholder", { defaultValue: "留空则不验证" })}
+          placeholder={t("hermes.serverConfig.keyPlaceholder", {
+            defaultValue: "留空则不验证",
+          })}
           className="h-8 text-sm"
         />
       </div>

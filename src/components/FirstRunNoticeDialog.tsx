@@ -14,13 +14,20 @@ import { useSettingsQuery } from "@/lib/query";
 import { settingsApi } from "@/lib/api";
 
 /** 首次运行欢迎提示：可通过 firstRun 标志自动弹出，也可通过 forceOpen 手动触发 */
-export function FirstRunNoticeDialog({ forceOpen = false, onForceClose }: { forceOpen?: boolean; onForceClose?: () => void }) {
+export function FirstRunNoticeDialog({
+  forceOpen = false,
+  onForceClose,
+}: {
+  forceOpen?: boolean;
+  onForceClose?: () => void;
+}) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { data: settings } = useSettingsQuery();
 
   // 首次运行检查：后端启动时已经决定好要不要弹
-  const isFirstRun = settings != null && settings.firstRunNoticeConfirmed !== true;
+  const isFirstRun =
+    settings != null && settings.firstRunNoticeConfirmed !== true;
 
   // 对话框打开状态：首次运行 或 手动触发
   const isOpen = isFirstRun || forceOpen;

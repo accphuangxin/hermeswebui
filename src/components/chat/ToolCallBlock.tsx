@@ -15,7 +15,11 @@ export function ToolCallBlock({ toolCall, result }: ToolCallBlockProps) {
 
   let formattedArgs = toolCall.function.arguments;
   try {
-    formattedArgs = JSON.stringify(JSON.parse(toolCall.function.arguments), null, 2);
+    formattedArgs = JSON.stringify(
+      JSON.parse(toolCall.function.arguments),
+      null,
+      2,
+    );
   } catch {
     // keep raw string
   }
@@ -27,7 +31,10 @@ export function ToolCallBlock({ toolCall, result }: ToolCallBlockProps) {
         className="flex items-center gap-1.5 w-full px-2 py-1.5 hover:bg-muted/50 rounded-t-md text-left"
       >
         <ChevronRight
-          className={cn("w-3 h-3 transition-transform", expanded && "rotate-90")}
+          className={cn(
+            "w-3 h-3 transition-transform",
+            expanded && "rotate-90",
+          )}
         />
         <Wrench className="w-3 h-3 text-muted-foreground" />
         <span className="font-medium">{toolCall.function.name}</span>
@@ -39,7 +46,9 @@ export function ToolCallBlock({ toolCall, result }: ToolCallBlockProps) {
           </pre>
           {result && (
             <>
-              <div className="text-muted-foreground font-medium">{t("hermes.chat.toolResult")}</div>
+              <div className="text-muted-foreground font-medium">
+                {t("hermes.chat.toolResult")}
+              </div>
               <pre className="bg-muted/50 rounded p-2 overflow-x-auto whitespace-pre-wrap text-[11px]">
                 {result}
               </pre>

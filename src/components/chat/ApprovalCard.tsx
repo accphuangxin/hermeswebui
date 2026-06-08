@@ -9,7 +9,11 @@ interface ApprovalCardProps {
   onDeny: () => void;
 }
 
-export function ApprovalCard({ approval, onApprove, onDeny }: ApprovalCardProps) {
+export function ApprovalCard({
+  approval,
+  onApprove,
+  onDeny,
+}: ApprovalCardProps) {
   const { t } = useTranslation();
 
   let formattedArgs = approval.args;
@@ -34,10 +38,20 @@ export function ApprovalCard({ approval, onApprove, onDeny }: ApprovalCardProps)
         </pre>
       )}
       <div className="flex gap-2">
-        <Button size="sm" variant="default" onClick={onApprove} className="h-7 text-xs">
+        <Button
+          size="sm"
+          variant="default"
+          onClick={onApprove}
+          className="h-7 text-xs"
+        >
           {t("hermes.chat.approve")}
         </Button>
-        <Button size="sm" variant="outline" onClick={onDeny} className="h-7 text-xs">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onDeny}
+          className="h-7 text-xs"
+        >
           {t("hermes.chat.deny")}
         </Button>
       </div>

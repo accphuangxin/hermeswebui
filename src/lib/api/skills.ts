@@ -179,7 +179,11 @@ export const skillsApi = {
   },
 
   /** 切换 Skill 的常用标记（按 agent 隔离） */
-  async toggleFavorite(id: string, isFavorite: boolean, agentId: string): Promise<boolean> {
+  async toggleFavorite(
+    id: string,
+    isFavorite: boolean,
+    agentId: string,
+  ): Promise<boolean> {
     return await invoke("toggle_skill_favorite", { id, isFavorite, agentId });
   },
 
