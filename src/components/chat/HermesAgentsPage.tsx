@@ -179,7 +179,7 @@ export function HermesAgentsPage({
       onClick={() => setContextMenu(null)}
     >
       <div className="flex-1 min-h-0 overflow-hidden px-4 pt-2 pb-4 flex flex-col gap-3">
-        <div className="shrink-0 max-h-[280px] overflow-y-auto">
+        <div className={`overflow-y-auto ${detailAgent || showCreate || editAgent ? "shrink-0 max-h-[380px]" : "flex-1"}`}>
           {isLoading ? (
             <EmptyState pulse>
               {t("common.loading", { defaultValue: "加载中..." })}

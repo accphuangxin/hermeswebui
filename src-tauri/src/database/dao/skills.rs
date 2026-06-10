@@ -23,9 +23,8 @@ impl Database {
             .prepare(
                 "SELECT id, name, description, directory, repo_owner, repo_name, repo_branch,
                         readme_url, enabled_claude, enabled_codex, enabled_gemini, enabled_opencode,
-                        enabled_hermes, installed_at, content_hash, updated_at,
-                        COALESCE(is_favorite, 0)
-                 FROM skills ORDER BY is_favorite DESC, name ASC",
+                        enabled_hermes, installed_at, content_hash, updated_at
+                 FROM skills ORDER BY name ASC",
             )
             .map_err(|e| AppError::Database(e.to_string()))?;
 
@@ -50,7 +49,7 @@ impl Database {
                     installed_at: row.get(13)?,
                     content_hash: row.get(14)?,
                     updated_at: row.get::<_, i64>(15).unwrap_or(0),
-                    is_favorite: row.get::<_, bool>(16).unwrap_or(false),
+                    is_favorite: false, // 由 service 层从 skill_agent_favorites 填充
                 })
             })
             .map_err(|e| AppError::Database(e.to_string()))?;
@@ -70,8 +69,7 @@ impl Database {
             .prepare(
                 "SELECT id, name, description, directory, repo_owner, repo_name, repo_branch,
                         readme_url, enabled_claude, enabled_codex, enabled_gemini, enabled_opencode,
-                        enabled_hermes, installed_at, content_hash, updated_at,
-                        COALESCE(is_favorite, 0)
+                        enabled_hermes, installed_at, content_hash, updated_at
                  FROM skills WHERE id = ?1",
             )
             .map_err(|e| AppError::Database(e.to_string()))?;
@@ -96,7 +94,7 @@ impl Database {
                 installed_at: row.get(13)?,
                 content_hash: row.get(14)?,
                 updated_at: row.get::<_, i64>(15).unwrap_or(0),
-                is_favorite: row.get::<_, bool>(16).unwrap_or(false),
+                is_favorite: false, // 由 service 层从 skill_agent_favorites 填充
             })
         });
 
@@ -114,8 +112,8 @@ impl Database {
             "INSERT OR REPLACE INTO skills
              (id, name, description, directory, repo_owner, repo_name, repo_branch,
               readme_url, enabled_claude, enabled_codex, enabled_gemini, enabled_opencode, enabled_hermes,
-              installed_at, content_hash, updated_at, is_favorite)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
+              installed_at, content_hash, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
             params![
                 skill.id,
                 skill.name,
@@ -133,7 +131,6 @@ impl Database {
                 skill.installed_at,
                 skill.content_hash,
                 skill.updated_at,
-                skill.is_favorite,
             ],
         )
         .map_err(|e| AppError::Database(e.to_string()))?;
@@ -331,8 +328,7 @@ impl Database {
         let mut stmt = conn
             .prepare(&sql)
             .map_err(|e| AppError::Database(e.to_string()))?;
-        let mut param_values: Vec<Box<dyn rusqlite::ToSql>> =
-            vec![Box::new(agent_id.to_string())];
+        let mut param_values: Vec<Box<dyn rusqlite::ToSql>> = vec![Box::new(agent_id.to_string())];
         for id in current_ids {
             param_values.push(Box::new(id.clone()));
         }

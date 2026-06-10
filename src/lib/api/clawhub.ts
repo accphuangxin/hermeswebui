@@ -146,20 +146,35 @@ async function siteSearch(
       summary?: string;
       version?: string | null;
       ownerHandle?: string;
+      stars?: number;
+      downloads?: number;
+      installs?: number;
+      installsAllTime?: number;
+      installsCurrent?: number;
     }>;
   };
-  const skills: ClawHubSkill[] = (data.results ?? []).map((r) => ({
-    _id: r.slug,
-    slug: r.slug,
-    displayName: r.displayName || r.slug,
-    description: r.summary,
-    latestVersion: r.version ?? undefined,
-    ownerHandle: r.ownerHandle,
-    repoOwner: r.ownerHandle,
-    repoName: r.slug,
-    repoBranch: "main",
-    readmeUrl: `https://clawhub.ai/skills/${r.slug}`,
-  }));
+  const skills: ClawHubSkill[] = (data.results ?? []).map((r) => {
+    const installs =
+      typeof r.downloads === "number" ? r.downloads :
+      typeof r.installs === "number" ? r.installs :
+      typeof r.installsCurrent === "number" ? r.installsCurrent :
+      typeof r.installsAllTime === "number" ? r.installsAllTime :
+      undefined;
+    return {
+      _id: r.slug,
+      slug: r.slug,
+      displayName: r.displayName || r.slug,
+      description: r.summary,
+      latestVersion: r.version ?? undefined,
+      ownerHandle: r.ownerHandle,
+      repoOwner: r.ownerHandle,
+      repoName: r.slug,
+      repoBranch: "main",
+      readmeUrl: `https://clawhub.ai/skills/${r.slug}`,
+      stars: typeof r.stars === "number" ? r.stars : undefined,
+      installs,
+    };
+  });
   return { skills, isDone: true };
 }
 

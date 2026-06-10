@@ -1733,7 +1733,7 @@
     },
     "agents": {
       "button": "智能体",
-      "title": "选择智能体",
+      "title": "智能体管理",
       "default": "默认",
       "defaultHint": "由服务端决定",
       "empty": "暂无可用智能体",
@@ -1869,7 +1869,7 @@
     }
   },
   "kanban": {
-    "title": "看板",
+    "title": "任务看板",
     "board": "看板",
     "task": "任务"
   },

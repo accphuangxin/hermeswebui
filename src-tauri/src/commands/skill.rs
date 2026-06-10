@@ -297,7 +297,8 @@ pub fn uninstall_skill_for_app(
     let _ = parse_app_type(&app)?; // 验证参数
 
     // 通过 directory 找到对应的 skill id（旧 API，使用 default agent）
-    let skills = SkillService::get_all_installed(&app_state.db, "default").map_err(|e| e.to_string())?;
+    let skills =
+        SkillService::get_all_installed(&app_state.db, "default").map_err(|e| e.to_string())?;
 
     let skill = skills
         .into_iter()
@@ -454,9 +455,8 @@ pub fn read_skill_files(directory: String) -> Result<Vec<SkillFileEntry>, String
         skill_dir
     } else {
         // 解析 symlink，尝试 ~/.hermes/skills/
-        let hermes_dir = SkillService::get_app_skills_dir(
-            &crate::app_config::AppType::Hermes,
-        ).map_err(|e| e.to_string())?;
+        let hermes_dir = SkillService::get_app_skills_dir(&crate::app_config::AppType::Hermes)
+            .map_err(|e| e.to_string())?;
         let hermes_skill = hermes_dir.join(&directory);
         if hermes_skill.exists() {
             // 如果是 symlink，跟随到真实路径

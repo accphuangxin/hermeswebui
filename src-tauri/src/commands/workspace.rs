@@ -343,6 +343,14 @@ pub async fn write_workspace_file(filename: String, content: String) -> Result<(
 /// `subdir`: "workspace" opens `~/.openclaw/workspace/`,
 ///           "memory" opens `~/.openclaw/workspace/memory/`.
 #[tauri::command]
+pub async fn open_file_path(handle: AppHandle, path: String) -> Result<(), String> {
+    handle
+        .opener()
+        .open_path(&path, None::<String>)
+        .map_err(|e| format!("Failed to open file: {e}"))
+}
+
+#[tauri::command]
 pub async fn open_workspace_directory(handle: AppHandle, subdir: String) -> Result<bool, String> {
     let dir = match subdir.as_str() {
         "memory" => get_openclaw_dir().join("workspace").join("memory"),

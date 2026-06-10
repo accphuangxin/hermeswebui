@@ -59,7 +59,10 @@ async fn cron_get(url: &str) -> Result<serde_json::Value, String> {
     if !auth.is_empty() {
         req = req.header("Authorization", &auth);
     }
-    let resp = req.send().await.map_err(|e| format!("request failed: {e}"))?;
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| format!("request failed: {e}"))?;
     if !resp.status().is_success() {
         let status = resp.status();
         let text = resp.text().await.unwrap_or_default();
@@ -71,11 +74,17 @@ async fn cron_get(url: &str) -> Result<serde_json::Value, String> {
 async fn cron_post(url: &str, body: serde_json::Value) -> Result<serde_json::Value, String> {
     let client = cron_client(10)?;
     let auth = cron_auth_header();
-    let mut req = client.post(url).header("Content-Type", "application/json").body(body.to_string());
+    let mut req = client
+        .post(url)
+        .header("Content-Type", "application/json")
+        .body(body.to_string());
     if !auth.is_empty() {
         req = req.header("Authorization", &auth);
     }
-    let resp = req.send().await.map_err(|e| format!("request failed: {e}"))?;
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| format!("request failed: {e}"))?;
     if !resp.status().is_success() {
         let status = resp.status();
         let text = resp.text().await.unwrap_or_default();
@@ -87,11 +96,17 @@ async fn cron_post(url: &str, body: serde_json::Value) -> Result<serde_json::Val
 async fn cron_patch(url: &str, body: serde_json::Value) -> Result<serde_json::Value, String> {
     let client = cron_client(10)?;
     let auth = cron_auth_header();
-    let mut req = client.patch(url).header("Content-Type", "application/json").body(body.to_string());
+    let mut req = client
+        .patch(url)
+        .header("Content-Type", "application/json")
+        .body(body.to_string());
     if !auth.is_empty() {
         req = req.header("Authorization", &auth);
     }
-    let resp = req.send().await.map_err(|e| format!("request failed: {e}"))?;
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| format!("request failed: {e}"))?;
     if !resp.status().is_success() {
         let status = resp.status();
         let text = resp.text().await.unwrap_or_default();
@@ -107,7 +122,10 @@ async fn cron_delete(url: &str) -> Result<(), String> {
     if !auth.is_empty() {
         req = req.header("Authorization", &auth);
     }
-    let resp = req.send().await.map_err(|e| format!("request failed: {e}"))?;
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| format!("request failed: {e}"))?;
     if !resp.status().is_success() {
         let status = resp.status();
         let text = resp.text().await.unwrap_or_default();
@@ -131,7 +149,8 @@ pub async fn listCronJobs(includeDisabled: Option<bool>) -> Result<Vec<serde_jso
     };
     let val = cron_get(&url).await?;
     // Response: {"jobs": [...]}
-    let jobs = val.get("jobs")
+    let jobs = val
+        .get("jobs")
         .and_then(|v| v.as_array())
         .cloned()
         .unwrap_or_default();
@@ -144,7 +163,9 @@ pub async fn getCronJob(jobId: String) -> Result<serde_json::Value, String> {
     let base = cron_base_url();
     let url = format!("{base}/api/jobs/{jobId}");
     let val = cron_get(&url).await?;
-    val.get("job").cloned().ok_or_else(|| format!("unexpected response: {val}"))
+    val.get("job")
+        .cloned()
+        .ok_or_else(|| format!("unexpected response: {val}"))
 }
 
 /// POST /api/jobs  →  {"job": {...}}
@@ -160,22 +181,39 @@ pub async fn createCronJob(job: CreateCronJobRequest) -> Result<serde_json::Valu
         "model": job.model,
     });
     let val = cron_post(&url, body).await?;
-    val.get("job").cloned().ok_or_else(|| format!("unexpected response: {val}"))
+    val.get("job")
+        .cloned()
+        .ok_or_else(|| format!("unexpected response: {val}"))
 }
 
 /// PATCH /api/jobs/{id}  →  {"job": {...}}
 #[tauri::command]
-pub async fn updateCronJob(jobId: String, job: UpdateCronJobRequest) -> Result<serde_json::Value, String> {
+pub async fn updateCronJob(
+    jobId: String,
+    job: UpdateCronJobRequest,
+) -> Result<serde_json::Value, String> {
     let base = cron_base_url();
     let url = format!("{base}/api/jobs/{jobId}");
     let mut body = serde_json::Map::new();
-    if let Some(v) = job.name    { body.insert("name".into(),     serde_json::json!(v)); }
-    if let Some(v) = job.schedule { body.insert("schedule".into(), serde_json::json!(v)); }
-    if let Some(v) = job.prompt  { body.insert("prompt".into(),   serde_json::json!(v)); }
-    if let Some(v) = job.enabled { body.insert("enabled".into(),  serde_json::json!(v)); }
-    if let Some(v) = job.model   { body.insert("model".into(),    serde_json::json!(v)); }
+    if let Some(v) = job.name {
+        body.insert("name".into(), serde_json::json!(v));
+    }
+    if let Some(v) = job.schedule {
+        body.insert("schedule".into(), serde_json::json!(v));
+    }
+    if let Some(v) = job.prompt {
+        body.insert("prompt".into(), serde_json::json!(v));
+    }
+    if let Some(v) = job.enabled {
+        body.insert("enabled".into(), serde_json::json!(v));
+    }
+    if let Some(v) = job.model {
+        body.insert("model".into(), serde_json::json!(v));
+    }
     let val = cron_patch(&url, serde_json::Value::Object(body)).await?;
-    val.get("job").cloned().ok_or_else(|| format!("unexpected response: {val}"))
+    val.get("job")
+        .cloned()
+        .ok_or_else(|| format!("unexpected response: {val}"))
 }
 
 /// DELETE /api/jobs/{id}
@@ -192,7 +230,9 @@ pub async fn triggerCronJob(jobId: String) -> Result<serde_json::Value, String> 
     let base = cron_base_url();
     let url = format!("{base}/api/jobs/{jobId}");
     let val = cron_get(&url).await?;
-    let job = val.get("job").ok_or_else(|| format!("unexpected response: {val}"))?;
+    let job = val
+        .get("job")
+        .ok_or_else(|| format!("unexpected response: {val}"))?;
 
     let prompt = job["prompt"].as_str().unwrap_or("").to_string();
     let model = job["model"].as_str().map(str::to_string);
@@ -206,11 +246,17 @@ pub async fn triggerCronJob(jobId: String) -> Result<serde_json::Value, String> 
     if let Some(m) = model {
         body["model"] = serde_json::json!(m);
     }
-    let mut req = client.post(&runs_url).header("Content-Type", "application/json").body(body.to_string());
+    let mut req = client
+        .post(&runs_url)
+        .header("Content-Type", "application/json")
+        .body(body.to_string());
     if !api_auth.is_empty() {
         req = req.header("Authorization", &api_auth);
     }
-    let resp = req.send().await.map_err(|e| format!("trigger failed: {e}"))?;
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| format!("trigger failed: {e}"))?;
     if !resp.status().is_success() {
         let status = resp.status();
         let text = resp.text().await.unwrap_or_default();

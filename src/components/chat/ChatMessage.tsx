@@ -30,6 +30,15 @@ function preprocessMediaLinks(content: string): string {
     const name = p.split("/").pop() ?? "HTML";
     return `[${name}](${p})`;
   });
+  // Convert bare absolute file paths (not already inside markdown links) to clickable links
+  // Matches /absolute/path/to/file.ext — excludes paths already wrapped in ()
+  result = result.replace(
+    /(?<!\()(?<!\[)(\/(?:[^\s，。、；：！？\[\]()（）]+)\/[^\s，。、；：！？\[\]()（）]+\.\w+)/g,
+    (_, p) => {
+      const name = p.split("/").pop() ?? p;
+      return `[${name}](${p})`;
+    },
+  );
   return result;
 }
 
@@ -359,6 +368,20 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
                   a: ({ href, children }) => {
                     if (href && /MEDIA:[^\s"'<>]+\.html?$/i.test(href)) {
                       return <LocalHtml path={extractLocalPath(href)} />;
+                    }
+                    // Bare local file path — open with system default app
+                    if (href && (href.startsWith("/") || href.startsWith("file://"))) {
+                      const localPath = extractLocalPath(href);
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => void invoke("open_file_path", { path: localPath })}
+                          className="text-primary underline cursor-pointer hover:opacity-80"
+                          title={localPath}
+                        >
+                          {children}
+                        </button>
+                      );
                     }
                     return (
                       <a

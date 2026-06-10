@@ -706,6 +706,12 @@ export interface CreateBoardInput {
 
 export type TaskStatus = "ready" | "running" | "blocked" | "done" | "failed";
 
+// 任务依赖引用（简化格式）
+export interface TaskRef {
+  id: string;
+  title: string;
+}
+
 export interface KanbanTask {
   id?: string; // 新 API 字段
   task_id?: string; // 旧 API 字段（兼容）
@@ -718,8 +724,8 @@ export interface KanbanTask {
   started_at?: number | string | null;
   completed_at?: number | string | null;
   result?: string | null;
-  parents?: string[]; // 可选，某些任务可能没有
-  children?: string[]; // 可选，某些任务可能没有
+  parents?: TaskRef[]; // API 返回对象数组 [{"id": "...", "title": "..."}]
+  children?: TaskRef[]; // API 返回对象数组 [{"id": "...", "title": "..."}]
   worker_pid?: number | null;
   last_heartbeat?: string | null;
   max_retries?: number;

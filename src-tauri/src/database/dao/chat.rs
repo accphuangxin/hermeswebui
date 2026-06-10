@@ -355,7 +355,10 @@ impl Database {
             .ok();
 
         let affected = conn
-            .execute("DELETE FROM chat_messages WHERE id = ?1", params![message_id])
+            .execute(
+                "DELETE FROM chat_messages WHERE id = ?1",
+                params![message_id],
+            )
             .map_err(|e| AppError::Database(format!("删除 chat message 失败: {e}")))?;
 
         if affected > 0 {

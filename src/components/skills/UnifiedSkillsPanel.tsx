@@ -44,7 +44,6 @@ import type { AppId } from "@/lib/api/types";
 import type { SkillRepo } from "@/lib/api/skills";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { settingsApi, skillsApi } from "@/lib/api";
-import { useHermesAgents } from "@/hooks/useHermesChat";
 import { toast } from "sonner";
 import { ListItemRow } from "@/components/common/ListItemRow";
 import {
@@ -303,7 +302,7 @@ function BrowsePanel({
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Tab bar */}
-      <div className="flex items-center gap-1 px-3 pt-3 pb-2 border-b shrink-0">
+      <div className="h-12 flex items-center gap-1 px-3 border-b shrink-0">
         <div className="flex gap-0.5 rounded-lg bg-muted p-0.5 flex-1">
           <button
             type="button"
@@ -789,7 +788,7 @@ function PublishDialog({ skill, onClose }: PublishDialogProps) {
 const UnifiedSkillsPanel = React.forwardRef<
   UnifiedSkillsPanelHandle,
   UnifiedSkillsPanelProps
->(({ onOpenDiscovery, currentApp, agentId, onSelectAgent }, ref) => {
+>(({ onOpenDiscovery, currentApp, agentId }, ref) => {
   const { t } = useTranslation();
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
@@ -813,12 +812,7 @@ const UnifiedSkillsPanel = React.forwardRef<
     refetch: refetchSkills,
     isFetching: isRefetchingSkills,
   } = useInstalledSkills(agentId);
-  const { data: allAgents = [] } = useHermesAgents();
-  // Only show selector when there are non-default agents
-  const nonDefaultAgents = allAgents.filter(
-    (a) => !a.isDefault && a.name !== "default",
-  );
-  const showAgentSelector = nonDefaultAgents.length > 0;
+  // Removed unused agent selector logic
   const {
     data: skillBackups = [],
     refetch: refetchSkillBackups,
@@ -1082,7 +1076,7 @@ const UnifiedSkillsPanel = React.forwardRef<
       {/* ─── Left: installed list ─── */}
       <div className="w-[46%] min-w-0 flex flex-col border-r overflow-hidden">
         {/* Toolbar */}
-        <div className="flex items-center gap-1 px-3 pt-3 pb-2 border-b shrink-0">
+        <div className="h-12 flex items-center gap-1 px-3 border-b shrink-0">
           <span className="text-xs font-medium text-foreground shrink-0">
             {t("skills.manage")}
             {skills && skills.length > 0 && (

@@ -1312,27 +1312,29 @@ function App() {
             {currentView === "hermesKanban" ? (
               <div className="flex items-center gap-2 flex-1">
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="icon"
                   onClick={() => setCurrentView("hermesChat")}
-                  className="hover:bg-black/5 dark:hover:bg-white/5 shrink-0"
+                  className="mr-2 rounded-lg"
                 >
                   <ArrowLeft className="w-4 h-4" />
                 </Button>
+                <h1 className="text-lg font-semibold">
+                  {t("kanban.title", { defaultValue: "看板管理" })}
+                </h1>
               </div>
             ) : currentView === "hermesAgents" ? (
               <div className="flex items-center gap-2 flex-1">
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="icon"
                   onClick={() => setCurrentView("hermesChat")}
-                  className="hover:bg-black/5 dark:hover:bg-white/5 shrink-0"
+                  className="mr-2 rounded-lg"
                 >
                   <ArrowLeft className="w-4 h-4" />
                 </Button>
-                <Users className="w-4 h-4 text-muted-foreground" />
-                <h1 className="text-sm font-semibold">
-                  {t("hermes.agents.title", { defaultValue: "选择智能体" })}
+                <h1 className="text-lg font-semibold">
+                  {t("hermes.agents.title", { defaultValue: "智能体管理" })}
                 </h1>
                 <div className="flex-1" />
                 <Button

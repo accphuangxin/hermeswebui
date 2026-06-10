@@ -32,9 +32,9 @@ mod schema;
 mod tests;
 
 // DAO 类型导出供外部使用
-pub use dao::{ChatMessage, ChatMessageInput, ChatSession};
 pub(crate) use dao::providers_seed::CLAUDE_DESKTOP_OFFICIAL_PROVIDER_ID;
 pub use dao::FailoverQueueItem;
+pub use dao::{ChatMessage, ChatMessageInput, ChatSession};
 
 use crate::config::get_app_config_dir;
 use crate::error::AppError;

@@ -221,3 +221,21 @@ input[type="password"]::-ms-clear {
   background-color: rgba(255, 255, 255, 0.4);
   color: #fff;
 }
+
+/* ReactFlow: hide selection outline and prevent text selection during drag */
+.react-flow__node.selected > div,
+.react-flow__node.selected {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.react-flow__renderer *,
+.react-flow__renderer {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+
+/* Show handles only on the hovered target node during connection */
+.is-connecting .react-flow__node.show-handles .react-flow__handle {
+  opacity: 1 !important;
+}

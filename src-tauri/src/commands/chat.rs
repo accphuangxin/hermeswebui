@@ -58,8 +58,14 @@ pub fn createChatSession(
 }
 
 #[tauri::command]
-pub fn listChatSessions(state: State<'_, AppState>, agentId: Option<String>) -> Result<Vec<ChatSession>, String> {
-    state.db.list_chat_sessions(agentId.as_deref()).map_err(|e| e.to_string())
+pub fn listChatSessions(
+    state: State<'_, AppState>,
+    agentId: Option<String>,
+) -> Result<Vec<ChatSession>, String> {
+    state
+        .db
+        .list_chat_sessions(agentId.as_deref())
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -130,10 +136,8 @@ pub fn saveChatMessagesBatch(
     sessionId: String,
     messages: Vec<SaveMessageInput>,
 ) -> Result<Vec<ChatMessage>, String> {
-    let batch: Vec<(String, ChatMessageInput)> = messages
-        .into_iter()
-        .map(|m| (m.id, m.input))
-        .collect();
+    let batch: Vec<(String, ChatMessageInput)> =
+        messages.into_iter().map(|m| (m.id, m.input)).collect();
     state
         .db
         .insert_chat_messages_batch(&sessionId, &batch)
@@ -219,7 +223,10 @@ fn write_hermes_env_vars(updates: &[(&str, Option<&str>)]) -> Result<(), String>
     write_env_vars_to(&env_path, updates)
 }
 
-fn write_env_vars_to(env_path: &std::path::Path, updates: &[(&str, Option<&str>)]) -> Result<(), String> {
+fn write_env_vars_to(
+    env_path: &std::path::Path,
+    updates: &[(&str, Option<&str>)],
+) -> Result<(), String> {
     let existing = std::fs::read_to_string(&env_path).unwrap_or_default();
     let keys_to_remove: std::collections::HashSet<String> =
         updates.iter().map(|(k, _)| format!("{k}=")).collect();
@@ -257,7 +264,11 @@ pub fn getHermesApiServerKey() -> String {
 /// Write (or clear) API_SERVER_KEY in ~/.hermes/.env, preserving all other lines.
 #[tauri::command]
 pub fn setHermesApiServerKey(key: String) -> Result<(), String> {
-    let val = if key.is_empty() { None } else { Some(key.as_str()) };
+    let val = if key.is_empty() {
+        None
+    } else {
+        Some(key.as_str())
+    };
     write_hermes_env_vars(&[("API_SERVER_KEY", val)])
 }
 
@@ -300,11 +311,35 @@ pub fn getHermesApiServerConfig() -> HermesApiServerConfig {
 #[tauri::command]
 pub fn setHermesApiServerConfig(host: String, port: String, key: String) -> Result<(), String> {
     let env_path = active_env_path();
-    write_env_vars_to(&env_path, &[
-        ("HERMES_CLIENT_HOST", if host.is_empty() { None } else { Some(host.as_str()) }),
-        ("HERMES_CLIENT_PORT", if port.is_empty() { None } else { Some(port.as_str()) }),
-        ("API_SERVER_KEY",     if key.is_empty()  { None } else { Some(key.as_str()) }),
-    ])
+    write_env_vars_to(
+        &env_path,
+        &[
+            (
+                "HERMES_CLIENT_HOST",
+                if host.is_empty() {
+                    None
+                } else {
+                    Some(host.as_str())
+                },
+            ),
+            (
+                "HERMES_CLIENT_PORT",
+                if port.is_empty() {
+                    None
+                } else {
+                    Some(port.as_str())
+                },
+            ),
+            (
+                "API_SERVER_KEY",
+                if key.is_empty() {
+                    None
+                } else {
+                    Some(key.as_str())
+                },
+            ),
+        ],
+    )
 }
 
 pub(crate) fn read_api_server_config() -> ApiServerConfig {
@@ -316,12 +351,20 @@ pub(crate) fn read_api_server_config() -> ApiServerConfig {
         let api_server = platforms.and_then(|p| p.get("api_server"));
         let extra = api_server.and_then(|a| a.get("extra"));
         let host = read_hermes_env_var("HERMES_CLIENT_HOST")
-            .or_else(|| extra.and_then(|e| e.get("host")).and_then(|v| v.as_str()).map(str::to_string))
+            .or_else(|| {
+                extra
+                    .and_then(|e| e.get("host"))
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string)
+            })
             .unwrap_or_else(|| "127.0.0.1".to_string());
-        let port = active.port
+        let port = active
+            .port
             .or_else(|| read_hermes_env_var("HERMES_CLIENT_PORT").and_then(|v| v.parse().ok()))
             .unwrap_or(8640);
-        let key = active.key.filter(|s| !s.is_empty())
+        let key = active
+            .key
+            .filter(|s| !s.is_empty())
             .unwrap_or_else(read_hermes_env_key);
         return ApiServerConfig { host, port, key };
     }
@@ -337,13 +380,23 @@ pub(crate) fn read_api_server_config() -> ApiServerConfig {
     // Read client-specific override first, then fall back to config.yaml extra.host
     let host = read_env_var_from(&profile_env, "HERMES_CLIENT_HOST")
         .or_else(|| read_hermes_env_var("HERMES_CLIENT_HOST"))
-        .or_else(|| extra.and_then(|e| e.get("host")).and_then(|v| v.as_str()).map(str::to_string))
+        .or_else(|| {
+            extra
+                .and_then(|e| e.get("host"))
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+        })
         .unwrap_or_else(|| "127.0.0.1".to_string());
 
     let port = read_env_var_from(&profile_env, "HERMES_CLIENT_PORT")
         .or_else(|| read_hermes_env_var("HERMES_CLIENT_PORT"))
         .and_then(|v| v.parse::<u16>().ok())
-        .or_else(|| extra.and_then(|e| e.get("port")).and_then(|v| v.as_u64()).map(|p| p as u16))
+        .or_else(|| {
+            extra
+                .and_then(|e| e.get("port"))
+                .and_then(|v| v.as_u64())
+                .map(|p| p as u16)
+        })
         .unwrap_or(8640);
 
     // Key resolution order:
@@ -353,14 +406,28 @@ pub(crate) fn read_api_server_config() -> ApiServerConfig {
     //   4. API_SERVER_KEY in ~/.hermes/.env
     let key = read_env_var_from(&profile_env, "API_SERVER_KEY")
         .filter(|s| !s.is_empty())
-        .or_else(|| extra.and_then(|e| e.get("key")).and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(str::to_string))
-        .or_else(|| api_server.and_then(|a| a.get("key")).and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(str::to_string))
+        .or_else(|| {
+            extra
+                .and_then(|e| e.get("key"))
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+        })
+        .or_else(|| {
+            api_server
+                .and_then(|a| a.get("key"))
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+        })
         .unwrap_or_else(read_hermes_env_key);
 
     ApiServerConfig { host, port, key }
 }
 
-pub(crate) fn build_api_client(timeout_secs: u64) -> Result<(reqwest::Client, String, String), String> {
+pub(crate) fn build_api_client(
+    timeout_secs: u64,
+) -> Result<(reqwest::Client, String, String), String> {
     let cfg = read_api_server_config();
     let base_url = format!("http://{}:{}", cfg.host, cfg.port);
     let auth_header = if cfg.key.is_empty() {
@@ -412,7 +479,11 @@ pub async fn getHermesChatStatus() -> Result<HermesChatStatus, String> {
     if !cfg.key.is_empty() {
         req = req.header("Authorization", format!("Bearer {}", cfg.key));
     }
-    let online = req.send().await.map(|r| r.status().is_success()).unwrap_or(false);
+    let online = req
+        .send()
+        .await
+        .map(|r| r.status().is_success())
+        .unwrap_or(false);
 
     let model_config = hermes_config::get_model_config().ok().flatten();
     let default_model = model_config.as_ref().and_then(|m| m.default.clone());
@@ -430,7 +501,10 @@ pub async fn getHermesChatStatus() -> Result<HermesChatStatus, String> {
 
 /// Fetch the model list from a provider's /v1/models endpoint.
 /// Returns (id, owned_by) pairs on success, empty vec on any failure (non-fatal).
-async fn fetch_remote_models(base_url: &str, api_key: &str) -> Vec<(String, String, Option<u64>, bool)> {
+async fn fetch_remote_models(
+    base_url: &str,
+    api_key: &str,
+) -> Vec<(String, String, Option<u64>, bool)> {
     let url = format!("{}/v1/models", base_url.trim_end_matches('/'));
     let client = match reqwest::Client::builder()
         .timeout(Duration::from_secs(15))
@@ -464,7 +538,10 @@ async fn fetch_remote_models(base_url: &str, api_key: &str) -> Vec<(String, Stri
                         .unwrap_or("api_server")
                         .to_string();
                     let context_window = m.get("context_window").and_then(|v| v.as_u64());
-                    let supports_vision = m.get("supports_vision").and_then(|v| v.as_bool()).unwrap_or(false);
+                    let supports_vision = m
+                        .get("supports_vision")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
                     Some((id, owned_by, context_window, supports_vision))
                 })
                 .collect()
@@ -478,8 +555,14 @@ pub async fn getHermesChatModels() -> Result<Vec<HermesChatModel>, String> {
     let api_base = format!("http://{}:{}", api_cfg.host, api_cfg.port);
 
     let model_config = hermes_config::get_model_config().ok().flatten();
-    let default_model = model_config.as_ref().and_then(|m| m.default.as_deref()).unwrap_or("");
-    let default_provider = model_config.as_ref().and_then(|m| m.provider.as_deref()).unwrap_or("");
+    let default_model = model_config
+        .as_ref()
+        .and_then(|m| m.default.as_deref())
+        .unwrap_or("");
+    let default_provider = model_config
+        .as_ref()
+        .and_then(|m| m.provider.as_deref())
+        .unwrap_or("");
 
     let remote_models = fetch_remote_models(&api_base, &api_cfg.key).await;
 
@@ -487,7 +570,13 @@ pub async fn getHermesChatModels() -> Result<Vec<HermesChatModel>, String> {
         .into_iter()
         .map(|(id, owned_by, context_window, supports_vision)| {
             let is_default = id == default_model && owned_by == default_provider;
-            HermesChatModel { id, provider: owned_by, context_length: context_window, is_default, supports_vision }
+            HermesChatModel {
+                id,
+                provider: owned_by,
+                context_length: context_window,
+                is_default,
+                supports_vision,
+            }
         })
         .collect();
 
@@ -522,20 +611,43 @@ pub fn switchHermesModel(modelId: String, providerId: String) -> Result<String, 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum RunStreamEvent {
-    Delta { content: String },
-    ToolStarted { tool: String, preview: String },
-    ToolCompleted { tool: String, duration: f64, error: bool },
-    ApprovalRequired { tool: String, args: String },
-    Completed { output: String, run_id: String, session_id: String, input_tokens: i64, output_tokens: i64, model: String },
-    Failed { error: String },
-    Error { message: String },
+    Delta {
+        content: String,
+    },
+    ToolStarted {
+        tool: String,
+        preview: String,
+    },
+    ToolCompleted {
+        tool: String,
+        duration: f64,
+        error: bool,
+    },
+    ApprovalRequired {
+        tool: String,
+        args: String,
+    },
+    Completed {
+        output: String,
+        run_id: String,
+        session_id: String,
+        input_tokens: i64,
+        output_tokens: i64,
+        model: String,
+    },
+    Failed {
+        error: String,
+    },
+    Error {
+        message: String,
+    },
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RunFile {
     pub filename: String,
-    pub content: String,   // base64
+    pub content: String, // base64
     pub mime_type: String,
 }
 
@@ -613,10 +725,16 @@ pub fn setActiveHermesAgent(
     if api_server_port.is_some() || api_server_key.as_deref().map_or(false, |s| !s.is_empty()) {
         let port_str = api_server_port.map(|p| p.to_string());
         let profile_env = active_env_path();
-        let _ = write_env_vars_to(&profile_env, &[
-            ("HERMES_CLIENT_PORT", port_str.as_deref()),
-            ("API_SERVER_KEY",     api_server_key.as_deref().filter(|s| !s.is_empty())),
-        ]);
+        let _ = write_env_vars_to(
+            &profile_env,
+            &[
+                ("HERMES_CLIENT_PORT", port_str.as_deref()),
+                (
+                    "API_SERVER_KEY",
+                    api_server_key.as_deref().filter(|s| !s.is_empty()),
+                ),
+            ],
+        );
     }
     Ok(())
 }
@@ -625,8 +743,7 @@ pub fn setActiveHermesAgent(
 #[tauri::command]
 pub fn getHermesSkillsPath() -> String {
     let hermes_dir = crate::hermes_config::get_hermes_dir();
-    let agent_id = crate::store::get_active_hermes_agent()
-        .unwrap_or_else(|| "default".to_string());
+    let agent_id = crate::store::get_active_hermes_agent().unwrap_or_else(|| "default".to_string());
 
     let path = if agent_id == "default" {
         // default agent 使用根目录下的 skills/
@@ -649,17 +766,28 @@ pub async fn getHermesAgents() -> Result<Vec<HermesAgent>, String> {
     let host = read_api_server_config().host;
     let url = format!("http://{host}:8640/v1/agents");
 
-    let resp = client.get(url).send().await.map_err(|e| format!("request failed: {e}"))?;
+    let resp = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| format!("request failed: {e}"))?;
     if !resp.status().is_success() {
         return Err(format!("HTTP {}", resp.status()));
     }
 
-    let body: serde_json::Value = resp.json().await.map_err(|e| format!("parse failed: {e}"))?;
+    let body: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("parse failed: {e}"))?;
 
     // Support both array response and wrapped {"agents": [...]} / {"data": [...]}
     let arr = if body.is_array() {
         body
-    } else if let Some(v) = body.get("agents").or_else(|| body.get("data")).or_else(|| body.get("items")) {
+    } else if let Some(v) = body
+        .get("agents")
+        .or_else(|| body.get("data"))
+        .or_else(|| body.get("items"))
+    {
         v.clone()
     } else {
         return Err(format!("unexpected response shape: {body}"));
@@ -689,13 +817,27 @@ pub async fn createHermesAgent(input: CreateAgentInput) -> Result<HermesAgent, S
     let url = format!("http://{host}:8640/v1/agents");
 
     let mut body = serde_json::json!({ "name": input.name });
-    if let Some(v) = input.description { body["description"] = serde_json::json!(v); }
-    if let Some(v) = input.soul       { body["soul"] = serde_json::json!(v); }
-    if let Some(v) = input.clone      { body["clone"] = serde_json::json!(v); }
-    if let Some(v) = input.api_server_port { body["api_server_port"] = serde_json::json!(v); }
-    if let Some(v) = input.api_server_key  { body["api_server_key"] = serde_json::json!(v); }
+    if let Some(v) = input.description {
+        body["description"] = serde_json::json!(v);
+    }
+    if let Some(v) = input.soul {
+        body["soul"] = serde_json::json!(v);
+    }
+    if let Some(v) = input.clone {
+        body["clone"] = serde_json::json!(v);
+    }
+    if let Some(v) = input.api_server_port {
+        body["api_server_port"] = serde_json::json!(v);
+    }
+    if let Some(v) = input.api_server_key {
+        body["api_server_key"] = serde_json::json!(v);
+    }
 
-    let resp = client.post(&url).json(&body).send().await
+    let resp = client
+        .post(&url)
+        .json(&body)
+        .send()
+        .await
         .map_err(|e| format!("request failed: {e}"))?;
     if !resp.status().is_success() {
         let status = resp.status();
@@ -703,7 +845,9 @@ pub async fn createHermesAgent(input: CreateAgentInput) -> Result<HermesAgent, S
         return Err(format!("HTTP {status}: {text}"));
     }
 
-    resp.json::<HermesAgent>().await.map_err(|e| format!("deserialize failed: {e}"))
+    resp.json::<HermesAgent>()
+        .await
+        .map_err(|e| format!("deserialize failed: {e}"))
 }
 
 #[tauri::command]
@@ -716,8 +860,13 @@ pub async fn deleteHermesAgent(agent_id: String) -> Result<(), String> {
     let cfg = read_api_server_config();
     let url = format!("http://{}:8640/v1/agents/{agent_id}", cfg.host);
     let mut req = client.delete(&url);
-    if !cfg.key.is_empty() { req = req.bearer_auth(&cfg.key); }
-    let resp = req.send().await.map_err(|e| format!("request failed: {e}"))?;
+    if !cfg.key.is_empty() {
+        req = req.bearer_auth(&cfg.key);
+    }
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| format!("request failed: {e}"))?;
     if !resp.status().is_success() {
         let status = resp.status();
         let text = resp.text().await.unwrap_or_default();
@@ -750,8 +899,13 @@ async fn agent_lifecycle_action(agent_id: &str, action: &str) -> Result<(), Stri
     let cfg = read_api_server_config();
     let url = format!("http://{}:8640/v1/agents/{agent_id}/{action}", cfg.host);
     let mut req = client.post(&url);
-    if !cfg.key.is_empty() { req = req.bearer_auth(&cfg.key); }
-    let resp = req.send().await.map_err(|e| format!("request failed: {e}"))?;
+    if !cfg.key.is_empty() {
+        req = req.bearer_auth(&cfg.key);
+    }
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| format!("request failed: {e}"))?;
     if !resp.status().is_success() {
         let status = resp.status();
         let text = resp.text().await.unwrap_or_default();
@@ -771,7 +925,10 @@ pub struct UpdateAgentInput {
 }
 
 #[tauri::command]
-pub async fn updateHermesAgent(agent_id: String, input: UpdateAgentInput) -> Result<HermesAgent, String> {
+pub async fn updateHermesAgent(
+    agent_id: String,
+    input: UpdateAgentInput,
+) -> Result<HermesAgent, String> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(15))
         .no_proxy()
@@ -781,22 +938,41 @@ pub async fn updateHermesAgent(agent_id: String, input: UpdateAgentInput) -> Res
     let url = format!("http://{}:8640/v1/agents/{agent_id}", cfg.host);
 
     let mut body = serde_json::json!({});
-    if let Some(v) = input.description    { body["description"] = serde_json::json!(v); }
-    if let Some(v) = input.soul          { body["soul"] = serde_json::json!(v); }
-    if let Some(v) = input.model         { body["model"] = serde_json::json!(v); }
-    if let Some(v) = input.provider      { body["provider"] = serde_json::json!(v); }
-    if let Some(v) = input.api_server_port { body["api_server_port"] = serde_json::json!(v); }
-    if let Some(v) = input.api_server_key  { body["api_server_key"] = serde_json::json!(v); }
+    if let Some(v) = input.description {
+        body["description"] = serde_json::json!(v);
+    }
+    if let Some(v) = input.soul {
+        body["soul"] = serde_json::json!(v);
+    }
+    if let Some(v) = input.model {
+        body["model"] = serde_json::json!(v);
+    }
+    if let Some(v) = input.provider {
+        body["provider"] = serde_json::json!(v);
+    }
+    if let Some(v) = input.api_server_port {
+        body["api_server_port"] = serde_json::json!(v);
+    }
+    if let Some(v) = input.api_server_key {
+        body["api_server_key"] = serde_json::json!(v);
+    }
 
     let mut req = client.patch(&url).json(&body);
-    if !cfg.key.is_empty() { req = req.bearer_auth(&cfg.key); }
-    let resp = req.send().await.map_err(|e| format!("request failed: {e}"))?;
+    if !cfg.key.is_empty() {
+        req = req.bearer_auth(&cfg.key);
+    }
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| format!("request failed: {e}"))?;
     if !resp.status().is_success() {
         let status = resp.status();
         let text = resp.text().await.unwrap_or_default();
         return Err(format!("HTTP {status}: {text}"));
     }
-    resp.json::<HermesAgent>().await.map_err(|e| format!("deserialize failed: {e}"))
+    resp.json::<HermesAgent>()
+        .await
+        .map_err(|e| format!("deserialize failed: {e}"))
 }
 
 #[derive(Serialize)]
@@ -833,7 +1009,10 @@ pub async fn startChatRun(
     // - no files                → plain input
     let mut body = {
         let has_attachments = !request.attachments.is_empty();
-        let has_inline_images = request.files.iter().any(|f| f.mime_type.starts_with("image/"));
+        let has_inline_images = request
+            .files
+            .iter()
+            .any(|f| f.mime_type.starts_with("image/"));
 
         if has_attachments {
             serde_json::json!({
@@ -841,9 +1020,8 @@ pub async fn startChatRun(
                 "attachments": request.attachments,
             })
         } else if has_inline_images {
-            let mut content: Vec<serde_json::Value> = vec![
-                serde_json::json!({ "type": "text", "text": request.input }),
-            ];
+            let mut content: Vec<serde_json::Value> =
+                vec![serde_json::json!({ "type": "text", "text": request.input })];
             for f in &request.files {
                 if f.mime_type.starts_with("image/") {
                     content.push(serde_json::json!({
@@ -879,7 +1057,15 @@ pub async fn startChatRun(
                     for item in content.iter_mut() {
                         if item["type"] == "image_url" {
                             if let Some(url) = item["image_url"]["url"].as_str() {
-                                let truncated = format!("{}...[{}chars]", &url[..url.find(',').map(|i| i + 1).unwrap_or(50).min(url.len())], url.len());
+                                let truncated = format!(
+                                    "{}...[{}chars]",
+                                    &url[..url
+                                        .find(',')
+                                        .map(|i| i + 1)
+                                        .unwrap_or(50)
+                                        .min(url.len())],
+                                    url.len()
+                                );
                                 item["image_url"]["url"] = serde_json::json!(truncated);
                             }
                         }
@@ -887,7 +1073,10 @@ pub async fn startChatRun(
                 }
             }
         }
-        log::info!("[startChatRun] request body (image truncated): {}", debug_body);
+        log::info!(
+            "[startChatRun] request body (image truncated): {}",
+            debug_body
+        );
     }
 
     // POST /v1/runs — create run
@@ -911,7 +1100,7 @@ pub async fn startChatRun(
         } else {
             let raw = auth_header.trim_start_matches("Bearer ");
             if raw.len() > 8 {
-                format!("{}...{}", &raw[..4], &raw[raw.len()-4..])
+                format!("{}...{}", &raw[..4], &raw[raw.len() - 4..])
             } else {
                 raw.to_string()
             }
@@ -925,10 +1114,13 @@ pub async fn startChatRun(
                         for item in content.iter_mut() {
                             if item["type"] == "image_url" {
                                 if let Some(url) = item["image_url"]["url"].as_str() {
-                                    let prefix_end = url.find(',').map(|i| i + 1).unwrap_or(50).min(url.len());
-                                    item["image_url"]["url"] = serde_json::json!(
-                                        format!("{}...[{}chars total]", &url[..prefix_end], url.len())
-                                    );
+                                    let prefix_end =
+                                        url.find(',').map(|i| i + 1).unwrap_or(50).min(url.len());
+                                    item["image_url"]["url"] = serde_json::json!(format!(
+                                        "{}...[{}chars total]",
+                                        &url[..prefix_end],
+                                        url.len()
+                                    ));
                                 }
                             }
                         }
@@ -937,7 +1129,9 @@ pub async fn startChatRun(
             }
             b.to_string()
         };
-        return Err(format!("HTTP {status}: {text}\nURL: {url}\nKey: {key_display}\nBody: {body_preview}"));
+        return Err(format!(
+            "HTTP {status}: {text}\nURL: {url}\nKey: {key_display}\nBody: {body_preview}"
+        ));
     }
 
     let create_resp: serde_json::Value = resp
@@ -1044,11 +1238,11 @@ pub async fn startChatRun(
                     }
                     "run.completed" => {
                         let output = json["output"].as_str().unwrap_or("").to_string();
-                        let session_id =
-                            json["session_id"].as_str().unwrap_or("").to_string();
+                        let session_id = json["session_id"].as_str().unwrap_or("").to_string();
                         let input_tokens = json["usage"]["input_tokens"].as_i64().unwrap_or(0);
                         let output_tokens = json["usage"]["output_tokens"].as_i64().unwrap_or(0);
-                        let completed_model = json["model"].as_str().unwrap_or(&log_model).to_string();
+                        let completed_model =
+                            json["model"].as_str().unwrap_or(&log_model).to_string();
 
                         // Notify frontend first — DB write must not delay the response
                         let _ = on_event.send(RunStreamEvent::Completed {
@@ -1061,11 +1255,26 @@ pub async fn startChatRun(
                         });
                         if input_tokens > 0 || output_tokens > 0 {
                             let req_id = format!("hermes-{}", run_id_clone);
-                            let model = if log_model.is_empty() { "unknown".to_string() } else { log_model.clone() };
-                            let provider = if log_provider.is_empty() { "hermes".to_string() } else { log_provider.clone() };
+                            let model = if log_model.is_empty() {
+                                "unknown".to_string()
+                            } else {
+                                log_model.clone()
+                            };
+                            let provider = if log_provider.is_empty() {
+                                "hermes".to_string()
+                            } else {
+                                log_provider.clone()
+                            };
                             let db_clone = db.clone();
                             tauri::async_runtime::spawn_blocking(move || {
-                                if let Err(e) = db_clone.log_hermes_run(&req_id, &provider, &model, input_tokens, output_tokens, started_at) {
+                                if let Err(e) = db_clone.log_hermes_run(
+                                    &req_id,
+                                    &provider,
+                                    &model,
+                                    input_tokens,
+                                    output_tokens,
+                                    started_at,
+                                ) {
                                     log::warn!("Failed to log hermes run: {e}");
                                 }
                             });
@@ -1073,14 +1282,12 @@ pub async fn startChatRun(
                         return;
                     }
                     "run.failed" => {
-                        let error =
-                            json["error"].as_str().unwrap_or("run failed").to_string();
+                        let error = json["error"].as_str().unwrap_or("run failed").to_string();
                         let _ = on_event.send(RunStreamEvent::Failed { error });
                         return;
                     }
                     "run.stopped" => {
-                        let session_id =
-                            json["session_id"].as_str().unwrap_or("").to_string();
+                        let session_id = json["session_id"].as_str().unwrap_or("").to_string();
                         let _ = on_event.send(RunStreamEvent::Completed {
                             output: String::new(),
                             run_id: run_id_clone.clone(),
@@ -1212,11 +1419,23 @@ pub fn readChatFile(path: String) -> Result<ChatFileContent, String> {
 
     let (content, mime_type) = match ext.as_str() {
         "pdf" => (extract_pdf(&path)?, "application/pdf".to_string()),
-        "docx" => (extract_docx(&path)?, "application/vnd.openxmlformats-officedocument.wordprocessingml.document".to_string()),
+        "docx" => (
+            extract_docx(&path)?,
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document".to_string(),
+        ),
         "doc" => (extract_doc_legacy(&path)?, "application/msword".to_string()),
-        "xlsx" | "xls" => (extract_excel(&path)?, "application/vnd.ms-excel".to_string()),
-        "pptx" => (extract_pptx(&path)?, "application/vnd.openxmlformats-officedocument.presentationml.presentation".to_string()),
-        "ppt" => (extract_ppt_legacy(&path)?, "application/vnd.ms-powerpoint".to_string()),
+        "xlsx" | "xls" => (
+            extract_excel(&path)?,
+            "application/vnd.ms-excel".to_string(),
+        ),
+        "pptx" => (
+            extract_pptx(&path)?,
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation".to_string(),
+        ),
+        "ppt" => (
+            extract_ppt_legacy(&path)?,
+            "application/vnd.ms-powerpoint".to_string(),
+        ),
         "png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp" => {
             let mime = match ext.as_str() {
                 "jpg" | "jpeg" => "image/jpeg",
@@ -1232,8 +1451,7 @@ pub fn readChatFile(path: String) -> Result<ChatFileContent, String> {
             (b64, mime.to_string())
         }
         _ => (
-            std::fs::read_to_string(&path)
-                .map_err(|e| format!("cannot read file as text: {e}"))?,
+            std::fs::read_to_string(&path).map_err(|e| format!("cannot read file as text: {e}"))?,
             "text/plain".to_string(),
         ),
     };
@@ -1353,7 +1571,13 @@ fn extract_text_from_binary(bytes: &[u8]) -> String {
         if chunk.len() == 2 {
             let ch = u16::from_le_bytes([chunk[0], chunk[1]]);
             if let Some(c) = char::from_u32(ch as u32) {
-                if c.is_alphanumeric() || c.is_whitespace() || ".,;:!?()-/\"'、。，；：！？（）—\u{4e00}\u{9fff}".contains(c) || ('\u{4e00}'..='\u{9fff}').contains(&c) || ('\u{3000}'..='\u{303f}').contains(&c) || ('\u{ff00}'..='\u{ffef}').contains(&c) {
+                if c.is_alphanumeric()
+                    || c.is_whitespace()
+                    || ".,;:!?()-/\"'、。，；：！？（）—\u{4e00}\u{9fff}".contains(c)
+                    || ('\u{4e00}'..='\u{9fff}').contains(&c)
+                    || ('\u{3000}'..='\u{303f}').contains(&c)
+                    || ('\u{ff00}'..='\u{ffef}').contains(&c)
+                {
                     current.push(c);
                 } else if !current.is_empty() {
                     if current.trim().len() >= 2 {

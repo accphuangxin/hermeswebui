@@ -1733,7 +1733,7 @@
     },
     "agents": {
       "button": "Agents",
-      "title": "Select Agent",
+      "title": "Agent Management",
       "default": "Default",
       "defaultHint": "Determined by server",
       "empty": "No agents available",
@@ -1869,7 +1869,7 @@
     }
   },
   "kanban": {
-    "title": "Kanban",
+    "title": "Task Board",
     "board": "Board",
     "task": "Task"
   },

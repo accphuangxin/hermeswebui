@@ -33,7 +33,11 @@ fn agent_config_lock() -> &'static RwLock<ActiveAgentConfig> {
 }
 
 pub fn get_active_agent_config() -> ActiveAgentConfig {
-    agent_config_lock().read().ok().map(|g| g.clone()).unwrap_or_default()
+    agent_config_lock()
+        .read()
+        .ok()
+        .map(|g| g.clone())
+        .unwrap_or_default()
 }
 
 pub fn set_active_agent_config(port: Option<u16>, key: Option<String>) {

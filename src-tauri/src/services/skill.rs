@@ -621,8 +621,9 @@ impl SkillService {
         let _ = db.delete_stale_agent_skills(agent_id, &current_ids);
 
         // 读取 agent 专属收藏（不再区分全局）
-        let favorites: std::collections::HashSet<String> =
-            db.get_agent_favorite_skill_ids(agent_id).unwrap_or_default();
+        let favorites: std::collections::HashSet<String> = db
+            .get_agent_favorite_skill_ids(agent_id)
+            .unwrap_or_default();
 
         // 附加收藏标签
         for skill in skills.values_mut() {
@@ -631,12 +632,10 @@ impl SkillService {
 
         // 按收藏 + 名称排序
         let mut result: Vec<InstalledSkill> = skills.into_values().collect();
-        result.sort_by(|a, b| {
-            match (b.is_favorite, a.is_favorite) {
-                (true, false) => std::cmp::Ordering::Greater,
-                (false, true) => std::cmp::Ordering::Less,
-                _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
-            }
+        result.sort_by(|a, b| match (b.is_favorite, a.is_favorite) {
+            (true, false) => std::cmp::Ordering::Greater,
+            (false, true) => std::cmp::Ordering::Less,
+            _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
         });
 
         Ok(result)
@@ -946,7 +945,13 @@ impl SkillService {
             // Try global dir first, then agent-specific dir
             let mut candidates = vec![hermes_dir.join("skills").join(dir)];
             if let Some(agent_id) = crate::store::get_active_hermes_agent() {
-                candidates.push(hermes_dir.join("profiles").join(agent_id).join("skills").join(dir));
+                candidates.push(
+                    hermes_dir
+                        .join("profiles")
+                        .join(agent_id)
+                        .join("skills")
+                        .join(dir),
+                );
             }
             let mut deleted = false;
             for candidate in &candidates {
@@ -2745,7 +2750,8 @@ impl SkillService {
                 // 已存在：确保 current_app 启用并同步
                 log::info!(
                     "Skill '{}' already exists, enabling {:?} and syncing",
-                    install_name, current_app
+                    install_name,
+                    current_app
                 );
                 prev.apps.set_enabled_for(current_app, true);
                 db.save_skill(&prev)?;
@@ -2874,7 +2880,9 @@ impl SkillService {
     /// 递归扫描辅助函数
     fn scan_skills_recursive(current: &Path, results: &mut Vec<PathBuf>) -> Result<()> {
         // 检查当前目录是否包含 SKILL.md（大小写均接受）
-        let has_skill_md = ["SKILL.md", "skill.md", "Skill.md"].iter().any(|name| current.join(name).exists());
+        let has_skill_md = ["SKILL.md", "skill.md", "Skill.md"]
+            .iter()
+            .any(|name| current.join(name).exists());
         if has_skill_md {
             results.push(current.to_path_buf());
             // 找到后不再递归子目录（一个 skill 目录）
