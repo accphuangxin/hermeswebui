@@ -1320,8 +1320,19 @@ function App() {
                   <ArrowLeft className="w-4 h-4" />
                 </Button>
                 <h1 className="text-lg font-semibold">
-                  {t("kanban.title", { defaultValue: "看板管理" })}
+                  {t("kanban.title", { defaultValue: "任务看板" })}
                 </h1>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                  onClick={async () => {
+                    await queryClient.invalidateQueries({ queryKey: ["kanban"] });
+                    toast.success("刷新成功");
+                  }}
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                </Button>
               </div>
             ) : currentView === "hermesAgents" ? (
               <div className="flex items-center gap-2 flex-1">
@@ -1341,11 +1352,10 @@ function App() {
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 shrink-0"
-                  onClick={() =>
-                    void queryClient.invalidateQueries({
-                      queryKey: ["hermesAgents"],
-                    })
-                  }
+                  onClick={async () => {
+                    await queryClient.invalidateQueries({ queryKey: ["hermesAgents"] });
+                    toast.success("刷新成功");
+                  }}
                 >
                   <RefreshCw className="w-4 h-4" />
                 </Button>

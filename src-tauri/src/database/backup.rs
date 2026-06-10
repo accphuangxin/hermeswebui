@@ -296,7 +296,12 @@ impl Database {
 
     /// 生成一致性快照备份，返回备份文件路径（不存在主库时返回 None）
     pub(crate) fn backup_database_file(&self) -> Result<Option<PathBuf>, AppError> {
-        let db_path = get_app_config_dir().join("cc-switch.db");
+        let dir = get_app_config_dir();
+        let db_path = ["cc-switch.db", "111hermes.db"]
+            .iter()
+            .map(|name| dir.join(name))
+            .find(|p| p.exists())
+            .unwrap_or_else(|| dir.join("hermes-web.db"));
         if !db_path.exists() {
             return Ok(None);
         }

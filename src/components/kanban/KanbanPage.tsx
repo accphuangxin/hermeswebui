@@ -12,7 +12,6 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   Plus,
-  RefreshCw,
   Trello as KanbanIcon,
   Workflow,
   LayoutGrid,
@@ -31,19 +30,10 @@ export function KanbanPage() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [createBoardOpen, setCreateBoardOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"kanban" | "flow">("kanban");
-  const [flowRefreshKey, setFlowRefreshKey] = useState(0);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
 
-  const {
-    data: boards = [],
-    isLoading: boardsLoading,
-    refetch: refetchBoards,
-  } = useBoards();
-  const {
-    data: tasks = [],
-    isLoading: tasksLoading,
-    refetch: refetchTasks,
-  } = useTasks(selectedBoardSlug);
+  const { data: boards = [], isLoading: boardsLoading } = useBoards();
+  const { data: tasks = [], isLoading: tasksLoading } = useTasks(selectedBoardSlug);
 
   // Always call hook, but it will only work when boardSlug is set
   const resetMutation = useResetTask(selectedBoardSlug || "");
@@ -130,21 +120,6 @@ export function KanbanPage() {
             <h1 className="text-lg font-semibold">
               {selectedBoard?.displayName || selectedBoard?.name || "看板管理"}
             </h1>
-            {selectedBoardSlug && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  void refetchBoards();
-                  void refetchTasks();
-                  // 强制流程图重新加载
-                  setFlowRefreshKey((k) => k + 1);
-                }}
-              >
-                <RefreshCw className="h-4 w-4 mr-1" />
-                刷新
-              </Button>
-            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -198,7 +173,6 @@ export function KanbanPage() {
             />
           ) : (
             <TaskFlowView
-              key={flowRefreshKey}
               boardSlug={selectedBoardSlug}
               tasks={tasks}
               onSelectTask={setSelectedTaskId}

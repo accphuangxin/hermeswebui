@@ -346,11 +346,12 @@ function BrowsePanel({
           size="icon"
           className="h-7 w-7 shrink-0"
           disabled={clawHubLoading}
-          onClick={() => {
+          onClick={async () => {
             setClawHubSkills([]);
             setClawHubCursor(undefined);
             setClawHubDone(false);
-            void loadClawHub(true);
+            await loadClawHub(true);
+            toast.success("刷新成功");
           }}
           title={t("skills.reload", { defaultValue: "刷新" })}
         >
@@ -1116,7 +1117,7 @@ const UnifiedSkillsPanel = React.forwardRef<
             size="icon"
             className="h-6 w-6"
             title={t("skills.reload", { defaultValue: "重新加载" })}
-            onClick={() => void refetchSkills()}
+            onClick={async () => { await refetchSkills(); toast.success("刷新成功"); }}
             disabled={isRefetchingSkills}
           >
             {isRefetchingSkills ? (

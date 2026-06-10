@@ -158,7 +158,7 @@ export function CronPage() {
               variant="ghost"
               size="icon"
               className="h-6 w-6"
-              onClick={() => void refetch()}
+              onClick={async () => { await refetch(); toast.success("刷新成功"); }}
             >
               <RefreshCw
                 className={cn("w-3 h-3", isLoading && "animate-spin")}
@@ -445,7 +445,7 @@ function JobDetail({
             )}
             {!selectedLog && (
               <button
-                onClick={() => void refetchLogs()}
+                onClick={async () => { await refetchLogs(); toast.success("刷新成功"); }}
                 disabled={isRefetchingLogs}
                 className="ml-auto text-muted-foreground hover:text-foreground disabled:opacity-50"
                 title={t("common.refresh", { defaultValue: "刷新" })}

@@ -13,7 +13,7 @@ use crate::error::AppError;
 /// - `dirs::home_dir()` 在 Windows 上使用 `SHGetKnownFolderPath(FOLDERID_Profile)`，
 ///   返回的是真实用户目录（类似 `C:\\Users\\Alice`），与 v3.10.2 行为一致。
 /// - 不要直接使用 `HOME` 环境变量：它可能由 Git/Cygwin/MSYS 等第三方工具注入，
-///   且不一定等于用户目录，可能导致 `.cc-switch/cc-switch.db` 路径变化，从而“看起来像数据丢失”。
+///   且不一定等于用户目录，可能导致 `.cc-switch/cc-switch.db` 路径变化，从而"看起来像数据丢失"。
 ///
 /// ## 测试隔离
 ///
@@ -86,40 +86,65 @@ pub fn get_claude_settings_path() -> PathBuf {
     settings
 }
 
-/// 获取应用配置目录路径 (~/.cc-switch)
+/// 获取应用配置目录路径 (~/.111-hermes)
 pub fn get_app_config_dir() -> PathBuf {
     if let Some(custom) = crate::app_store::get_app_config_dir_override() {
         return custom;
     }
 
-    let default_dir = get_home_dir().join(".cc-switch");
+    let home = get_home_dir();
+    let new_dir = home.join(".hermes-web");
+    let legacy_dir = home.join(".cc-switch");
 
-    // 兼容 v3.10.3：当用户环境存在 `HOME` 且与真实用户目录不同，
-    // v3.10.3 可能在 `HOME/.cc-switch/` 下创建/使用了数据库。
-    // 这里仅在“默认位置没有数据库”时回退到旧位置，避免再次出现“供应商消失”问题，
-    // 同时也避免新安装因为 `HOME` 被设置而写入非预期路径。
+    // 若新目录已有任意版本的数据库，直接使用
+    let has_db = ["hermes-web.db", "cc-switch.db", "111hermes.db"]
+        .iter()
+        .any(|name| new_dir.join(name).exists());
+    if has_db {
+        return new_dir;
+    }
+
+    // 若旧 ~/.cc-switch 存在数据库，自动迁移到新目录
+    if legacy_dir.join("cc-switch.db").exists() {
+        if let Err(e) = std::fs::create_dir_all(&new_dir) {
+            log::warn!("迁移：无法创建新目录 {}: {e}", new_dir.display());
+            return legacy_dir;
+        }
+        // 复制旧目录下的所有文件到新目录
+        if let Ok(entries) = std::fs::read_dir(&legacy_dir) {
+            for entry in entries.flatten() {
+                let src = entry.path();
+                let dst = new_dir.join(entry.file_name());
+                if src.is_file() && !dst.exists() {
+                    if let Err(e) = std::fs::copy(&src, &dst) {
+                        log::warn!("迁移：复制 {} 失败: {e}", src.display());
+                    }
+                }
+            }
+        }
+        log::info!("已将 ~/.cc-switch 数据迁移到 ~/.111-hermes");
+        return new_dir;
+    }
+
+    // Windows 兼容 v3.10.3：HOME 环境变量可能指向旧路径
     #[cfg(windows)]
     {
-        let default_db = default_dir.join("cc-switch.db");
-        if !default_db.exists() {
-            if let Ok(home_env) = std::env::var("HOME") {
-                let trimmed = home_env.trim();
-                if !trimmed.is_empty() {
-                    let legacy_dir = PathBuf::from(trimmed).join(".cc-switch");
-                    if legacy_dir.join("cc-switch.db").exists() {
-                        log::info!(
-                            "Detected v3.10.3 legacy database at {}, using it instead of {}",
-                            legacy_dir.display(),
-                            default_dir.display()
-                        );
-                        return legacy_dir;
-                    }
+        if let Ok(home_env) = std::env::var("HOME") {
+            let trimmed = home_env.trim();
+            if !trimmed.is_empty() {
+                let win_legacy = PathBuf::from(trimmed).join(".cc-switch");
+                if win_legacy.join("cc-switch.db").exists() {
+                    log::info!(
+                        "Detected legacy database at {}, using new dir {}",
+                        win_legacy.display(),
+                        new_dir.display()
+                    );
                 }
             }
         }
     }
 
-    default_dir
+    new_dir
 }
 
 /// 获取应用配置文件路径

@@ -310,7 +310,7 @@ pub fn run() {
                 }
 
                 // 启动时删除旧日志文件，实现单文件覆盖效果
-                let log_file_path = log_dir.join("cc-switch.log");
+                let log_file_path = log_dir.join("hermes-web.log");
                 let _ = std::fs::remove_file(&log_file_path);
 
                 app.handle().plugin(
@@ -321,7 +321,7 @@ pub fn run() {
                             Target::new(TargetKind::Stdout),
                             Target::new(TargetKind::Folder {
                                 path: log_dir,
-                                file_name: Some("cc-switch".into()),
+                                file_name: Some("hermes-web".into()),
                             }),
                         ])
                         // 单文件模式：启动时删除旧文件，达到大小时轮转
@@ -335,9 +335,13 @@ pub fn run() {
                 )?;
             }
 
-            // 初始化数据库
+            // 初始化数据库，兼容旧名称
             let app_config_dir = crate::config::get_app_config_dir();
-            let db_path = app_config_dir.join("cc-switch.db");
+            let db_path = ["cc-switch.db", "111hermes.db"]
+                .iter()
+                .map(|name| app_config_dir.join(name))
+                .find(|p| p.exists())
+                .unwrap_or_else(|| app_config_dir.join("hermes-web.db"));
             let json_path = app_config_dir.join("config.json");
 
             // 检查是否需要从 config.json 迁移到 SQLite
