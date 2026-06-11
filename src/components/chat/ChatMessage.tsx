@@ -11,6 +11,7 @@ import {
   Paperclip,
   Trash2,
   RotateCcw,
+  FolderOpen,
 } from "lucide-react";
 import type {
   ChatMessage as ChatMessageType,
@@ -53,6 +54,58 @@ function extractLocalPath(src: string): string {
   if (src.startsWith("file://"))
     return decodeURIComponent(src.slice("file://".length));
   return src;
+}
+
+function FilePathButton({ path, label }: { path: string; label: string }) {
+  const [hover, setHover] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  return (
+    <span
+      className="relative inline-block"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
+      <button
+        type="button"
+        className="text-primary underline underline-offset-2 cursor-pointer hover:opacity-80 font-mono text-xs"
+        title={path}
+        onClick={() => void invoke("open_file_path", { path })}
+      >
+        {label}
+      </button>
+      {hover && (
+        <span
+          className="absolute left-0 top-full z-50 pt-1"
+          style={{ whiteSpace: "nowrap" }}
+        >
+          <span className="flex gap-0 rounded-md border bg-popover shadow-md overflow-hidden">
+            <button
+              type="button"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs hover:bg-muted transition-colors"
+              onClick={() => void invoke("open_file_path", { path })}
+            >
+              <FolderOpen className="w-3 h-3" />
+              浏览
+            </button>
+            <span className="w-px bg-border" />
+            <button
+              type="button"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs hover:bg-muted transition-colors"
+              onClick={async () => {
+                await navigator.clipboard.writeText(path);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1500);
+              }}
+            >
+              {copied ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+              复制路径
+            </button>
+          </span>
+        </span>
+      )}
+    </span>
+  );
 }
 
 function LocalImage({ src, alt }: { src: string; alt: string }) {
@@ -166,6 +219,9 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
   const [copied, setCopied] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [selectionMenu, setSelectionMenu] = useState<{ x: number; y: number; text: string } | null>(null);
+  const selectionMenuRef = useRef<HTMLDivElement>(null);
+  const bubbleRef = useRef<HTMLDivElement>(null);
 
   const isUser = message.role === "user";
   const isAssistant = message.role === "assistant";
@@ -227,6 +283,40 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
   );
 
   const closeMenu = useCallback(() => setContextMenu(null), []);
+
+  const handleMouseUp = useCallback((_e: React.MouseEvent) => {
+    // Delay to let the browser finalize the selection
+    setTimeout(() => {
+      const sel = window.getSelection();
+      const text = sel?.toString().trim();
+      if (!text || !sel || sel.rangeCount === 0) {
+        setSelectionMenu(null);
+        return;
+      }
+      // Only show if selection is within this bubble
+      if (bubbleRef.current && !bubbleRef.current.contains(sel.anchorNode)) {
+        setSelectionMenu(null);
+        return;
+      }
+      const range = sel.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      setSelectionMenu({
+        x: rect.left + rect.width / 2,
+        y: rect.top - 8,
+        text,
+      });
+    }, 10);
+  }, []);
+
+  // Close selection menu when selection is cleared
+  useEffect(() => {
+    const handleSelectionChange = () => {
+      const sel = window.getSelection();
+      if (!sel?.toString().trim()) setSelectionMenu(null);
+    };
+    document.addEventListener("selectionchange", handleSelectionChange);
+    return () => document.removeEventListener("selectionchange", handleSelectionChange);
+  }, []);
 
   // Close menu on outside click or scroll
   useEffect(() => {
@@ -294,6 +384,7 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
           </div>
         )}
         <div
+          ref={bubbleRef}
           className={cn(
             "rounded-lg px-3 py-2 text-sm max-w-[85%] inline-block cursor-default",
             isUser
@@ -301,6 +392,7 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
               : "bg-muted",
           )}
           onContextMenu={handleContextMenu}
+          onMouseUp={handleMouseUp}
         >
           {isUser ? (
             <div className="whitespace-pre-wrap break-words">
@@ -357,14 +449,31 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
                       </div>
                     );
                   },
-                  code: ({ children, className }) =>
-                    className ? (
+                  code: ({ children, className }) => {
+                    if (!className) {
+                      // Check if inline code contains a markdown link like [name](/path)
+                      const text = String(children);
+                      const mdLink = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(text);
+                      if (mdLink) {
+                        const [, label, href] = mdLink;
+                        const localPath = extractLocalPath(href);
+                        if (href.startsWith("/") || href.startsWith("file://")) {
+                          return <FilePathButton path={localPath} label={label} />;
+                        }
+                      }
+                      // Plain absolute file path
+                      if (/^\/(?:[^\s]+\/)+[^\s]+\.\w+$/.test(text)) {
+                        return <FilePathButton path={text} label={text} />;
+                      }
+                    }
+                    return className ? (
                       <code className="text-xs">{children}</code>
                     ) : (
                       <code className="bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-700 rounded px-1 py-0.5 text-xs">
                         {children}
                       </code>
-                    ),
+                    );
+                  },
                   a: ({ href, children }) => {
                     if (href && /MEDIA:[^\s"'<>]+\.html?$/i.test(href)) {
                       return <LocalHtml path={extractLocalPath(href)} />;
@@ -373,14 +482,10 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
                     if (href && (href.startsWith("/") || href.startsWith("file://"))) {
                       const localPath = extractLocalPath(href);
                       return (
-                        <button
-                          type="button"
-                          onClick={() => void invoke("open_file_path", { path: localPath })}
-                          className="text-primary underline cursor-pointer hover:opacity-80"
-                          title={localPath}
-                        >
-                          {children}
-                        </button>
+                        <FilePathButton
+                          path={localPath}
+                          label={String(children)}
+                        />
                       );
                     }
                     return (
@@ -438,6 +543,32 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
       </div>
 
       {/* Right-click context menu */}
+      {selectionMenu && (
+        <div
+          ref={selectionMenuRef}
+          className="fixed z-50 rounded-md border bg-popover shadow-lg py-1 flex items-center"
+          style={{
+            left: selectionMenu.x,
+            top: selectionMenu.y,
+            transform: "translate(-50%, -100%)",
+          }}
+        >
+          <button
+            className="flex items-center gap-1.5 px-3 py-1 text-xs hover:bg-muted transition-colors whitespace-nowrap"
+            onMouseDown={(e) => e.preventDefault()} // prevent selection loss
+            onClick={async () => {
+              await navigator.clipboard.writeText(selectionMenu.text);
+              setSelectionMenu(null);
+              window.getSelection()?.removeAllRanges();
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
+            }}
+          >
+            <Copy className="w-3 h-3" />
+            复制
+          </button>
+        </div>
+      )}
       {contextMenu && (
         <div
           ref={menuRef}

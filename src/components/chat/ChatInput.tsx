@@ -57,6 +57,8 @@ export function ChatInput({
   const [agentSelectedIndex, setAgentSelectedIndex] = useState(0);
   const [agentTriggerPos, setAgentTriggerPos] = useState(-1);
   const agentMenuRef = useRef<HTMLDivElement>(null);
+  const isComposingRef = useRef(false);
+  const compositionEndTimeRef = useRef(0);
 
   const filteredCommands = HERMES_COMMANDS.filter((c) =>
     c.cmd.startsWith(commandFilter || "/"),
@@ -254,6 +256,13 @@ export function ChatInput({
     }
 
     if (e.key === "Enter" && !e.shiftKey) {
+      // Block if IME is composing, or if compositionend fired within the last 30ms
+      // (macOS WebKit fires compositionend before keydown for the confirming Enter)
+      const justFinishedComposing = Date.now() - compositionEndTimeRef.current < 30;
+      if (isComposingRef.current || justFinishedComposing) {
+        e.preventDefault();
+        return;
+      }
       e.preventDefault();
       if (!isStreaming && !disabled) {
         handleSend();
@@ -542,6 +551,11 @@ export function ChatInput({
           onKeyDown={handleKeyDown}
           onInput={handleInput}
           onPaste={handlePaste}
+          onCompositionStart={() => { isComposingRef.current = true; }}
+          onCompositionEnd={() => {
+            isComposingRef.current = false;
+            compositionEndTimeRef.current = Date.now();
+          }}
           className="flex-1 resize-none rounded-md border bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50 min-h-[36px] max-h-[160px]"
         />
         {isStreaming ? (
