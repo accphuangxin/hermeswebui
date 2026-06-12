@@ -38,6 +38,15 @@ jobs:
 
       - name: Build Tauri app
         run: pnpm tauri build --bundles msi,nsis
+        env:
+          TAURI_BUNDLES_MSI_DEBUG: "true"
+
+      - name: Show WiX log on failure
+        if: failure()
+        shell: pwsh
+        run: |
+          Get-ChildItem -Recurse -Filter "*.log" "src-tauri/target/release/wix" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "=== $($_.FullName) ==="; Get-Content $_.FullName }
+          Get-ChildItem -Recurse -Filter "*.wxs" "src-tauri/target/release/wix" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "=== $($_.FullName) ==="; Get-Content $_.FullName }
 
       - name: Upload MSI installer
         uses: actions/upload-artifact@v4
