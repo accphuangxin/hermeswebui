@@ -1147,7 +1147,7 @@ function App() {
               currentView !== "hermesKanban" && "hidden",
             )}
           >
-            <KanbanPage />
+            <KanbanPage active={currentView === "hermesKanban"} />
           </div>
           <div
             className={cn(

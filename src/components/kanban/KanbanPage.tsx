@@ -23,7 +23,7 @@ import { TaskThreadPanel } from "./TaskThreadPanel";
 import { CreateBoardDialog } from "./CreateBoardDialog";
 import { TaskFlowView } from "./TaskFlowView";
 
-export function KanbanPage() {
+export function KanbanPage({ active = false }: { active?: boolean }) {
   const [selectedBoardSlug, setSelectedBoardSlug] = useState<string | null>(
     null,
   );
@@ -33,7 +33,7 @@ export function KanbanPage() {
   const [isSelectionMode, setIsSelectionMode] = useState(false);
 
   const { data: boards = [], isLoading: boardsLoading } = useBoards();
-  const { data: tasks = [], isLoading: tasksLoading } = useTasks(selectedBoardSlug);
+  const { data: tasks = [], isLoading: tasksLoading } = useTasks(selectedBoardSlug, active);
 
   // Always call hook, but it will only work when boardSlug is set
   const resetMutation = useResetTask(selectedBoardSlug || "");

@@ -49,9 +49,7 @@ export const kanbanApi = {
   // ============================================================================
 
   listTasks: async (boardSlug: string): Promise<KanbanTask[]> => {
-    const tasks = await invoke<KanbanTask[]>("listKanbanTasks", { boardSlug });
-    console.log("[kanbanApi] listTasks 返回数据:", tasks);
-    return tasks;
+    return await invoke<KanbanTask[]>("listKanbanTasks", { boardSlug });
   },
 
   createTask: async (

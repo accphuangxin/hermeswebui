@@ -75,13 +75,13 @@ export function useDeleteBoard() {
 // Task Hooks
 // ============================================================================
 
-export function useTasks(boardSlug: string | null) {
+export function useTasks(boardSlug: string | null, active = false) {
   return useQuery({
     queryKey: kanbanKeys.tasks(boardSlug || ""),
     queryFn: () => kanbanApi.listTasks(boardSlug!),
     enabled: !!boardSlug,
-    refetchInterval: 5000, // 5秒自动刷新
-    staleTime: 0, // 始终认为数据过期，允许自动刷新
+    refetchInterval: active ? 5000 : false,
+    staleTime: active ? 0 : 30_000,
   });
 }
 
