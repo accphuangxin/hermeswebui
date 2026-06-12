@@ -6,6 +6,7 @@ export interface ToolActivity {
   preview: string;
   status: "running" | "completed" | "error";
   duration?: number;
+  result?: string;
 }
 
 export interface ApprovalRequest {
@@ -28,6 +29,7 @@ interface RunStreamEvent {
   preview?: string;
   duration?: number;
   error?: boolean;
+  result?: string;
   args?: string;
   output?: string;
   message?: string;
@@ -61,7 +63,7 @@ interface StreamOptions {
   apiServerKey?: string;
   onDelta: (text: string) => void;
   onToolStarted: (tool: string, preview: string) => void;
-  onToolCompleted: (tool: string, duration: number, error: boolean) => void;
+  onToolCompleted: (tool: string, duration: number, error: boolean, result?: string) => void;
   onApprovalRequired: (approval: ApprovalRequest) => void;
   onCompleted: (output: string, runSessionId: string, usage?: RunUsage) => void;
   onError: (error: string) => void;
@@ -145,6 +147,7 @@ export function useChatStream() {
                   event.tool ?? "",
                   event.duration ?? 0,
                   event.error ?? false,
+                  event.result,
                 );
                 break;
               case "approvalRequired":

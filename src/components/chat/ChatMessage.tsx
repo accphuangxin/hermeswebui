@@ -57,54 +57,71 @@ function extractLocalPath(src: string): string {
 }
 
 function FilePathButton({ path, label }: { path: string; label: string }) {
-  const [hover, setHover] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const anchorRef = useRef<HTMLButtonElement>(null);
+
+  const show = () => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    const r = anchorRef.current?.getBoundingClientRect();
+    if (r) setMenuPos({ x: r.left, y: r.bottom + 2 });
+  };
+  const hide = () => {
+    hideTimer.current = setTimeout(() => setMenuPos(null), 2000);
+  };
+  const cancelHide = () => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+  };
 
   return (
-    <span
-      className="relative inline-block"
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-    >
+    <>
       <button
+        ref={anchorRef}
         type="button"
         className="text-primary underline underline-offset-2 cursor-pointer hover:opacity-80 font-mono text-xs"
         title={path}
         onClick={() => void invoke("open_file_path", { path })}
+        onMouseEnter={show}
+        onMouseLeave={hide}
       >
         {label}
       </button>
-      {hover && (
+      {menuPos && (
         <span
-          className="absolute left-0 top-full z-50 pt-1"
-          style={{ whiteSpace: "nowrap" }}
+          className="fixed z-[9999]"
+          style={{ left: menuPos.x - 4, top: menuPos.y - 8, paddingTop: 8, paddingLeft: 4, whiteSpace: "nowrap" }}
+          onMouseEnter={cancelHide}
+          onMouseLeave={hide}
         >
-          <span className="flex gap-0 rounded-md border bg-popover shadow-md overflow-hidden">
-            <button
-              type="button"
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs hover:bg-muted transition-colors"
-              onClick={() => void invoke("open_file_path", { path })}
-            >
-              <FolderOpen className="w-3 h-3" />
-              浏览
-            </button>
-            <span className="w-px bg-border" />
-            <button
-              type="button"
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs hover:bg-muted transition-colors"
-              onClick={async () => {
-                await navigator.clipboard.writeText(path);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1500);
-              }}
-            >
-              {copied ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
-              复制路径
-            </button>
-          </span>
+        <span
+          className="flex gap-0 rounded-md border bg-popover shadow-md overflow-hidden"
+        >
+          <button
+            type="button"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs hover:bg-muted transition-colors"
+            onClick={() => { void invoke("open_file_path", { path }); setMenuPos(null); }}
+          >
+            <FolderOpen className="w-3 h-3" />
+            浏览
+          </button>
+          <span className="w-px bg-border" />
+          <button
+            type="button"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs hover:bg-muted transition-colors"
+            onClick={async () => {
+              await navigator.clipboard.writeText(path);
+              setCopied(true);
+              setTimeout(() => { setCopied(false); setMenuPos(null); }, 1500);
+            }}
+          >
+            {copied ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+            复制路径
+          </button>
+        </span>
         </span>
       )}
-    </span>
+    </>
   );
 }
 
@@ -314,8 +331,16 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
       const sel = window.getSelection();
       if (!sel?.toString().trim()) setSelectionMenu(null);
     };
+    // Hide on right-click before system context menu appears
+    const handleRightMouseDown = (e: MouseEvent) => {
+      if (e.button === 2) setSelectionMenu(null);
+    };
     document.addEventListener("selectionchange", handleSelectionChange);
-    return () => document.removeEventListener("selectionchange", handleSelectionChange);
+    document.addEventListener("mousedown", handleRightMouseDown);
+    return () => {
+      document.removeEventListener("selectionchange", handleSelectionChange);
+      document.removeEventListener("mousedown", handleRightMouseDown);
+    };
   }, []);
 
   // Close menu on outside click or scroll

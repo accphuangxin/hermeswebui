@@ -59,6 +59,8 @@ export function ChatInput({
   const agentMenuRef = useRef<HTMLDivElement>(null);
   const isComposingRef = useRef(false);
   const compositionEndTimeRef = useRef(0);
+  const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const deleteIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const filteredCommands = HERMES_COMMANDS.filter((c) =>
     c.cmd.startsWith(commandFilter || "/"),
@@ -101,6 +103,8 @@ export function ChatInput({
   }, [mentionSelectedIndex, showMentions]);
 
   // scroll the highlighted agent item into view
+  useEffect(() => () => stopAccelDelete(), []); // cleanup on unmount
+
   useEffect(() => {
     if (!showAgents || !agentMenuRef.current) return;
     const el =
@@ -269,6 +273,57 @@ export function ChatInput({
       }
     }
   };
+
+  const stopAccelDelete = () => {
+    if (deleteTimerRef.current) { clearTimeout(deleteTimerRef.current); deleteTimerRef.current = null; }
+    if (deleteIntervalRef.current) { clearInterval(deleteIntervalRef.current); deleteIntervalRef.current = null; }
+  };
+
+  const handleKeyDownAccel = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key !== "Backspace" && e.key !== "Delete") return;
+    if (isComposingRef.current) return;
+    if (e.repeat) return; // native repeat already started; our timer handles it
+
+    const el = textareaRef.current;
+    if (!el) return;
+
+    const doDelete = () => {
+      const start = el.selectionStart ?? 0;
+      const end = el.selectionEnd ?? 0;
+      if (start === end && start === 0 && e.key === "Backspace") return;
+      if (start === end && end === el.value.length && e.key === "Delete") return;
+
+      // Delete one char at cursor (or selection)
+      const val = el.value;
+      let newVal: string;
+      let newPos: number;
+      if (start !== end) {
+        newVal = val.slice(0, start) + val.slice(end);
+        newPos = start;
+      } else if (e.key === "Backspace") {
+        newVal = val.slice(0, start - 1) + val.slice(start);
+        newPos = start - 1;
+      } else {
+        newVal = val.slice(0, start) + val.slice(start + 1);
+        newPos = start;
+      }
+      // Use native input setter so React detects the change
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")?.set;
+      nativeInputValueSetter?.call(el, newVal);
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      el.setSelectionRange(newPos, newPos);
+    };
+
+    // After 400ms hold, start accelerated delete at 40ms intervals
+    deleteTimerRef.current = setTimeout(() => {
+      deleteIntervalRef.current = setInterval(doDelete, 40);
+    }, 400);
+  };
+
+  const handleKeyUpAccel = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Backspace" || e.key === "Delete") stopAccelDelete();
+  };
+
 
   const handleInput = () => {
     const el = textareaRef.current;
@@ -548,10 +603,12 @@ export function ChatInput({
           rows={1}
           placeholder={t("hermes.chat.placeholder")}
           disabled={disabled}
-          onKeyDown={handleKeyDown}
+          onKeyDown={(e) => { handleKeyDown(e); handleKeyDownAccel(e); }}
+          onKeyUp={handleKeyUpAccel}
+          onBlur={stopAccelDelete}
           onInput={handleInput}
           onPaste={handlePaste}
-          onCompositionStart={() => { isComposingRef.current = true; }}
+          onCompositionStart={() => { isComposingRef.current = true; stopAccelDelete(); }}
           onCompositionEnd={() => {
             isComposingRef.current = false;
             compositionEndTimeRef.current = Date.now();

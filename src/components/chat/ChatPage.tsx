@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { MessageSquare, Clock, Trash2 } from "lucide-react";
+import { MessageSquare, Clock, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -32,9 +32,99 @@ import type { SidebarTab } from "./ChatSidebar";
 import { CronPage, cronKeys } from "@/components/cron/CronPage";
 import { ChatMessageBubble } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
-import { ToolActivityBlock } from "./ToolActivityBlock";
 import { ApprovalCard } from "./ApprovalCard";
 import { ScrollArea } from "@/components/ui/scroll-area";
+
+// Collapsed batch of consecutive tool calls with no text between them
+function BatchToolRow({
+  groups,
+  allDone,
+  hasRunning,
+  totalDuration,
+  fmtSecs,
+  hasLineBelow,
+}: {
+  groups: { id: number; tool: string; preview: string; status: string; duration?: number; elapsedMs: number }[];
+  allDone: boolean;
+  hasRunning: boolean;
+  totalDuration: number;
+  fmtSecs: (s: number) => string;
+  hasLineBelow: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (expanded) {
+    return (
+      <div>
+        {groups.map((g, i) => {
+          const elapsed = g.status === "running"
+            ? fmtSecs(g.elapsedMs / 1000)
+            : g.duration !== undefined ? fmtSecs(g.duration) : null;
+          return (
+            <div key={g.id} className="flex gap-2">
+              <div className="flex flex-col items-center pt-1 shrink-0" style={{ width: 20 }}>
+                <div className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 border ${
+                  g.status === "running" ? "border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20"
+                  : g.status === "error" ? "border-red-400 bg-red-50 dark:bg-red-900/20"
+                  : "border-green-400 bg-green-50 dark:bg-green-900/20"
+                }`}>
+                  {g.status === "running" ? <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
+                  : g.status === "error" ? <span className="text-red-500 text-[8px] font-bold">✕</span>
+                  : <span className="text-green-500 text-[8px] font-bold">✓</span>}
+                </div>
+                {(i < groups.length - 1 || hasLineBelow) && (
+                  <div className="w-px flex-1 bg-border mt-0.5" style={{ minHeight: 8 }} />
+                )}
+              </div>
+              <div className="flex-1 min-w-0 pb-0">
+                <div className="flex items-center gap-0.5 text-xs py-0">
+                  <span className="font-medium text-foreground">{g.tool}</span>
+                  {elapsed && <span className="text-muted-foreground/60 shrink-0 ml-1.5">{elapsed}</span>}
+                  {g.preview && <span className="text-muted-foreground/70 truncate max-w-[300px] font-mono ml-2">{g.preview}</span>}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        <button
+          type="button"
+          className="ml-7 text-[10px] text-muted-foreground/60 hover:text-muted-foreground"
+          onClick={() => setExpanded(false)}
+        >
+          收起
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex gap-2">
+      <div className="flex flex-col items-center pt-1 shrink-0" style={{ width: 20 }}>
+        <div className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 border ${
+          hasRunning ? "border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20"
+          : allDone ? "border-green-400 bg-green-50 dark:bg-green-900/20"
+          : "border-red-400 bg-red-50 dark:bg-red-900/20"
+        }`}>
+          {hasRunning ? <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
+          : allDone ? <span className="text-green-500 text-[8px] font-bold">✓</span>
+          : <span className="text-red-500 text-[8px] font-bold">✕</span>}
+        </div>
+        {hasLineBelow && <div className="w-px flex-1 bg-border mt-0.5" style={{ minHeight: 8 }} />}
+      </div>
+      <div className="flex-1 min-w-0 pb-0">
+        <button
+          type="button"
+          className="flex items-center gap-0.5 text-xs py-0 hover:opacity-80 w-full text-left"
+          onClick={() => setExpanded(true)}
+        >
+          <span className="font-medium text-foreground">{groups.map((g) => g.tool).join(", ")}</span>
+          {groups.length > 1 && <span className="text-muted-foreground/40 text-[10px]">×{groups.length}</span>}
+          <span className="text-muted-foreground/60 shrink-0 ml-1.5">{fmtSecs(totalDuration)}</span>
+        </button>
+      </div>
+    </div>
+  );
+}
 
 interface ChatPageProps {
   selectedModel: string;
@@ -65,6 +155,26 @@ export function ChatPage({
     droppedCount: number;
   } | null>(null);
   const [isSending, setIsSending] = useState(false);
+  const [, setStreamStartTime] = useState<number | null>(null);
+  const [currentTool, setCurrentTool] = useState<string | null>(null);
+  const [streamTokens, setStreamTokens] = useState(0);
+  const [elapsedSecs, setElapsedSecs] = useState(0);
+
+  // Stream groups: each group = one tool call + its following text
+  interface StreamGroup {
+    id: number;
+    tool: string;
+    preview: string;
+    status: "running" | "completed" | "error";
+    duration?: number;
+    startedAt: number;   // Date.now()
+    elapsedMs: number;   // updated each tick
+    text: string;        // delta text accumulated after this tool
+  }
+  const [streamGroups, setStreamGroups] = useState<StreamGroup[]>([]);
+  const streamGroupIdRef = useRef(0);
+  const isLiveRef = useRef(false); // true while streaming/sending, prevents DB restore overwriting live state
+  const [timelineCollapsed, setTimelineCollapsed] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("chat");
   const [areaMenu, setAreaMenu] = useState<{ x: number; y: number } | null>(
     null,
@@ -79,7 +189,10 @@ export function ChatPage({
   const { data: installedSkills = [] } = useInstalledSkills(selectedAgentId);
   const favoriteSkills = installedSkills.filter((s) => s.isFavorite);
   const { data: sessions = [] } = useChatSessions(selectedAgentId);
-  const { data: messages = [] } = useChatMessages(activeSessionId);
+  const { data: allMessages = [] } = useChatMessages(activeSessionId);
+  // Split out timeline rows from regular messages
+  const messages = allMessages.filter((m) => m.role !== "timeline");
+  const dbTimeline = allMessages.filter((m) => m.role === "timeline");
   const createSession = useCreateChatSession();
   const deleteSession = useDeleteChatSession();
   const updateSession = useUpdateChatSession();
@@ -133,13 +246,80 @@ export function ChatPage({
     setHermesSessionId(null);
   }, [selectedModel]);
 
-  // Auto-scroll to bottom when messages load or stream
+  // Tick elapsed time for running stream groups
   useEffect(() => {
-    scrollBottomRef.current?.scrollIntoView({ behavior: "instant" });
-  }, [activeSessionId, messages]);
+    const id = setInterval(() => {
+      setStreamGroups((prev) =>
+        prev.map((g) =>
+          g.status === "running"
+            ? { ...g, elapsedMs: Date.now() - g.startedAt }
+            : g,
+        ),
+      );
+    }, 500);
+    return () => clearInterval(id);
+  }, []);
+
+  // Restore streamGroups from DB when messages load (latest timeline row wins)
+  useEffect(() => {
+    if (isLiveRef.current) return; // don't overwrite live streaming state
+    if (dbTimeline.length === 0) {
+      setStreamGroups([]);
+      return;
+    }
+    const latest = dbTimeline[dbTimeline.length - 1];
+    try {
+      const groups = JSON.parse(latest.content) as StreamGroup[];
+      setStreamGroups(groups);
+      streamGroupIdRef.current = groups.length > 0
+        ? Math.max(...groups.map((g) => g.id)) + 1
+        : 0;
+    } catch { /* ignore parse errors */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dbTimeline.length, activeSessionId]);
+
+  // Elapsed timer during streaming
+  useEffect(() => {
+    if (!isStreaming && !isWaiting && !isSending) return;
+    const start = Date.now();
+    setStreamStartTime(start);
+    setElapsedSecs(0);
+    const id = setInterval(() => {
+      setElapsedSecs(Math.floor((Date.now() - start) / 1000));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [isStreaming, isWaiting, isSending]);
+
+  // Track whether user has scrolled up manually
+  const userScrolledUpRef = useRef(false);
 
   useEffect(() => {
-    scrollBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = scrollRef.current?.querySelector("[data-radix-scroll-area-viewport]") as HTMLElement | null;
+    if (!el) return;
+    const onScroll = () => {
+      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+      userScrolledUpRef.current = !atBottom;
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Auto-scroll to bottom when switching sessions (always) or streaming new content (only if at bottom)
+  useEffect(() => {
+    userScrolledUpRef.current = false;
+    scrollBottomRef.current?.scrollIntoView({ behavior: "instant" });
+  }, [activeSessionId]);
+
+  useEffect(() => {
+    if (!userScrolledUpRef.current) {
+      scrollBottomRef.current?.scrollIntoView({ behavior: "instant" });
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    if (!userScrolledUpRef.current) {
+      scrollBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [streamingContent, toolActivities, isWaiting, isStreaming, isSending]);
 
   const handleNewSession = useCallback(async () => {
@@ -224,7 +404,13 @@ export function ChatPage({
 
       setStreamingContent("");
       setToolActivities([]);
+      setStreamGroups([]);
+      setTimelineCollapsed(false);
+      streamGroupIdRef.current = 0;
       setPendingApproval(null);
+      setCurrentTool(null);
+      setStreamTokens(0);
+      isLiveRef.current = true;
       setIsSending(true);
 
       const hermesModel =
@@ -282,19 +468,44 @@ export function ChatPage({
           onDelta: (delta) => {
             fullContent += delta;
             setStreamingContent(fullContent);
+            setStreamTokens((n) => n + Math.ceil(delta.length / 4));
+            setCurrentTool(null);
+            // Append delta text to the last group (or a no-tool group)
+            setStreamGroups((prev) => {
+              if (prev.length === 0) return prev;
+              const last = prev[prev.length - 1];
+              return [
+                ...prev.slice(0, -1),
+                { ...last, text: last.text + delta },
+              ];
+            });
           },
           onToolStarted: (tool, preview) => {
+            setCurrentTool(tool);
             setToolActivities((prev) => [
               ...prev,
               { tool, preview, status: "running" },
             ]);
+            const id = ++streamGroupIdRef.current;
+            setStreamGroups((prev) => [
+              ...prev,
+              { id, tool, preview, status: "running", startedAt: Date.now(), elapsedMs: 0, text: "" },
+            ]);
           },
-          onToolCompleted: (tool, duration, error) => {
+          onToolCompleted: (tool, duration, error, result) => {
+            setCurrentTool(null);
             setToolActivities((prev) =>
               prev.map((a) =>
                 a.tool === tool && a.status === "running"
-                  ? { ...a, status: error ? "error" : "completed", duration }
+                  ? { ...a, status: error ? "error" : "completed", duration, result }
                   : a,
+              ),
+            );
+            setStreamGroups((prev) =>
+              prev.map((g) =>
+                g.tool === tool && g.status === "running"
+                  ? { ...g, status: error ? "error" : "completed", duration }
+                  : g,
               ),
             );
           },
@@ -329,6 +540,22 @@ export function ChatPage({
               message: { id: assistantMsgId, role: "assistant", content },
             });
 
+            // Persist timeline asynchronously (fire and forget)
+            setStreamGroups((currentGroups) => {
+              if (currentGroups.length > 0) {
+                const timelineId = crypto.randomUUID();
+                void saveMessage.mutateAsync({
+                  sessionId: activeSessionId,
+                  message: {
+                    id: timelineId,
+                    role: "timeline",
+                    content: JSON.stringify(currentGroups),
+                  },
+                });
+              }
+              return currentGroups;
+            });
+
             if (messages.length === 0) {
               const titleBase = text || files.map((f) => f.filename).join(", ");
               const title =
@@ -347,6 +574,7 @@ export function ChatPage({
 
       setStreamingContent("");
       setToolActivities([]);
+      isLiveRef.current = false;
       setIsSending(false);
       if (!userCancelledRef.current && lastError) {
         const errMsgId = crypto.randomUUID();
@@ -498,6 +726,16 @@ export function ChatPage({
                   <>
                     {messages
                       .filter((m) => m.role !== "tool")
+                      .filter((m, idx, arr) => {
+                        // Hide the last assistant message when streamGroups is showing it
+                        // (streamGroups retains the interleaved view after completion)
+                        if (streamGroups.length === 0) return true;
+                        const lastAssistantIdx = arr.reduce(
+                          (acc, cur, i) => (cur.role === "assistant" ? i : acc),
+                          -1,
+                        );
+                        return !(m.role === "assistant" && idx === lastAssistantIdx);
+                      })
                       .map((msg) => (
                         <ChatMessageBubble
                           key={msg.id}
@@ -506,40 +744,176 @@ export function ChatPage({
                           onResend={(content) => void doSendToAgent(content)}
                         />
                       ))}
-                    {/* Thinking indicator */}
-                    {(isSending ||
-                      isWaiting ||
-                      (isStreaming && !streamingContent)) && (
-                      <div className="px-3 py-2 text-sm text-muted-foreground animate-pulse">
-                        {t("hermes.chat.thinking")}
+                    {/* Interleaved tool + response groups */}
+                    {streamGroups.length > 0 && (() => {
+                      const fmtSecs = (s: number) => {
+                        if (s >= 3600) return `${(s / 3600).toFixed(1)}h`;
+                        if (s >= 60) return `${(s / 60).toFixed(1)}m`;
+                        return `${s.toFixed(1)}s`;
+                      };
+
+                      // Build render items: batch consecutive no-text groups, keep text groups separate
+                      type RenderItem =
+                        | { type: "batch"; groups: typeof streamGroups; batchKey: number }
+                        | { type: "single"; group: (typeof streamGroups)[0] };
+
+                      const items: RenderItem[] = [];
+                      let batchKey = 0;
+                      for (let i = 0; i < streamGroups.length; i++) {
+                        const g = streamGroups[i];
+                        // Only batch consecutive completed groups with no text
+                        if (!g.text && g.status !== "running") {
+                          const batch = [g];
+                          while (
+                            i + 1 < streamGroups.length &&
+                            !streamGroups[i + 1].text &&
+                            streamGroups[i + 1].status !== "running"
+                          ) {
+                            i++;
+                            batch.push(streamGroups[i]);
+                          }
+                          // Always batch (even single no-text tools use compact row)
+                          items.push({ type: "batch", groups: batch, batchKey: batchKey++ });
+                        } else {
+                          items.push({ type: "single", group: g });
+                        }
+                      }
+
+                      // Merge adjacent batch items that have no single/text item between them
+                      const merged: RenderItem[] = [];
+                      for (let i = 0; i < items.length; i++) {
+                        const item = items[i];
+                        if (
+                          item.type === "batch" &&
+                          merged.length > 0 &&
+                          merged[merged.length - 1].type === "batch"
+                        ) {
+                          const prev = merged[merged.length - 1] as { type: "batch"; groups: typeof streamGroups; batchKey: number };
+                          merged[merged.length - 1] = {
+                            type: "batch",
+                            groups: [...prev.groups, ...item.groups],
+                            batchKey: prev.batchKey,
+                          };
+                        } else {
+                          merged.push(item);
+                        }
+                      }
+                      const finalItems = merged;
+
+                      const completedCount = streamGroups.filter(g => g.status === "completed").length;
+                      const totalGroups = streamGroups.length;
+
+                      return (
+                      <div className="my-1">
+                        {/* Collapse toggle header */}
+                        <button
+                          type="button"
+                          className="flex items-center gap-1 text-xs text-muted-foreground/60 hover:text-muted-foreground mb-0.5 ml-1"
+                          onClick={() => setTimelineCollapsed(v => !v)}
+                        >
+                          {timelineCollapsed
+                            ? <ChevronDown className="w-3.5 h-3.5" />
+                            : <ChevronUp className="w-3.5 h-3.5" />}
+                          <span>
+                            {timelineCollapsed
+                              ? `${completedCount}/${totalGroups} 个工具调用`
+                              : "收起"}
+                          </span>
+                        </button>
+                        {/* Show running items always; show completed items only when not collapsed */}
+                        <div className="ml-3 space-y-0">
+                        {finalItems.filter(item => {
+                          if (!timelineCollapsed) return true;
+                          // When collapsed, only show running groups
+                          if (item.type === "batch") return item.groups.some(g => g.status === "running");
+                          return item.group.status === "running";
+                        }).map((item, itemIdx, visibleItems) => {
+                          const isLastItem = itemIdx === visibleItems.length - 1;
+
+                          if (item.type === "batch") {
+                            // Collapsed batch row
+                            const batch = item.groups;
+                            const allDone = batch.every((g) => g.status === "completed");
+                            const hasRunning = batch.some((g) => g.status === "running");
+                            const totalDuration = batch.reduce((s, g) => s + (g.duration ?? g.elapsedMs / 1000), 0);
+                            return (
+                              <BatchToolRow
+                                key={`batch-${item.batchKey}`}
+                                groups={batch}
+                                allDone={allDone}
+                                hasRunning={hasRunning}
+                                totalDuration={totalDuration}
+                                fmtSecs={fmtSecs}
+                                hasLineBelow={!isLastItem}
+                              />
+                            );
+                          }
+
+                          const group = item.group;
+                          const elapsedDisplay = group.status === "running"
+                            ? fmtSecs(group.elapsedMs / 1000)
+                            : group.duration !== undefined ? fmtSecs(group.duration) : null;
+                          return (
+                            <div key={group.id} className="flex gap-2">
+                              <div className="flex flex-col items-center pt-1 shrink-0" style={{ width: 20 }}>
+                                <div className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 border ${
+                                  group.status === "running" ? "border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20"
+                                  : group.status === "error" ? "border-red-400 bg-red-50 dark:bg-red-900/20"
+                                  : "border-green-400 bg-green-50 dark:bg-green-900/20"
+                                }`}>
+                                  {group.status === "running" ? <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
+                                  : group.status === "error" ? <span className="text-red-500 text-[8px] font-bold">✕</span>
+                                  : <span className="text-green-500 text-[8px] font-bold">✓</span>}
+                                </div>
+                                {(!isLastItem || group.text) && (
+                                  <div className="w-px flex-1 bg-border mt-0.5" style={{ minHeight: 8 }} />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0 pb-0">
+                                <div className="flex items-center gap-0.5 text-xs py-0">
+                                  <span className="font-medium text-foreground">{group.tool}</span>
+                                  {elapsedDisplay && <span className="text-muted-foreground/60 shrink-0 ml-1.5">{elapsedDisplay}</span>}
+                                  {group.preview && <span className="text-muted-foreground/70 truncate max-w-[300px] font-mono ml-2">{group.preview}</span>}
+                                </div>
+                                {group.text && (
+                                  <div className="mt-0.5 mb-0 -ml-4">
+                                    <ChatMessageBubble
+                                      message={{ id: `__streaming_${group.id}__`, sessionId: activeSessionId, role: "assistant", content: group.text, toolCalls: null, toolCallId: null, name: null, fileRefs: null, createdAt: Date.now() }}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        </div>
                       </div>
-                    )}
-                    {/* Tool activities during streaming */}
-                    {toolActivities.length > 0 && (
-                      <div className="border-l-2 border-muted ml-5 my-2">
-                        {toolActivities.map((activity, i) => (
-                          <ToolActivityBlock
-                            key={`${activity.tool}-${i}`}
-                            activity={activity}
-                          />
-                        ))}
+                      );
+                    })()}
+                    {/* Dynamic status indicator — below timeline so it's always visible */}
+                    {(isSending || isWaiting || isStreaming) && (
+                      <div className="flex items-center gap-2 px-3 py-1 text-xs text-muted-foreground">
+                        <span className="flex gap-0.5">
+                          <span className="w-1 h-1 rounded-full bg-muted-foreground animate-bounce [animation-delay:0ms]" />
+                          <span className="w-1 h-1 rounded-full bg-muted-foreground animate-bounce [animation-delay:150ms]" />
+                          <span className="w-1 h-1 rounded-full bg-muted-foreground animate-bounce [animation-delay:300ms]" />
+                        </span>
+                        <span className={currentTool ? "text-yellow-600 dark:text-yellow-400" : ""}>
+                          {isSending || isWaiting
+                            ? t("hermes.chat.thinking", { defaultValue: "思考中" })
+                            : currentTool
+                              ? `调用 ${currentTool}`
+                              : streamingContent
+                                ? "生成中"
+                                : t("hermes.chat.thinking", { defaultValue: "思考中" })}
+                        </span>
+                        {elapsedSecs > 0 && (
+                          <span className="text-muted-foreground/60">{elapsedSecs}s</span>
+                        )}
+                        {streamTokens > 0 && (
+                          <span className="text-muted-foreground/60">↓{streamTokens} tokens</span>
+                        )}
                       </div>
-                    )}
-                    {/* Streaming assistant response */}
-                    {isStreaming && streamingContent && (
-                      <ChatMessageBubble
-                        message={{
-                          id: "__streaming__",
-                          sessionId: activeSessionId,
-                          role: "assistant",
-                          content: streamingContent,
-                          toolCalls: null,
-                          toolCallId: null,
-                          name: null,
-                          fileRefs: null,
-                          createdAt: Date.now(),
-                        }}
-                      />
                     )}
                     {/* Approval card */}
                     {pendingApproval && (

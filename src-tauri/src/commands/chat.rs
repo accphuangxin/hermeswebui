@@ -622,6 +622,7 @@ pub enum RunStreamEvent {
         tool: String,
         duration: f64,
         error: bool,
+        result: Option<String>,
     },
     ApprovalRequired {
         tool: String,
@@ -1225,10 +1226,16 @@ pub async fn startChatRun(
                         let tool = json["tool"].as_str().unwrap_or("").to_string();
                         let duration = json["duration"].as_f64().unwrap_or(0.0);
                         let error = json["error"].as_bool().unwrap_or(false);
+                        let result = json["result"].as_str().map(|s| s.to_string())
+                            .or_else(|| {
+                                // Some backends put result in "output"
+                                json["output"].as_str().map(|s| s.to_string())
+                            });
                         let _ = on_event.send(RunStreamEvent::ToolCompleted {
                             tool,
                             duration,
                             error,
+                            result,
                         });
                     }
                     "approval.required" => {
