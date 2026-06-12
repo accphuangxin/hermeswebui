@@ -45,8 +45,17 @@ jobs:
         if: failure()
         shell: pwsh
         run: |
-          Get-ChildItem -Recurse -Filter "*.log" "src-tauri/target/release/wix" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "=== $($_.FullName) ==="; Get-Content $_.FullName }
-          Get-ChildItem -Recurse -Filter "*.wxs" "src-tauri/target/release/wix" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "=== $($_.FullName) ==="; Get-Content $_.FullName }
+          # WiX logs
+          Get-ChildItem -Recurse -Filter "*.log" -Path "src-tauri/target/release/wix" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "=== $($_.FullName) ==="; Get-Content $_.FullName }
+          # Generated wxs files
+          Get-ChildItem -Recurse -Filter "*.wxs" -Path "src-tauri/target/release/wix" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "=== $($_.FullName) ==="; Get-Content $_.FullName }
+          # Run light.exe directly to capture its stderr
+          $light = "$env:USERPROFILE\AppData\Local\tauri\WixTools314\light.exe"
+          $wxsFiles = Get-ChildItem -Recurse -Filter "*.wixobj" -Path "src-tauri/target/release/wix" -ErrorAction SilentlyContinue
+          if ((Test-Path $light) -and $wxsFiles) {
+            Write-Host "=== light.exe direct output ==="
+            & $light $wxsFiles.FullName 2>&1 | Write-Host
+          }
 
       - name: Upload MSI installer
         uses: actions/upload-artifact@v4
