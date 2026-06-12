@@ -237,9 +237,10 @@ export function ChatPage({
     setHermesSessionId(null);
   }, [selectedAgentId]);
 
-  // Reset Hermes session when switching chat sessions or model
+  // Reset Hermes session and clear timeline when switching chat sessions
   useEffect(() => {
     setHermesSessionId(null);
+    setStreamGroups([]); // always clear on session switch; DB restore will repopulate
   }, [activeSessionId]);
 
   useEffect(() => {
@@ -262,7 +263,7 @@ export function ChatPage({
 
   // Restore streamGroups from DB when messages load (latest timeline row wins)
   useEffect(() => {
-    if (isLiveRef.current) return; // don't overwrite live streaming state
+    if (isLiveRef.current) return; // don't overwrite while streaming
     if (dbTimeline.length === 0) {
       setStreamGroups([]);
       return;
@@ -276,7 +277,7 @@ export function ChatPage({
         : 0;
     } catch { /* ignore parse errors */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dbTimeline.length, activeSessionId]);
+  }, [activeSessionId, dbTimeline[dbTimeline.length - 1]?.id]);
 
   // Elapsed timer during streaming
   useEffect(() => {

@@ -343,11 +343,35 @@ pub async fn write_workspace_file(filename: String, content: String) -> Result<(
 /// `subdir`: "workspace" opens `~/.openclaw/workspace/`,
 ///           "memory" opens `~/.openclaw/workspace/memory/`.
 #[tauri::command]
-pub async fn open_file_path(handle: AppHandle, path: String) -> Result<(), String> {
-    handle
-        .opener()
-        .open_path(&path, None::<String>)
-        .map_err(|e| format!("Failed to open file: {e}"))
+pub async fn open_file_path(_handle: AppHandle, path: String) -> Result<(), String> {
+    // Reveal the file in Finder (macOS) / Explorer (Windows) / file manager (Linux)
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .args(["-R", &path])
+            .spawn()
+            .map_err(|e| format!("Failed to reveal file: {e}"))?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .args(["/select,", &path])
+            .spawn()
+            .map_err(|e| format!("Failed to reveal file: {e}"))?;
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        // Linux: open the parent directory
+        let parent = std::path::Path::new(&path)
+            .parent()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|| path.clone());
+        std::process::Command::new("xdg-open")
+            .arg(&parent)
+            .spawn()
+            .map_err(|e| format!("Failed to open directory: {e}"))?;
+    }
+    Ok(())
 }
 
 #[tauri::command]

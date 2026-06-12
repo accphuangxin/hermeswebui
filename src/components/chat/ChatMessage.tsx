@@ -1,4 +1,5 @@
-import { memo, useState, useEffect, useRef, useCallback } from "react";
+import React, { memo, useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import Markdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -57,50 +58,49 @@ function extractLocalPath(src: string): string {
 }
 
 function FilePathButton({ path, label }: { path: string; label: string }) {
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const [copied, setCopied] = useState(false);
-  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
-  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const anchorRef = useRef<HTMLButtonElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
-  const show = () => {
-    if (hideTimer.current) clearTimeout(hideTimer.current);
-    const r = anchorRef.current?.getBoundingClientRect();
-    if (r) setMenuPos({ x: r.left, y: r.bottom + 2 });
-  };
-  const hide = () => {
-    hideTimer.current = setTimeout(() => setMenuPos(null), 2000);
-  };
-  const cancelHide = () => {
-    if (hideTimer.current) clearTimeout(hideTimer.current);
-  };
+  const open = pos !== null;
+
+  // Close when clicking outside
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (btnRef.current?.contains(e.target as Node)) return;
+      if (menuRef.current?.contains(e.target as Node)) return;
+      setPos(null);
+    };
+    document.addEventListener("mousedown", handler, true);
+    return () => document.removeEventListener("mousedown", handler, true);
+  }, [open]);
 
   return (
     <>
       <button
-        ref={anchorRef}
+        ref={btnRef}
         type="button"
-        className="text-primary underline underline-offset-2 cursor-pointer hover:opacity-80 font-mono text-xs"
-        title={path}
-        onClick={() => void invoke("open_file_path", { path })}
-        onMouseEnter={show}
-        onMouseLeave={hide}
+        className="text-primary underline underline-offset-2 hover:opacity-80 font-mono text-xs cursor-pointer"
+        onClick={(e) => {
+          e.stopPropagation();
+          if (open) { setPos(null); return; }
+          setPos({ x: e.clientX, y: e.clientY + 6 });
+        }}
       >
         {label}
       </button>
-      {menuPos && (
-        <span
-          className="fixed z-[9999]"
-          style={{ left: menuPos.x - 4, top: menuPos.y - 8, paddingTop: 8, paddingLeft: 4, whiteSpace: "nowrap" }}
-          onMouseEnter={cancelHide}
-          onMouseLeave={hide}
-        >
-        <span
-          className="flex gap-0 rounded-md border bg-popover shadow-md overflow-hidden"
+      {open && createPortal(
+        <div
+          ref={menuRef}
+          className="fixed z-[9999] flex rounded-md border bg-popover shadow-lg"
+          style={{ left: pos.x, top: pos.y, whiteSpace: "nowrap" }}
         >
           <button
             type="button"
-            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs hover:bg-muted transition-colors"
-            onClick={() => { void invoke("open_file_path", { path }); setMenuPos(null); }}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs hover:bg-muted transition-colors"
+            onClick={() => { void invoke("open_file_path", { path }); setPos(null); }}
           >
             <FolderOpen className="w-3 h-3" />
             浏览
@@ -108,18 +108,18 @@ function FilePathButton({ path, label }: { path: string; label: string }) {
           <span className="w-px bg-border" />
           <button
             type="button"
-            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs hover:bg-muted transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs hover:bg-muted transition-colors"
             onClick={async () => {
               await navigator.clipboard.writeText(path);
               setCopied(true);
-              setTimeout(() => { setCopied(false); setMenuPos(null); }, 1500);
+              setTimeout(() => { setCopied(false); setPos(null); }, 1500);
             }}
           >
             {copied ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
             复制路径
           </button>
-        </span>
-        </span>
+        </div>,
+        document.body
       )}
     </>
   );
@@ -213,6 +213,93 @@ function LocalHtml({ path }: { path: string }) {
     </div>
   );
 }
+
+function MarkdownPre({ children }: { children?: React.ReactNode }) {
+  const [copied, setCopied] = useState(false);
+  const preRef = useRef<HTMLPreElement>(null);
+  const handleCopy = () => {
+    const text = preRef.current?.innerText ?? "";
+    void navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+  return (
+    <div className="relative group my-1.5">
+      <pre
+        ref={preRef}
+        className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded p-3 overflow-x-auto text-xs border border-zinc-200 dark:border-zinc-700"
+      >
+        {children}
+      </pre>
+      <button
+        type="button"
+        onClick={handleCopy}
+        className="absolute top-1.5 right-1.5 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-zinc-600 dark:text-zinc-300"
+      >
+        {copied ? (
+          <Check className="w-3 h-3 text-green-400" />
+        ) : (
+          <Copy className="w-3 h-3" />
+        )}
+      </button>
+    </div>
+  );
+}
+
+function MarkdownCode({ children, className }: { children?: React.ReactNode; className?: string }) {
+  if (!className) {
+    const text = String(children);
+    const mdLink = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(text);
+    if (mdLink) {
+      const [, label, href] = mdLink;
+      const localPath = extractLocalPath(href);
+      if (href.startsWith("/") || href.startsWith("file://")) {
+        return <FilePathButton path={localPath} label={label} />;
+      }
+    }
+    if (/^\/(?:[^\s]+\/)+[^\s]+\.\w+$/.test(text)) {
+      return <FilePathButton path={text} label={text} />;
+    }
+  }
+  return className ? (
+    <code className="text-xs">{children}</code>
+  ) : (
+    <code className="bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-700 rounded px-1 py-0.5 text-xs">
+      {children}
+    </code>
+  );
+}
+
+function MarkdownA({ href, children }: { href?: string; children?: React.ReactNode }) {
+  if (href && /MEDIA:[^\s"'<>]+\.html?$/i.test(href)) {
+    return <LocalHtml path={extractLocalPath(href)} />;
+  }
+  if (href && (href.startsWith("/") || href.startsWith("file://"))) {
+    const localPath = extractLocalPath(href);
+    return <FilePathButton path={localPath} label={String(children)} />;
+  }
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline">
+      {children}
+    </a>
+  );
+}
+
+function MarkdownImg({ src, alt }: { src?: string; alt?: string }) {
+  if (!src) return null;
+  if (isLocalPath(src)) {
+    return <LocalImage src={src} alt={alt ?? ""} />;
+  }
+  return <img src={src} alt={alt ?? ""} className="max-w-full rounded-lg my-1" />;
+}
+
+const markdownComponents = {
+  pre: MarkdownPre,
+  code: MarkdownCode,
+  a: MarkdownA,
+  img: MarkdownImg,
+};
 
 interface ContextMenuState {
   x: number;
@@ -441,103 +528,7 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
                   }
                   return defaultUrlTransform(url);
                 }}
-                components={{
-                  pre: ({ children }) => {
-                    const [copied, setCopied] = useState(false);
-                    const preRef = useRef<HTMLPreElement>(null);
-                    const handleCopy = () => {
-                      const text = preRef.current?.innerText ?? "";
-                      void navigator.clipboard.writeText(text).then(() => {
-                        setCopied(true);
-                        setTimeout(() => setCopied(false), 1500);
-                      });
-                    };
-                    return (
-                      <div className="relative group my-1.5">
-                        <pre
-                          ref={preRef}
-                          className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded p-3 overflow-x-auto text-xs border border-zinc-200 dark:border-zinc-700"
-                        >
-                          {children}
-                        </pre>
-                        <button
-                          type="button"
-                          onClick={handleCopy}
-                          className="absolute top-1.5 right-1.5 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-zinc-600 dark:text-zinc-300"
-                        >
-                          {copied ? (
-                            <Check className="w-3 h-3 text-green-400" />
-                          ) : (
-                            <Copy className="w-3 h-3" />
-                          )}
-                        </button>
-                      </div>
-                    );
-                  },
-                  code: ({ children, className }) => {
-                    if (!className) {
-                      // Check if inline code contains a markdown link like [name](/path)
-                      const text = String(children);
-                      const mdLink = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(text);
-                      if (mdLink) {
-                        const [, label, href] = mdLink;
-                        const localPath = extractLocalPath(href);
-                        if (href.startsWith("/") || href.startsWith("file://")) {
-                          return <FilePathButton path={localPath} label={label} />;
-                        }
-                      }
-                      // Plain absolute file path
-                      if (/^\/(?:[^\s]+\/)+[^\s]+\.\w+$/.test(text)) {
-                        return <FilePathButton path={text} label={text} />;
-                      }
-                    }
-                    return className ? (
-                      <code className="text-xs">{children}</code>
-                    ) : (
-                      <code className="bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-700 rounded px-1 py-0.5 text-xs">
-                        {children}
-                      </code>
-                    );
-                  },
-                  a: ({ href, children }) => {
-                    if (href && /MEDIA:[^\s"'<>]+\.html?$/i.test(href)) {
-                      return <LocalHtml path={extractLocalPath(href)} />;
-                    }
-                    // Bare local file path — open with system default app
-                    if (href && (href.startsWith("/") || href.startsWith("file://"))) {
-                      const localPath = extractLocalPath(href);
-                      return (
-                        <FilePathButton
-                          path={localPath}
-                          label={String(children)}
-                        />
-                      );
-                    }
-                    return (
-                      <a
-                        href={href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary underline"
-                      >
-                        {children}
-                      </a>
-                    );
-                  },
-                  img: ({ src, alt }) => {
-                    if (!src) return null;
-                    if (isLocalPath(src)) {
-                      return <LocalImage src={src} alt={alt ?? ""} />;
-                    }
-                    return (
-                      <img
-                        src={src}
-                        alt={alt ?? ""}
-                        className="max-w-full rounded-lg my-1"
-                      />
-                    );
-                  },
-                }}
+                components={markdownComponents}
               >
                 {preprocessMediaLinks(message.content)}
               </Markdown>
