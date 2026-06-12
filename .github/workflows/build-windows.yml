@@ -39,22 +39,27 @@ jobs:
       - name: Build Tauri app
         run: pnpm tauri build --bundles msi,nsis
         env:
-          TAURI_BUNDLES_MSI_DEBUG: "true"
+          RUST_LOG: "debug"
 
-      - name: Show WiX log on failure
+      - name: Show WiX artifacts on failure
         if: failure()
         shell: pwsh
         run: |
-          # WiX logs
-          Get-ChildItem -Recurse -Filter "*.log" -Path "src-tauri/target/release/wix" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "=== $($_.FullName) ==="; Get-Content $_.FullName }
-          # Generated wxs files
-          Get-ChildItem -Recurse -Filter "*.wxs" -Path "src-tauri/target/release/wix" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "=== $($_.FullName) ==="; Get-Content $_.FullName }
-          # Run light.exe directly to capture its stderr
+          $wixDir = "src-tauri/target/release/wix"
+          # Print generated wxs (contains actual component definitions)
+          Get-ChildItem -Recurse -Filter "*.wxs" -Path $wixDir -ErrorAction SilentlyContinue | ForEach-Object {
+            Write-Host "=== $($_.FullName) ==="
+            Get-Content $_.FullName
+          }
+          # Re-run light.exe manually with -v to get full error output
           $light = "$env:USERPROFILE\AppData\Local\tauri\WixTools314\light.exe"
-          $wxsFiles = Get-ChildItem -Recurse -Filter "*.wixobj" -Path "src-tauri/target/release/wix" -ErrorAction SilentlyContinue
-          if ((Test-Path $light) -and $wxsFiles) {
-            Write-Host "=== light.exe direct output ==="
-            & $light $wxsFiles.FullName 2>&1 | Write-Host
+          $wixobj = Get-ChildItem -Recurse -Filter "*.wixobj" -Path $wixDir -ErrorAction SilentlyContinue
+          if ((Test-Path $light) -and $wixobj) {
+            Write-Host "=== Re-running light.exe ==="
+            $outMsi = "$wixDir\diag.msi"
+            $locFiles = Get-ChildItem -Recurse -Filter "*.wxl" -Path $wixDir -ErrorAction SilentlyContinue
+            $locArgs = $locFiles | ForEach-Object { "-loc", $_.FullName }
+            & $light -v -nologo $wixobj.FullName $locArgs -out $outMsi 2>&1
           }
 
       - name: Upload MSI installer
