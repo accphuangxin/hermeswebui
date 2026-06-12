@@ -11,8 +11,5 @@
         "minHeight": 600
       }
     ]
-  },
-  "bundle": {
-    "resources": {}
   }
 }
