@@ -58,7 +58,7 @@ jobs:
             Write-Host "=== Re-running light.exe ==="
             $outMsi = "$wixDir\diag.msi"
             $locFiles = Get-ChildItem -Recurse -Filter "*.wxl" -Path $wixDir -ErrorAction SilentlyContinue
-            $locArgs = $locFiles | ForEach-Object { "-loc", $_.FullName }
+            $locArgs = $locFiles | ForEach-Object { "-loc"; $_.FullName }
             & $light -v -nologo $wixobj.FullName $locArgs -out $outMsi 2>&1
           }
 
