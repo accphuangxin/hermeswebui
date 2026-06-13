@@ -344,30 +344,43 @@ pub async fn write_workspace_file(filename: String, content: String) -> Result<(
 ///           "memory" opens `~/.openclaw/workspace/memory/`.
 #[tauri::command]
 pub async fn open_file_path(_handle: AppHandle, path: String) -> Result<(), String> {
-    // Reveal the file in Finder (macOS) / Explorer (Windows) / file manager (Linux)
+    let p = std::path::Path::new(&path);
+    // If the file doesn't exist, fall back to opening its parent directory
+    let target = if p.exists() {
+        path.clone()
+    } else {
+        p.parent()
+            .map(|d| d.to_string_lossy().to_string())
+            .unwrap_or_else(|| path.clone())
+    };
+
     #[cfg(target_os = "macos")]
     {
+        let args: &[&str] = if p.exists() { &["-R", &target] } else { &[&target] };
         std::process::Command::new("open")
-            .args(["-R", &path])
+            .args(args)
             .spawn()
-            .map_err(|e| format!("Failed to reveal file: {e}"))?;
+            .map_err(|e| format!("Failed to open in Finder: {e}"))?;
     }
     #[cfg(target_os = "windows")]
     {
+        let args: &[&str] = if p.exists() { &["/select,", &target] } else { &[&target] };
         std::process::Command::new("explorer")
-            .args(["/select,", &path])
+            .args(args)
             .spawn()
-            .map_err(|e| format!("Failed to reveal file: {e}"))?;
+            .map_err(|e| format!("Failed to open in Explorer: {e}"))?;
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
-        // Linux: open the parent directory
-        let parent = std::path::Path::new(&path)
-            .parent()
-            .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or_else(|| path.clone());
+        let dir = if p.exists() && p.is_file() {
+            p.parent()
+                .map(|d| d.to_string_lossy().to_string())
+                .unwrap_or(target)
+        } else {
+            target
+        };
         std::process::Command::new("xdg-open")
-            .arg(&parent)
+            .arg(&dir)
             .spawn()
             .map_err(|e| format!("Failed to open directory: {e}"))?;
     }
