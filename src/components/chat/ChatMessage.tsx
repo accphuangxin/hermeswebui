@@ -58,7 +58,8 @@ function extractLocalPath(src: string): string {
   return src;
 }
 
-function FilePathButton({ path, label }: { path: string; label: string }) {
+function FilePathButton({ path: rawPath, label }: { path: string; label: string }) {
+  const path = rawPath.includes("%") ? decodeURIComponent(rawPath) : rawPath;
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const [copied, setCopied] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
