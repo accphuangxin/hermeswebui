@@ -732,9 +732,12 @@ export function ChatPage({
                     {messages
                       .filter((m) => m.role !== "tool")
                       .filter((m, idx, arr) => {
-                        // Hide the last assistant message when streamGroups is showing it
-                        // (streamGroups retains the interleaved view after completion)
+                        // Only hide the last assistant message when streamGroups is the
+                        // persisted timeline for that exact message (i.e. not mid-stream).
+                        // While streaming (isLiveRef=true), streamGroups is for the NEW
+                        // request — don't hide historical messages.
                         if (streamGroups.length === 0) return true;
+                        if (isLiveRef.current) return true;
                         const lastAssistantIdx = arr.reduce(
                           (acc, cur, i) => (cur.role === "assistant" ? i : acc),
                           -1,
