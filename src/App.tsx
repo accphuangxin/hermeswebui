@@ -1375,7 +1375,7 @@ function App() {
                   />
                   <ChevronDown
                     className={cn(
-                      "w-3 h-3 text-muted-foreground/60 transition-transform duration-200 ml-0.5 shrink-0",
+                      "w-4 h-4 text-muted-foreground transition-transform duration-200 ml-1 shrink-0 group-hover:text-foreground",
                       navExpanded && "rotate-180"
                     )}
                   />
