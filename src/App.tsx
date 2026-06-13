@@ -1364,13 +1364,20 @@ function App() {
             ) : currentView === "hermesChat" ? (
               <div className="flex items-center gap-2">
                 <div
-                  className="relative inline-flex items-center shrink-0 cursor-pointer"
+                  className="relative inline-flex items-center shrink-0 cursor-pointer group rounded-lg hover:bg-black/5 dark:hover:bg-white/5 px-1 transition-colors"
                   onClick={() => setNavExpanded((v) => !v)}
+                  title={navExpanded ? "收起菜单" : "展开菜单"}
                 >
                   <img
                     src={hermesBrandLogo}
                     alt="Hermes"
                     className="h-12 w-auto object-contain"
+                  />
+                  <ChevronDown
+                    className={cn(
+                      "w-3 h-3 text-muted-foreground/60 transition-transform duration-200 ml-0.5 shrink-0",
+                      navExpanded && "rotate-180"
+                    )}
                   />
                 </div>
                 {navExpanded && (
