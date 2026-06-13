@@ -1302,12 +1302,12 @@ function App() {
         }
       >
         <div
-          className="relative flex h-full items-center gap-2 px-6"
+          className="flex h-full items-center gap-2 px-6"
           {...DRAG_REGION_ATTR}
           style={{ ...DRAG_REGION_STYLE } as any}
         >
           <div
-            className="flex items-center gap-1"
+            className="flex flex-1 items-center gap-1"
             style={{ WebkitAppRegion: "no-drag" } as any}
           >
             {currentView === "hermesKanban" ? (
@@ -1534,11 +1534,11 @@ function App() {
             )}
           </div>
 
-          {/* Center: agent + connection status — absolutely centered so left/right content doesn't shift it */}
+          {/* Center: agent + connection status — shrink-0 so left/right flex-1 keep it centered */}
           <div
-            className="absolute left-0 right-0 flex items-center justify-center pointer-events-none"
-            style={{ top: 0, bottom: 0, ...DRAG_REGION_STYLE } as any}
+            className="shrink-0 flex items-center justify-center pointer-events-none"
             {...DRAG_REGION_ATTR}
+            style={{ ...DRAG_REGION_STYLE } as any}
           >
             {currentView === "hermesChat" &&
               (() => {
