@@ -1364,7 +1364,7 @@ function App() {
             ) : currentView === "hermesChat" ? (
               <div className="flex items-center gap-2">
                 <div
-                  className="relative inline-flex items-center shrink-0 cursor-pointer group rounded-lg bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 px-1 transition-colors"
+                  className="relative inline-flex items-center shrink-0 cursor-pointer group px-1"
                   onClick={() => setNavExpanded((v) => !v)}
                   title={navExpanded ? "收起菜单" : "展开菜单"}
                 >
@@ -1373,12 +1373,14 @@ function App() {
                     alt="Hermes"
                     className="h-12 w-auto object-contain"
                   />
-                  <ChevronDown
-                    className={cn(
-                      "w-4 h-4 text-muted-foreground transition-transform duration-200 ml-1 shrink-0 group-hover:text-foreground",
-                      navExpanded && "rotate-180"
-                    )}
-                  />
+                  <span className="ml-1 flex items-center justify-center w-5 h-5 rounded-full border border-border bg-muted group-hover:bg-muted/80 transition-colors shrink-0">
+                    <ChevronDown
+                      className={cn(
+                        "w-3 h-3 text-muted-foreground transition-transform duration-200 group-hover:text-foreground",
+                        navExpanded && "rotate-180"
+                      )}
+                    />
+                  </span>
                 </div>
                 {navExpanded && (
                   <>
