@@ -684,10 +684,9 @@ function CreateAgentForm({
               API KEY <span className="text-destructive">*</span>
             </div>
             <Input
-              type="password"
               value={apiServerKey}
               onChange={(e) => setApiServerKey(e.target.value)}
-              placeholder="••••••••"
+              placeholder="my-secret-key"
               className="h-9 text-sm"
             />
           </div>
@@ -856,10 +855,9 @@ function EditAgentForm({
               API KEY
             </div>
             <Input
-              type="password"
               value={apiServerKey}
               onChange={(e) => setApiServerKey(e.target.value)}
-              placeholder="••••••••"
+              placeholder="my-secret-key"
               className="h-9 text-sm"
             />
           </div>
