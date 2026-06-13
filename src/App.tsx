@@ -191,6 +191,7 @@ function App() {
     mainScrollRef.current?.scrollTo({ top: 0 });
     unifiedSkillsPanelRef.current?.scrollToTop();
   }, [currentView]);
+  const [navExpanded, setNavExpanded] = useState(false);
   const [settingsDefaultTab, setSettingsDefaultTab] = useState("general");
   const [settingsKey, setSettingsKey] = useState(0);
   const openSettings = useCallback((tab = "general") => {
@@ -1362,44 +1363,51 @@ function App() {
               </div>
             ) : currentView === "hermesChat" ? (
               <div className="flex items-center gap-2">
-                <div className="relative inline-flex items-center shrink-0">
+                <div
+                  className="relative inline-flex items-center shrink-0 cursor-pointer"
+                  onClick={() => setNavExpanded((v) => !v)}
+                >
                   <img
                     src={hermesBrandLogo}
                     alt="Hermes"
                     className="h-12 w-auto object-contain"
                   />
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setCurrentView("hermesAgents")}
-                  className="hover:bg-black/5 dark:hover:bg-white/5 shrink-0 gap-1.5 text-xs"
-                >
-                  <Users className="w-3.5 h-3.5" />
-                  {t("hermes.agents.button", { defaultValue: "智能体" })}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setCurrentView("skills")}
-                  className="hover:bg-black/5 dark:hover:bg-white/5 shrink-0 gap-1.5 text-xs"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  {t("skills.title", { defaultValue: "技能" })}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setCurrentView("hermesKanban")}
-                  className="hover:bg-black/5 dark:hover:bg-white/5 shrink-0 gap-1.5 text-xs"
-                >
-                  <LayoutDashboard className="w-3.5 h-3.5" />
-                  {t("kanban.title", { defaultValue: "看板" })}
-                </Button>
-                <UpdateBadge
-                  onClick={() => openSettings("general")}
-                  showLabel
-                />
+                {navExpanded && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCurrentView("hermesAgents")}
+                      className="hover:bg-black/5 dark:hover:bg-white/5 shrink-0 gap-1.5 text-xs"
+                    >
+                      <Users className="w-3.5 h-3.5" />
+                      {t("hermes.agents.button", { defaultValue: "智能体" })}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCurrentView("skills")}
+                      className="hover:bg-black/5 dark:hover:bg-white/5 shrink-0 gap-1.5 text-xs"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      {t("skills.title", { defaultValue: "技能" })}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCurrentView("hermesKanban")}
+                      className="hover:bg-black/5 dark:hover:bg-white/5 shrink-0 gap-1.5 text-xs"
+                    >
+                      <LayoutDashboard className="w-3.5 h-3.5" />
+                      {t("kanban.title", { defaultValue: "看板" })}
+                    </Button>
+                    <UpdateBadge
+                      onClick={() => openSettings("general")}
+                      showLabel
+                    />
+                  </>
+                )}
               </div>
             ) : currentView !== "providers" ? (
               <div className="flex items-center gap-2">
