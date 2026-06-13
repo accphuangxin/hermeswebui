@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import Markdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { invoke } from "@tauri-apps/api/core";
+import { toast } from "sonner";
 import {
   Copy,
   Check,
@@ -100,7 +101,11 @@ function FilePathButton({ path, label }: { path: string; label: string }) {
           <button
             type="button"
             className="flex items-center gap-1.5 px-3 py-2 text-xs hover:bg-muted transition-colors"
-            onClick={() => { void invoke("open_file_path", { path }); setPos(null); }}
+            onClick={() => {
+              invoke("open_file_path", { path })
+                .then(() => setPos(null))
+                .catch((e) => { toast.error(`浏览失败: ${String(e)}`); setPos(null); });
+            }}
           >
             <FolderOpen className="w-3 h-3" />
             浏览

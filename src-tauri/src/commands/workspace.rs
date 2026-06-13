@@ -345,34 +345,39 @@ pub async fn write_workspace_file(filename: String, content: String) -> Result<(
 #[tauri::command]
 pub async fn open_file_path(_handle: AppHandle, path: String) -> Result<(), String> {
     let p = std::path::Path::new(&path);
+    let exists = p.exists();
+    log::debug!("[open_file_path] path={path:?} exists={exists}");
+
     // If the file doesn't exist, fall back to opening its parent directory
-    let target = if p.exists() {
+    let target = if exists {
         path.clone()
     } else {
         p.parent()
+            .filter(|d| d.exists())
             .map(|d| d.to_string_lossy().to_string())
             .unwrap_or_else(|| path.clone())
     };
+    log::debug!("[open_file_path] target={target:?}");
 
     #[cfg(target_os = "macos")]
     {
-        let args: &[&str] = if p.exists() { &["-R", &target] } else { &[&target] };
-        std::process::Command::new("open")
-            .args(args)
-            .spawn()
-            .map_err(|e| format!("Failed to open in Finder: {e}"))?;
+        let mut cmd = std::process::Command::new("open");
+        if exists { cmd.args(["-R", &target]); } else { cmd.arg(&target); }
+        let out = cmd.output().map_err(|e| format!("Failed to launch open: {e}"))?;
+        if !out.status.success() {
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            return Err(format!("open failed: {stderr}"));
+        }
     }
     #[cfg(target_os = "windows")]
     {
-        let args: &[&str] = if p.exists() { &["/select,", &target] } else { &[&target] };
-        std::process::Command::new("explorer")
-            .args(args)
-            .spawn()
-            .map_err(|e| format!("Failed to open in Explorer: {e}"))?;
+        let mut cmd = std::process::Command::new("explorer");
+        if exists { cmd.args(["/select,", &target]); } else { cmd.arg(&target); }
+        cmd.spawn().map_err(|e| format!("Failed to open in Explorer: {e}"))?;
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
-        let dir = if p.exists() && p.is_file() {
+        let dir = if exists && p.is_file() {
             p.parent()
                 .map(|d| d.to_string_lossy().to_string())
                 .unwrap_or(target)
