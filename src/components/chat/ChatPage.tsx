@@ -542,20 +542,23 @@ export function ChatPage({
               message: { id: assistantMsgId, role: "assistant", content },
             });
 
-            // Persist timeline asynchronously (fire and forget)
+            // Persist timeline asynchronously — mark any lingering running groups as completed first
             setStreamGroups((currentGroups) => {
-              if (currentGroups.length > 0) {
+              const finalGroups = currentGroups.map((g) =>
+                g.status === "running" ? { ...g, status: "completed" as const } : g,
+              );
+              if (finalGroups.length > 0) {
                 const timelineId = crypto.randomUUID();
                 void saveMessage.mutateAsync({
                   sessionId: activeSessionId,
                   message: {
                     id: timelineId,
                     role: "timeline",
-                    content: JSON.stringify(currentGroups),
+                    content: JSON.stringify(finalGroups),
                   },
                 });
               }
-              return currentGroups;
+              return finalGroups;
             });
 
             if (messages.length === 0) {
