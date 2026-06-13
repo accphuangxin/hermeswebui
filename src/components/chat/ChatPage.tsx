@@ -527,6 +527,7 @@ export function ChatPage({
             }
 
             succeeded = true;
+            isLiveRef.current = false;
             setStreamingContent("");
             setToolActivities([]);
             setIsSending(false);
