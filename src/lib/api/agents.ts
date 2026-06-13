@@ -25,7 +25,7 @@ export interface CreateAgentInput {
   soul?: string;
   clone?: boolean;
   api_server_port?: number;
-  api_server_key?: string;
+  api_server_key: string;
 }
 
 export interface UpdateAgentInput {

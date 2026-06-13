@@ -609,7 +609,7 @@ function CreateAgentForm({
   const [apiServerKey, setApiServerKey] = useState("");
 
   function handleSubmit() {
-    if (!name.trim()) return;
+    if (!name.trim() || !apiServerKey.trim()) return;
     createAgent(
       {
         name: name.trim(),
@@ -617,7 +617,7 @@ function CreateAgentForm({
         soul: soul.trim() || undefined,
         clone: true,
         api_server_port: apiServerPort ? Number(apiServerPort) : undefined,
-        api_server_key: apiServerKey.trim() || undefined,
+        api_server_key: apiServerKey.trim(),
       },
       { onSuccess: onCreated },
     );
@@ -681,7 +681,7 @@ function CreateAgentForm({
 
           <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
             <div className="text-xs text-muted-foreground uppercase tracking-wide">
-              API KEY
+              API KEY <span className="text-destructive">*</span>
             </div>
             <Input
               type="password"
@@ -727,7 +727,7 @@ function CreateAgentForm({
           size="sm"
           className="flex-1 h-9"
           onClick={handleSubmit}
-          disabled={isPending || !name.trim()}
+          disabled={isPending || !name.trim() || !apiServerKey.trim()}
         >
           {isPending
             ? t("common.creating", { defaultValue: "创建中..." })
