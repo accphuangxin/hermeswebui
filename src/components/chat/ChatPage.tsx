@@ -471,12 +471,9 @@ export function ChatPage({
             setStreamingContent(fullContent);
             setStreamTokens((n) => n + Math.ceil(delta.length / 4));
             setCurrentTool(null);
-            // Append delta text to the last group; create a text-only group if none exist
+            // Append delta text to the last group (only if tool calls exist)
             setStreamGroups((prev) => {
-              if (prev.length === 0) {
-                const id = ++streamGroupIdRef.current;
-                return [{ id, tool: "", preview: "", status: "running" as const, startedAt: Date.now(), elapsedMs: 0, text: delta }];
-              }
+              if (prev.length === 0) return prev;
               const last = prev[prev.length - 1];
               return [
                 ...prev.slice(0, -1),
@@ -749,6 +746,12 @@ export function ChatPage({
                           onResend={(content) => void doSendToAgent(content)}
                         />
                       ))}
+                    {/* Pure text streaming (no tool calls) */}
+                    {streamGroups.length === 0 && streamingContent && (
+                      <ChatMessageBubble
+                        message={{ id: "__streaming__", sessionId: activeSessionId ?? "", role: "assistant", content: streamingContent, toolCalls: null, toolCallId: null, name: null, fileRefs: null, createdAt: Date.now() }}
+                      />
+                    )}
                     {/* Interleaved tool + response groups */}
                     {streamGroups.length > 0 && (() => {
                       const fmtSecs = (s: number) => {
@@ -855,16 +858,6 @@ export function ChatPage({
                           }
 
                           const group = item.group;
-                          // Text-only group (no tool call) — render bubble directly without tool chrome
-                          if (!group.tool) {
-                            return group.text ? (
-                              <div key={group.id} className="-ml-3">
-                                <ChatMessageBubble
-                                  message={{ id: `__streaming_${group.id}__`, sessionId: activeSessionId, role: "assistant", content: group.text, toolCalls: null, toolCallId: null, name: null, fileRefs: null, createdAt: Date.now() }}
-                                />
-                              </div>
-                            ) : null;
-                          }
                           const elapsedDisplay = group.status === "running"
                             ? fmtSecs(group.elapsedMs / 1000)
                             : group.duration !== undefined ? fmtSecs(group.duration) : null;
