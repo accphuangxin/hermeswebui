@@ -92,14 +92,14 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
         setIsDismissed(dismissedVersion === result.info.availableVersion);
 
         // 自动后台下载
-        const toastId = toast.loading(`正在后台下载更新 v${result.info.availableVersion}...`, { duration: Infinity });
+        const toastId = toast.loading(`正在后台下载 v${result.info.availableVersion}...`, { duration: Infinity });
         setIsDownloading(true);
         result.update.downloadAndInstall().then(() => {
           setIsDownloading(false);
           setIsReadyToInstall(true);
           toast.dismiss(toastId);
-          toast.success(`v${result.info.availableVersion} 已下载完成，点击立即重启安装`, {
-            duration: Infinity,
+          toast.success(`v${result.info.availableVersion} 已就绪，重启后生效`, {
+            duration: 30000,
             action: {
               label: "立即重启",
               onClick: () => void relaunchApp(),
