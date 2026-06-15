@@ -87,17 +87,54 @@ function tryRepairCompressedTable(line: string): string | null {
   return [header, sep, ...dataRows].join("\n");
 }
 
+// Handle "|| row separator" format: "| a | b || c | d ||" → split into rows
+function tryRepairDoublePipeTable(line: string): string | null {
+  if (!line.includes("||")) return null;
+  const trimmed = line.trim();
+  // Split on || to get raw rows
+  const rawRows = trimmed.split("||").map((r) => r.trim()).filter(Boolean);
+  if (rawRows.length < 2) return null;
+
+  const rows = rawRows.map((r) => {
+    // Normalize: strip leading/trailing pipes, split on single |
+    const stripped = r.replace(/^\|/, "").replace(/\|$/, "");
+    return stripped.split("|").map((c) => c.trim()).filter((c) => c !== "");
+  });
+
+  if (rows.length < 2 || rows[0].length < 2) return null;
+
+  const colCount = rows[0].length;
+  const header = `| ${rows[0].join(" | ")} |`;
+  const sep = `| ${Array(colCount).fill("---").join(" | ")} |`;
+  const dataRows = rows.slice(1).map((r) => `| ${r.join(" | ")} |`);
+  return [header, sep, ...dataRows].join("\n");
+}
+
 function repairCompressedTable(content: string): string {
   const lines = content.split("\n");
   const out: string[] = [];
 
   for (const line of lines) {
     const trimmed = line.trim();
-    // Skip lines already in pipe-table format or with no pipes
-    if (!trimmed.includes("|") || trimmed.startsWith("|")) {
+    if (!trimmed.includes("|")) {
       out.push(line);
       continue;
     }
+
+    // Try || row-separator format first (line starts with | and contains ||)
+    if (trimmed.startsWith("|") && trimmed.includes("||")) {
+      const repaired = tryRepairDoublePipeTable(trimmed);
+      out.push(repaired ?? line);
+      continue;
+    }
+
+    // Skip lines already in valid single-pipe table format (no || involved)
+    if (trimmed.startsWith("|")) {
+      out.push(line);
+      continue;
+    }
+
+    // Try space-seam compressed table
     const repaired = tryRepairCompressedTable(trimmed);
     out.push(repaired ?? line);
   }
