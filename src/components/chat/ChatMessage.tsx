@@ -24,8 +24,51 @@ import { ToolCallBlock } from "./ToolCallBlock";
 import { cn } from "@/lib/utils";
 
 // Convert bare MEDIA:/path references in text into Markdown image or link syntax
+// Repair compressed pipe tables: if multiple rows are collapsed onto one line, split them.
+// Heuristic: a line contains ≥2 pipes but no newlines between rows — detect the header row
+// by looking for column names, then insert a separator row and split data rows.
+function repairCompressedTable(content: string): string {
+  // Only try to repair lines that look like collapsed table data (many pipes, long line)
+  return content.replace(/^([^\n]*\|[^\n]{80,})$/gm, (line) => {
+    // Skip already-formatted tables (lines starting with |) or separator rows
+    const trimmed = line.trim();
+    if (trimmed.startsWith("|") || /^\|[-| ]+\|$/.test(trimmed)) return line;
+
+    // Split by " | " or "|" to get cells
+    const parts = trimmed.split(/\s*\|\s*/);
+    if (parts.length < 4) return line;
+
+    // Try to find where the header ends and data rows begin.
+    // Strategy: look for a repeated pattern of N cells per row.
+    // Count non-empty parts
+    const cells = parts.filter((p) => p.trim() !== "");
+    if (cells.length < 4) return line;
+
+    // Guess column count: look for the first "row" by finding a natural break.
+    // We'll try column counts from 3 to 8 and pick the one that divides cleanly.
+    let colCount = 0;
+    for (let n = 3; n <= 8; n++) {
+      if (cells.length % n === 0) { colCount = n; break; }
+    }
+    // Fallback: just try to split at natural boundaries by taking first n as header
+    if (colCount === 0) colCount = Math.min(7, Math.ceil(cells.length / 2));
+
+    const rows: string[][] = [];
+    for (let i = 0; i < cells.length; i += colCount) {
+      rows.push(cells.slice(i, i + colCount));
+    }
+    if (rows.length < 2) return line;
+
+    const header = `| ${rows[0].join(" | ")} |`;
+    const sep = `| ${rows[0].map(() => "---").join(" | ")} |`;
+    const dataRows = rows.slice(1).map((r) => `| ${r.join(" | ")} |`);
+    return [header, sep, ...dataRows].join("\n");
+  });
+}
+
 function preprocessMediaLinks(content: string): string {
-  let result = content.replace(
+  let result = repairCompressedTable(content);
+  result = result.replace(
     /(?<!\()(MEDIA:[^\s"'<>]+\.(?:png|jpg|jpeg|gif|webp|svg|bmp))/gi,
     (_, p) => `![](${p})`,
   );
@@ -300,11 +343,28 @@ function MarkdownImg({ src, alt }: { src?: string; alt?: string }) {
   return <img src={src} alt={alt ?? ""} className="max-w-full rounded-lg my-1" />;
 }
 
+function MarkdownTable({ children }: { children?: React.ReactNode }) {
+  return (
+    <div className="overflow-x-auto my-2">
+      <table className="text-xs border-collapse w-full">{children}</table>
+    </div>
+  );
+}
+function MarkdownTh({ children }: { children?: React.ReactNode }) {
+  return <th className="border border-border bg-muted px-2 py-1 text-left font-semibold whitespace-nowrap">{children}</th>;
+}
+function MarkdownTd({ children }: { children?: React.ReactNode }) {
+  return <td className="border border-border px-2 py-1 whitespace-nowrap">{children}</td>;
+}
+
 const markdownComponents = {
   pre: MarkdownPre,
   code: MarkdownCode,
   a: MarkdownA,
   img: MarkdownImg,
+  table: MarkdownTable,
+  th: MarkdownTh,
+  td: MarkdownTd,
 };
 
 interface ContextMenuState {
