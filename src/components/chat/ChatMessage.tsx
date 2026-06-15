@@ -113,30 +113,56 @@ function tryRepairDoublePipeTable(line: string): string | null {
 function repairCompressedTable(content: string): string {
   const lines = content.split("\n");
   const out: string[] = [];
+  let i = 0;
 
-  for (const line of lines) {
-    const trimmed = line.trim();
+  while (i < lines.length) {
+    const trimmed = lines[i].trim();
+
     if (!trimmed.includes("|")) {
-      out.push(line);
+      out.push(lines[i]);
+      i++;
       continue;
     }
 
-    // Try || row-separator format first (line starts with | and contains ||)
-    if (trimmed.startsWith("|") && trimmed.includes("||")) {
-      const repaired = tryRepairDoublePipeTable(trimmed);
-      out.push(repaired ?? line);
+    // Collect a block of consecutive pipe-lines that look like a compressed table
+    // (each line starts with | and contains ||, OR they together form a wrapped line)
+    const isCompressedPipeLine = (l: string) => {
+      const t = l.trim();
+      return t.startsWith("|") && t.includes("||");
+    };
+
+    if (isCompressedPipeLine(lines[i])) {
+      // Gather all consecutive compressed-pipe lines and join them
+      const block = [lines[i].trim()];
+      while (i + 1 < lines.length && (isCompressedPipeLine(lines[i + 1]) || (lines[i + 1].trim().startsWith("|") && !lines[i + 1].trim().includes("---")))) {
+        i++;
+        block.push(lines[i].trim());
+      }
+      // Ensure each line ends with || so row boundaries survive the join
+      const normalized = block.map((l) => {
+        const t = l.trimEnd();
+        if (t.endsWith("||")) return t;
+        if (t.endsWith("|")) return t + "|";
+        return t + " ||";
+      });
+      const joined = normalized.join(" ").replace(/\s+/g, " ").trim();
+      const repaired = tryRepairDoublePipeTable(joined);
+      out.push(repaired ?? block.join("\n"));
+      i++;
       continue;
     }
 
-    // Skip lines already in valid single-pipe table format (no || involved)
-    if (trimmed.startsWith("|")) {
-      out.push(line);
+    // Skip lines already in valid GFM table format (has separator row nearby)
+    if (trimmed.startsWith("|") && !trimmed.includes("||")) {
+      out.push(lines[i]);
+      i++;
       continue;
     }
 
-    // Try space-seam compressed table
+    // Try space-seam compressed table (no leading pipe)
     const repaired = tryRepairCompressedTable(trimmed);
-    out.push(repaired ?? line);
+    out.push(repaired ?? lines[i]);
+    i++;
   }
 
   return out.join("\n");
