@@ -23,48 +23,89 @@ import type {
 import { ToolCallBlock } from "./ToolCallBlock";
 import { cn } from "@/lib/utils";
 
-// Convert bare MEDIA:/path references in text into Markdown image or link syntax
-// Repair compressed pipe tables: if multiple rows are collapsed onto one line, split them.
-// Heuristic: a line contains ≥2 pipes but no newlines between rows — detect the header row
-// by looking for column names, then insert a separator row and split data rows.
-function repairCompressedTable(content: string): string {
-  // Only try to repair lines that look like collapsed table data (many pipes, long line)
-  return content.replace(/^([^\n]*\|[^\n]{80,})$/gm, (line) => {
-    // Skip already-formatted tables (lines starting with |) or separator rows
-    const trimmed = line.trim();
-    if (trimmed.startsWith("|") || /^\|[-| ]+\|$/.test(trimmed)) return line;
+// ─── Table repair ────────────────────────────────────────────────────────────
+// AI sometimes outputs all table rows on a single line separated by " | " with
+// row boundaries indicated by tokens that contain a space (e.g. "涨跌幅 天普股份"
+// means the last cell of one row is "涨跌幅" and the first of the next is "天普股份").
+// This function splits such a line into a proper GFM table.
 
-    // Split by " | " or "|" to get cells
-    const parts = trimmed.split(/\s*\|\s*/);
-    if (parts.length < 4) return line;
+function tryRepairCompressedTable(line: string): string | null {
+  if (!line.includes(" | ")) return null;
+  const tokens = line.split(" | ").map((t) => t.trim()).filter(Boolean);
+  if (tokens.length < 4) return null;
 
-    // Try to find where the header ends and data rows begin.
-    // Strategy: look for a repeated pattern of N cells per row.
-    // Count non-empty parts
-    const cells = parts.filter((p) => p.trim() !== "");
-    if (cells.length < 4) return line;
+  // Find "seam" tokens — tokens that contain a space (they span two cells / two rows)
+  const seamIndices: number[] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    if (/\s/.test(tokens[i])) seamIndices.push(i);
+  }
 
-    // Guess column count: look for the first "row" by finding a natural break.
-    // We'll try column counts from 3 to 8 and pick the one that divides cleanly.
-    let colCount = 0;
-    for (let n = 3; n <= 8; n++) {
-      if (cells.length % n === 0) { colCount = n; break; }
+  if (seamIndices.length === 0) {
+    // No seams: single-row data, just wrap with pipes
+    return `| ${tokens.join(" | ")} |`;
+  }
+
+  const firstSeam = seamIndices[0];
+  if (firstSeam < 1) return null;
+
+  const colCount = firstSeam + 1;   // header has colCount columns
+  const rowStride = colCount - 1;   // each subsequent seam is rowStride apart
+
+  // Validate that seam positions follow the expected arithmetic pattern (±1 tolerance)
+  const valid = seamIndices.every(
+    (idx, k) => Math.abs(idx - (firstSeam + k * rowStride)) <= 1,
+  );
+  if (!valid) return null;
+
+  const splitAtFirstSpace = (token: string): [string, string] => {
+    const si = token.indexOf(" ");
+    return [token.slice(0, si).trim(), token.slice(si + 1).trim()];
+  };
+
+  const rows: string[][] = [];
+  const [headerLast, nextFirst] = splitAtFirstSpace(tokens[firstSeam]);
+  rows.push([...tokens.slice(0, firstSeam), headerLast]);
+
+  let cur: string[] = [nextFirst];
+  for (let i = firstSeam + 1; i < tokens.length; i++) {
+    if (/\s/.test(tokens[i])) {
+      const [rowLast, newFirst] = splitAtFirstSpace(tokens[i]);
+      cur.push(rowLast);
+      rows.push(cur);
+      cur = [newFirst];
+    } else {
+      cur.push(tokens[i]);
     }
-    // Fallback: just try to split at natural boundaries by taking first n as header
-    if (colCount === 0) colCount = Math.min(7, Math.ceil(cells.length / 2));
+  }
+  if (cur.some((c) => c.trim())) rows.push(cur);
 
-    const rows: string[][] = [];
-    for (let i = 0; i < cells.length; i += colCount) {
-      rows.push(cells.slice(i, i + colCount));
-    }
-    if (rows.length < 2) return line;
+  if (rows.length < 2) return null;
 
-    const header = `| ${rows[0].join(" | ")} |`;
-    const sep = `| ${rows[0].map(() => "---").join(" | ")} |`;
-    const dataRows = rows.slice(1).map((r) => `| ${r.join(" | ")} |`);
-    return [header, sep, ...dataRows].join("\n");
-  });
+  const header = `| ${rows[0].join(" | ")} |`;
+  const sep = `| ${rows[0].map(() => "---").join(" | ")} |`;
+  const dataRows = rows.slice(1).map((r) => `| ${r.join(" | ")} |`);
+  return [header, sep, ...dataRows].join("\n");
 }
+
+function repairCompressedTable(content: string): string {
+  const lines = content.split("\n");
+  const out: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    // Skip lines already in pipe-table format or with no pipes
+    if (!trimmed.includes("|") || trimmed.startsWith("|")) {
+      out.push(line);
+      continue;
+    }
+    const repaired = tryRepairCompressedTable(trimmed);
+    out.push(repaired ?? line);
+  }
+
+  return out.join("\n");
+}
+
+// ─── Media / path preprocessing ──────────────────────────────────────────────
 
 function preprocessMediaLinks(content: string): string {
   let result = repairCompressedTable(content);
@@ -76,8 +117,7 @@ function preprocessMediaLinks(content: string): string {
     const name = p.split("/").pop() ?? "HTML";
     return `[${name}](${p})`;
   });
-  // Convert bare absolute file paths (not already inside markdown links) to clickable links
-  // Matches /absolute/path/to/file.ext — excludes paths already wrapped in ()
+  // Convert bare absolute file paths to clickable links
   result = result.replace(
     /(?<!\()(?<!\[)(\/(?:[^\s，。、；：！？\[\]()（）]+)\/[^\s，。、；：！？\[\]()（）]+\.\w+)/g,
     (_, p) => {
@@ -110,7 +150,6 @@ function FilePathButton({ path: rawPath, label }: { path: string; label: string 
 
   const open = pos !== null;
 
-  // Close when clicking outside
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
@@ -455,7 +494,6 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
   const closeMenu = useCallback(() => setContextMenu(null), []);
 
   const handleMouseUp = useCallback((_e: React.MouseEvent) => {
-    // Delay to let the browser finalize the selection
     setTimeout(() => {
       const sel = window.getSelection();
       const text = sel?.toString().trim();
@@ -463,7 +501,6 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
         setSelectionMenu(null);
         return;
       }
-      // Only show if selection is within this bubble
       if (bubbleRef.current && !bubbleRef.current.contains(sel.anchorNode)) {
         setSelectionMenu(null);
         return;
@@ -478,13 +515,11 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
     }, 10);
   }, []);
 
-  // Close selection menu when selection is cleared
   useEffect(() => {
     const handleSelectionChange = () => {
       const sel = window.getSelection();
       if (!sel?.toString().trim()) setSelectionMenu(null);
     };
-    // Hide on right-click before system context menu appears
     const handleRightMouseDown = (e: MouseEvent) => {
       if (e.button === 2) setSelectionMenu(null);
     };
@@ -496,7 +531,6 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
     };
   }, []);
 
-  // Close menu on outside click or scroll
   useEffect(() => {
     if (!contextMenu) return;
     const handleClick = (e: MouseEvent) => {
@@ -624,7 +658,7 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
         )}
       </div>
 
-      {/* Right-click context menu */}
+      {/* Selection copy menu */}
       {selectionMenu && (
         <div
           ref={selectionMenuRef}
@@ -637,7 +671,7 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
         >
           <button
             className="flex items-center gap-1.5 px-3 py-1 text-xs hover:bg-muted transition-colors whitespace-nowrap"
-            onMouseDown={(e) => e.preventDefault()} // prevent selection loss
+            onMouseDown={(e) => e.preventDefault()}
             onClick={async () => {
               await navigator.clipboard.writeText(selectionMenu.text);
               setSelectionMenu(null);
