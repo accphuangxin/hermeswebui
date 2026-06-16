@@ -864,7 +864,7 @@ function EditAgentForm({
 
       <div className="grid grid-cols-[1fr_3fr] gap-4 p-4 flex-1 min-h-0">
         {/* 左侧：其他属性 (1/4) */}
-        <div className="space-y-4">
+        <div className="space-y-4 overflow-y-auto">
           <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
             <div className="text-xs text-muted-foreground uppercase tracking-wide">
               DESCRIPTION
