@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, Trash2, MessageSquare, Pencil } from "lucide-react";
+import { Plus, Trash2, MessageSquare, Pencil, Download } from "lucide-react";
 import type { ChatSession } from "@/types";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -22,6 +22,7 @@ interface ChatSidebarProps {
   onNewSession?: () => void;
   onDeleteSession: (id: string) => void;
   onRenameSession: (id: string, title: string) => void;
+  onExportSession?: (id: string) => void;
   isLocked?: boolean;
 }
 
@@ -32,6 +33,7 @@ export function ChatSidebar({
   onNewSession,
   onDeleteSession,
   onRenameSession,
+  onExportSession,
   isLocked,
 }: ChatSidebarProps) {
   const { t } = useTranslation();
@@ -117,6 +119,18 @@ export function ChatSidebar({
                   >
                     <Pencil className="w-3 h-3" />
                   </button>
+                  {onExportSession && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onExportSession(s.id);
+                      }}
+                      className="p-0.5 hover:text-foreground"
+                      title={t("hermes.chat.exportSession", { defaultValue: "导出为 Markdown" })}
+                    >
+                      <Download className="w-3 h-3" />
+                    </button>
+                  )}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
