@@ -6,9 +6,8 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import { toast } from "sonner";
 import type { UpdateInfo, UpdateHandle } from "../lib/updater";
-import { checkForUpdate, relaunchApp } from "../lib/updater";
+import { checkForUpdate } from "../lib/updater";
 
 interface UpdateContextValue {
   // 更新状态
@@ -16,8 +15,6 @@ interface UpdateContextValue {
   updateInfo: UpdateInfo | null;
   updateHandle: UpdateHandle | null;
   isChecking: boolean;
-  isDownloading: boolean;
-  isReadyToInstall: boolean;
   error: string | null;
 
   // 提示状态
@@ -39,8 +36,6 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [updateHandle, setUpdateHandle] = useState<UpdateHandle | null>(null);
   const [isChecking, setIsChecking] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [isReadyToInstall, setIsReadyToInstall] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDismissed, setIsDismissed] = useState(false);
 
@@ -91,26 +86,6 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
         }
         setIsDismissed(dismissedVersion === result.info.availableVersion);
 
-        // 自动后台下载
-        const toastId = toast.loading(`正在后台下载 v${result.info.availableVersion}...`, { duration: Infinity });
-        setIsDownloading(true);
-        result.update.downloadAndInstall().then(() => {
-          setIsDownloading(false);
-          setIsReadyToInstall(true);
-          toast.dismiss(toastId);
-          toast.success(`v${result.info.availableVersion} 已就绪，重启后生效`, {
-            duration: 30000,
-            action: {
-              label: "立即重启",
-              onClick: () => void relaunchApp(),
-            },
-          });
-        }).catch((e) => {
-          setIsDownloading(false);
-          toast.dismiss(toastId);
-          console.error("自动下载更新失败:", e);
-        });
-
         return true; // 有更新
       } else {
         setHasUpdate(false);
@@ -160,8 +135,6 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
     updateInfo,
     updateHandle,
     isChecking,
-    isDownloading,
-    isReadyToInstall,
     error,
     isDismissed,
     dismissUpdate,
