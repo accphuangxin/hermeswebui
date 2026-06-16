@@ -811,6 +811,7 @@ function EditAgentForm({
   // Model select mode: "select" when agent has port+key, else "manual"
   const hasServer = !!(agent.apiServerPort && agent.apiServerKey);
   const [modelMode, setModelMode] = useState<"select" | "manual">(hasServer ? "select" : "manual");
+  const [modelExpanded, setModelExpanded] = useState(false);
   const { data: providers = [] } = useAgentProviders(
     modelMode === "select" ? agent.apiServerPort : undefined,
     modelMode === "select" ? agent.apiServerKey : undefined,
@@ -876,16 +877,25 @@ function EditAgentForm({
 
           {/* Default Model */}
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <div className="text-xs text-muted-foreground uppercase tracking-wide">DEFAULT MODEL</div>
-              {hasServer && (
+            <div
+              className="flex items-center justify-between cursor-pointer select-none"
+              onClick={() => setModelExpanded((v) => !v)}
+            >
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground uppercase tracking-wide">
+                <span>{modelExpanded ? "▾" : "▸"}</span>
+                <span>DEFAULT MODEL</span>
+                {!modelExpanded && model && (
+                  <span className="font-mono text-foreground/70 normal-case ml-1">{model}{provider ? ` (${provider})` : ""}</span>
+                )}
+              </div>
+              {modelExpanded && hasServer && (
                 <button type="button" className="text-[10px] text-primary hover:opacity-80"
-                  onClick={() => setModelMode((m) => m === "select" ? "manual" : "select")}>
+                  onClick={(e) => { e.stopPropagation(); setModelMode((m) => m === "select" ? "manual" : "select"); }}>
                   {modelMode === "select" ? "手动填写" : "从列表选择"}
                 </button>
               )}
             </div>
-            {modelMode === "select" ? (
+            {modelExpanded && modelMode === "select" ? (
               <div className="border rounded-md overflow-hidden">
                 {providers.length === 0 ? (
                   <p className="text-xs text-muted-foreground p-2 animate-pulse">加载中...</p>
@@ -920,7 +930,7 @@ function EditAgentForm({
                   </div>
                 )}
               </div>
-            ) : (
+            ) : modelExpanded ? (
               <div className="space-y-2">
                 <div className="grid grid-cols-[80px_1fr] gap-3 items-center">
                   <div className="text-xs text-muted-foreground">MODEL</div>
@@ -935,7 +945,7 @@ function EditAgentForm({
                   <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="可选" className="h-8 text-sm" />
                 </div>
               </div>
-            )}
+            ) : null}
           </div>
 
           <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
