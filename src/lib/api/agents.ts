@@ -8,6 +8,7 @@ export interface HermesAgent {
   model?: string;
   provider?: string;
   host?: string;
+  baseUrl?: string;
   apiServerPort?: number;
   apiServerKey?: string;
   actualPort?: number;
@@ -33,6 +34,7 @@ export interface UpdateAgentInput {
   soul?: string;
   model?: string;
   provider?: string;
+  base_url?: string;
   api_server_port?: number;
   api_server_key?: string;
 }

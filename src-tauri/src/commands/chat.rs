@@ -921,6 +921,7 @@ pub struct UpdateAgentInput {
     pub soul: Option<String>,
     pub model: Option<String>,
     pub provider: Option<String>,
+    pub base_url: Option<String>,
     pub api_server_port: Option<u16>,
     pub api_server_key: Option<String>,
 }
@@ -950,6 +951,9 @@ pub async fn updateHermesAgent(
     }
     if let Some(v) = input.provider {
         body["provider"] = serde_json::json!(v);
+    }
+    if let Some(v) = input.base_url {
+        body["base_url"] = serde_json::json!(v);
     }
     if let Some(v) = input.api_server_port {
         body["api_server_port"] = serde_json::json!(v);

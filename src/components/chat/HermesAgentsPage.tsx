@@ -800,6 +800,7 @@ function EditAgentForm({
     agent.apiServerPort ? String(agent.apiServerPort) : "",
   );
   const [apiServerKey, setApiServerKey] = useState(agent.apiServerKey ?? "");
+  const [baseUrl, setBaseUrl] = useState(agent.baseUrl ?? "");
 
   // Model select mode: "select" when agent has port+key, else "manual"
   const hasServer = !!(agent.apiServerPort && agent.apiServerKey);
@@ -827,6 +828,8 @@ function EditAgentForm({
     if (model !== (agent.model ?? "")) input.model = model.trim() || undefined;
     if (provider !== (agent.provider ?? ""))
       input.provider = provider.trim() || undefined;
+    if (baseUrl !== (agent.baseUrl ?? ""))
+      input.base_url = baseUrl.trim() || undefined;
     const portNum = apiServerPort ? Number(apiServerPort) : undefined;
     if (portNum !== agent.apiServerPort) input.api_server_port = portNum;
     if (apiServerKey !== (agent.apiServerKey ?? ""))
@@ -907,7 +910,7 @@ function EditAgentForm({
                             "w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-muted/60 transition-colors",
                             isSelected && "bg-primary/10 text-primary",
                           )}
-                          onClick={() => { setModel(opt.model); setProvider(opt.provider); }}
+                          onClick={() => { setModel(opt.model); setProvider(opt.provider); setBaseUrl(opt.baseUrl ?? ""); }}
                         >
                           <span className="font-mono font-medium truncate">{opt.model}</span>
                           <span className="text-muted-foreground/60 shrink-0">{opt.provider}</span>
@@ -917,10 +920,21 @@ function EditAgentForm({
                   </div>
                 )}
                 {model && (
-                  <div className="border-t px-3 py-1 text-[10px] text-muted-foreground bg-muted/20 flex gap-2">
-                    <span>已选：</span>
-                    <span className="font-mono font-medium text-foreground">{model}</span>
-                    {provider && <span className="text-muted-foreground/60">({provider})</span>}
+                  <div className="border-t px-3 py-1.5 text-[10px] text-muted-foreground bg-muted/20 space-y-1">
+                    <div className="flex gap-2">
+                      <span>已选：</span>
+                      <span className="font-mono font-medium text-foreground">{model}</span>
+                      {provider && <span className="text-muted-foreground/60">({provider})</span>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="shrink-0 uppercase tracking-wide">Base URL</span>
+                      <input
+                        value={baseUrl}
+                        onChange={(e) => setBaseUrl(e.target.value)}
+                        placeholder="可选，留空使用 provider 默认值"
+                        className="flex-1 bg-background border border-input rounded px-2 py-0.5 text-[10px] font-mono outline-none focus:ring-1 focus:ring-ring"
+                      />
+                    </div>
                   </div>
                 )}
               </div>
@@ -941,6 +955,15 @@ function EditAgentForm({
                     value={provider}
                     onChange={(e) => setProvider(e.target.value)}
                     placeholder={agent.provider ?? "custom"}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
+                  <div className="text-xs text-muted-foreground">BASE URL</div>
+                  <Input
+                    value={baseUrl}
+                    onChange={(e) => setBaseUrl(e.target.value)}
+                    placeholder="可选，如 https://bedrock-runtime.us-east-1.amazonaws.com"
                     className="h-8 text-sm"
                   />
                 </div>
