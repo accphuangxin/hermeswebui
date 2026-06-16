@@ -436,7 +436,21 @@ export function ChatInput({
         if (item.type.startsWith("image/")) {
           const ext = item.type.split("/")[1]?.replace("jpeg", "jpg") ?? "png";
           const filename = `paste_${Date.now()}.${ext}`;
-          await addFileFromBlob(blob, filename);
+          // Try to save to a temp file so the agent can reference it by path
+          try {
+            const reader = new FileReader();
+            const base64 = await new Promise<string>((resolve, reject) => {
+              reader.onload = () => resolve(reader.result as string);
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+            });
+            const savedPath = await chatApi.saveTempImage(base64, filename);
+            const { content, sizeBytes, mimeType } = await chatApi.readFile(savedPath);
+            setFiles((prev) => [...prev, { filename, content, sizeBytes, mimeType, sourcePath: savedPath }]);
+          } catch {
+            // Fallback: no path, send as base64
+            await addFileFromBlob(blob, filename);
+          }
         } else {
           const file = blob as File;
           const filename = file.name || `paste_${Date.now()}`;

@@ -1332,6 +1332,7 @@ pub fn run() {
             commands::approveChatRun,
             commands::getChatRunStatus,
             commands::readChatFile,
+            commands::saveTempImage,
             // Cron jobs
             commands::listCronJobs,
             commands::getCronJob,

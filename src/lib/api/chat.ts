@@ -115,4 +115,8 @@ export const chatApi = {
   }> {
     return await invoke("readChatFile", { path });
   },
+
+  async saveTempImage(base64Data: string, filename: string): Promise<string> {
+    return await invoke("saveTempImage", { base64Data: base64Data, filename });
+  },
 };

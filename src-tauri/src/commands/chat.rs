@@ -1719,3 +1719,37 @@ pub fn read_local_html(path: String) -> Result<String, String> {
 
     std::fs::read_to_string(&expanded).map_err(|e| e.to_string())
 }
+
+/// Save a pasted image (base64) to a temp directory and return the file path.
+/// This lets the agent reference the image by path instead of receiving raw base64.
+#[tauri::command]
+pub fn saveTempImage(
+    base64_data: String,
+    filename: String,
+) -> Result<String, String> {
+    use std::io::Write;
+
+    let home = dirs::home_dir().ok_or("cannot determine home dir")?;
+    let temp_dir = home.join("hermes-outputs").join("temp");
+    std::fs::create_dir_all(&temp_dir)
+        .map_err(|e| format!("failed to create temp dir: {e}"))?;
+
+    // Decode base64 — strip data URL prefix if present
+    let raw = if let Some(comma) = base64_data.find(',') {
+        &base64_data[comma + 1..]
+    } else {
+        &base64_data
+    };
+    use base64::Engine as _;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(raw)
+        .map_err(|e| format!("base64 decode error: {e}"))?;
+
+    let path = temp_dir.join(&filename);
+    let mut f = std::fs::File::create(&path)
+        .map_err(|e| format!("failed to create file: {e}"))?;
+    f.write_all(&bytes)
+        .map_err(|e| format!("failed to write file: {e}"))?;
+
+    Ok(path.to_string_lossy().to_string())
+}
