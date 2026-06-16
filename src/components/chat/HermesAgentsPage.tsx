@@ -965,6 +965,7 @@ function ProviderManagerPanel({
   const upsertMutation = useUpsertProvider(port, key);
   const deleteMutation = useDeleteProvider(port, key);
 
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [formName, setFormName] = useState("");
   const [formBaseUrl, setFormBaseUrl] = useState("");
   const [formApiKey, setFormApiKey] = useState("");
@@ -1012,15 +1013,18 @@ function ProviderManagerPanel({
     );
   };
 
-  const handleDelete = (name: string) => {
-    deleteMutation.mutate(name, {
-      onSuccess: () => toast.success(`Provider "${name}" 已删除`),
-      onError: (e) => toast.error("删除失败", { description: String(e) }),
+  const handleDelete = (name: string) => setDeleteTarget(name);
+
+  const confirmDelete = () => {
+    if (!deleteTarget) return;
+    deleteMutation.mutate(deleteTarget, {
+      onSuccess: () => { toast.success(`Provider "${deleteTarget}" 已删除`); setDeleteTarget(null); },
+      onError: (e) => { toast.error("删除失败", { description: String(e) }); setDeleteTarget(null); },
     });
   };
 
   return (
-    <div className="h-full rounded-xl border border-border bg-card overflow-hidden flex flex-col">
+    <div className="relative h-full rounded-xl border border-border bg-card overflow-hidden flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
         <div className="flex items-center gap-2">
@@ -1031,6 +1035,26 @@ function ProviderManagerPanel({
           <X className="w-3.5 h-3.5" />
         </Button>
       </div>
+
+      {/* Delete confirm dialog */}
+      {deleteTarget && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 rounded-xl">
+          <div className="bg-card rounded-xl border shadow-lg p-6 w-72 space-y-4">
+            <p className="text-sm font-semibold">确认删除</p>
+            <p className="text-sm text-muted-foreground">
+              确定要删除 Provider <span className="font-mono font-medium text-foreground">"{deleteTarget}"</span> 吗？此操作不可撤销。
+            </p>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" size="sm" onClick={() => setDeleteTarget(null)} disabled={deleteMutation.isPending}>
+                取消
+              </Button>
+              <Button variant="destructive" size="sm" onClick={confirmDelete} disabled={deleteMutation.isPending}>
+                {deleteMutation.isPending ? "删除中..." : "确认删除"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Left-right layout: provider list | form */}
       <div className="flex-1 min-h-0 flex gap-4 p-4 overflow-hidden">
