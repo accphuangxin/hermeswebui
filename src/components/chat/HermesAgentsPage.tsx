@@ -1035,7 +1035,7 @@ function ProviderManagerPanel({
       {/* Left-right layout: provider list | form */}
       <div className="flex-1 min-h-0 flex overflow-hidden">
         {/* Left: Provider list */}
-        <div className="w-[30%] border-r overflow-y-auto p-4 space-y-2">
+        <div className="w-2/5 border-r overflow-y-auto p-4 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Provider 列表</span>
             <button
