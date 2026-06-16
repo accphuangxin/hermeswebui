@@ -183,7 +183,7 @@ export function HermesAgentsPage({
       onClick={() => setContextMenu(null)}
     >
       <div className="flex-1 min-h-0 overflow-hidden px-4 pt-2 pb-4 flex flex-col gap-3">
-        <div className={`overflow-y-auto overflow-x-hidden ${detailAgent || showCreate || editAgent || providerAgent ? "shrink-0 max-h-[380px]" : "flex-1"}`}>
+        <div className={`w-full overflow-y-auto overflow-x-hidden ${detailAgent || showCreate || editAgent || providerAgent ? "shrink-0 max-h-[380px]" : "flex-1"}`}>
           {isLoading ? (
             <EmptyState pulse>
               {t("common.loading", { defaultValue: "加载中..." })}
@@ -212,7 +212,7 @@ export function HermesAgentsPage({
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4">
+            <div className="w-full grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4">
               {sorted.map((item) => (
                 <AgentCard
                   key={item.id ?? "__default__"}
