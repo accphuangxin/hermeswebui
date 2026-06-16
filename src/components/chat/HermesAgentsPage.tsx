@@ -183,7 +183,7 @@ export function HermesAgentsPage({
       onClick={() => setContextMenu(null)}
     >
       <div className="flex-1 min-h-0 overflow-hidden px-4 pt-2 pb-4 flex flex-col gap-3">
-        <div className={`w-full overflow-y-auto overflow-x-hidden ${detailAgent || showCreate || editAgent || providerAgent ? "shrink-0 max-h-[380px]" : "flex-1"}`}>
+        <div className={`w-full overflow-y-auto overflow-x-hidden ${detailAgent || showCreate || editAgent || providerAgent ? "shrink-0 max-h-[300px]" : "flex-1"}`}>
           {isLoading ? (
             <EmptyState pulse>
               {t("common.loading", { defaultValue: "加载中..." })}
@@ -1113,7 +1113,7 @@ function ProviderManagerPanel({
             {formName ? `编辑 — ${formName}` : "新建 Provider"}
           </span>
 
-          <div className="grid grid-cols-[1fr_1fr_2fr_2fr] gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
               <label className="text-[10px] text-muted-foreground uppercase tracking-wide">名称 *</label>
               <Input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="CloudCI" className="h-7 text-xs" />
@@ -1122,11 +1122,11 @@ function ProviderManagerPanel({
               <label className="text-[10px] text-muted-foreground uppercase tracking-wide">默认模型 *</label>
               <Input value={formModel} onChange={(e) => setFormModel(e.target.value)} placeholder="qwen3_6" className="h-7 text-xs" />
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1 col-span-2">
               <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Base URL *</label>
               <Input value={formBaseUrl} onChange={(e) => setFormBaseUrl(e.target.value)} placeholder="http://token.cloudci.com/v1" className="h-7 text-xs" />
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1 col-span-2">
               <label className="text-[10px] text-muted-foreground uppercase tracking-wide">API Key *</label>
               <Input value={formApiKey} onChange={(e) => setFormApiKey(e.target.value)} placeholder="sk-xxx" className="h-7 text-xs" />
             </div>
