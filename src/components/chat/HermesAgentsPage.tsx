@@ -270,17 +270,19 @@ export function HermesAgentsPage({
         )}
 
         {editAgent && !showCreate && (
-          <EditAgentForm
-            agent={editAgent}
-            onClose={() => setEditAgent(null)}
-            onSaved={(updated) => {
-              setEditAgent(null);
-              setDetailAgent(updated);
-              void queryClient.invalidateQueries({
-                queryKey: ["hermesAgents"],
-              });
-            }}
-          />
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <EditAgentForm
+              agent={editAgent}
+              onClose={() => setEditAgent(null)}
+              onSaved={(updated) => {
+                setEditAgent(null);
+                setDetailAgent(updated);
+                void queryClient.invalidateQueries({
+                  queryKey: ["hermesAgents"],
+                });
+              }}
+            />
+          </div>
         )}
 
         {detailAgent && !showCreate && !editAgent && !providerAgent && (
@@ -847,9 +849,9 @@ function EditAgentForm({
   }
 
   return (
-    <div className="flex gap-4 h-[600px]">
+    <div className="flex gap-4 h-full">
       {/* Left panel: agent settings */}
-      <div className="flex-1 rounded-xl border border-border bg-card overflow-hidden flex flex-col">
+      <div className="w-2/5 rounded-xl border border-border bg-card overflow-hidden flex flex-col">
         <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
           <p className="text-sm font-semibold">
             {t("hermes.agents.editTitle", { name: agent.name })}
