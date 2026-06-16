@@ -184,10 +184,33 @@ function FilePathButton({ path: rawPath, label }: { path: string; label: string 
   );
 }
 
+function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 cursor-zoom-out"
+      onClick={onClose}
+    >
+      <img
+        src={src}
+        alt={alt}
+        className="max-w-[90vw] max-h-[90vh] rounded-lg shadow-2xl cursor-default object-contain"
+        onClick={(e) => e.stopPropagation()}
+      />
+    </div>,
+    document.body
+  );
+}
+
 function LocalImage({ src, alt, className }: { src: string; alt: string; className?: string }) {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState(false);
 
   useEffect(() => {
     const path = extractLocalPath(src);
@@ -213,12 +236,15 @@ function LocalImage({ src, alt, className }: { src: string; alt: string; classNa
       </span>
     );
   return (
-    <img
-      src={dataUrl}
-      alt={alt}
-      className={className ?? "max-w-full rounded-lg my-1 cursor-pointer"}
-      onClick={() => window.open(dataUrl, "_blank")}
-    />
+    <>
+      <img
+        src={dataUrl}
+        alt={alt}
+        className={className ?? "max-w-full rounded-lg my-1 cursor-zoom-in"}
+        onClick={() => setLightbox(true)}
+      />
+      {lightbox && <ImageLightbox src={dataUrl} alt={alt} onClose={() => setLightbox(false)} />}
+    </>
   );
 }
 
