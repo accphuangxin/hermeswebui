@@ -1033,9 +1033,9 @@ function ProviderManagerPanel({
       </div>
 
       {/* Left-right layout: provider list | form */}
-      <div className="flex-1 min-h-0 flex overflow-hidden">
+      <div className="flex-1 min-h-0 flex gap-3 p-3 overflow-hidden">
         {/* Left: Provider list */}
-        <div className="w-2/5 border-r overflow-y-auto p-4 space-y-2">
+        <div className="w-2/5 rounded-lg border bg-muted/20 overflow-y-auto p-3 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Provider 列表</span>
             <button
@@ -1083,7 +1083,7 @@ function ProviderManagerPanel({
         </div>
 
         {/* Right: Form */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        <div className="flex-1 rounded-lg border bg-muted/20 overflow-y-auto p-3 space-y-3">
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
             {formName ? `编辑 — ${formName}` : "新建 Provider"}
           </span>
