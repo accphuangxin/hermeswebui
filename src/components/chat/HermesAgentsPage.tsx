@@ -849,16 +849,21 @@ function EditAgentForm({
   }
 
   return (
-    <div className="flex gap-4 h-full w-full min-w-0">
-      {/* Left panel: agent settings */}
-      <div className="w-2/5 rounded-xl border border-border bg-card overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
-          <p className="text-sm font-semibold">
-            {t("hermes.agents.editTitle", { name: agent.name })}
-          </p>
-        </div>
+    <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col h-full w-full min-w-0">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
+        <p className="text-sm font-semibold">
+          {t("hermes.agents.editTitle", { name: agent.name })}
+        </p>
+        <Button variant="ghost" size="icon" className="h-6 w-6 -mr-1" onClick={onClose}>
+          <X className="w-3.5 h-3.5" />
+        </Button>
+      </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
+      {/* Body: left settings + right soul */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        {/* Left: settings */}
+        <div className="w-2/5 border-r overflow-y-auto p-4 space-y-4">
           <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
             <div className="text-xs text-muted-foreground uppercase tracking-wide">DESCRIPTION</div>
             <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder={agent.description ?? "描述"} className="h-9 text-sm" />
@@ -941,32 +946,28 @@ function EditAgentForm({
           {error && <p className="text-xs text-destructive break-all font-mono">{String(error)}</p>}
         </div>
 
+        {/* Right: soul */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          <div className="px-1 py-2 shrink-0">
+            <span className="text-xs text-muted-foreground uppercase tracking-wide px-3">SOUL</span>
+          </div>
+          <textarea
+            value={soul}
+            onChange={(e) => setSoul(e.target.value)}
+            className="flex-1 w-full bg-background px-4 py-2 text-sm resize-none focus:outline-none"
+            placeholder="系统提示词"
+          />
+        </div>
       </div>
 
-      {/* Right panel: Soul */}
-      <div className="flex-1 rounded-xl border border-border bg-card overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
-          <p className="text-xs text-muted-foreground uppercase tracking-wide">SOUL</p>
-          <Button variant="ghost" size="icon" className="h-6 w-6 -mr-1" onClick={onClose}>
-            <X className="w-3.5 h-3.5" />
-          </Button>
-        </div>
-
-        <textarea
-          value={soul}
-          onChange={(e) => setSoul(e.target.value)}
-          className="flex-1 w-full bg-background px-4 py-3 text-sm resize-none focus:outline-none"
-          placeholder="系统提示词"
-        />
-
-        <div className="flex gap-2 px-4 py-3 border-t bg-muted/30 shrink-0">
-          <Button variant="outline" size="sm" className="flex-1 h-9" onClick={onClose} disabled={isPending}>
-            {t("common.cancel", { defaultValue: "取消" })}
-          </Button>
-          <Button size="sm" className="flex-1 h-9" onClick={handleSubmit} disabled={isPending}>
-            {isPending ? t("common.saving", { defaultValue: "保存中..." }) : t("common.save", { defaultValue: "保存" })}
-          </Button>
-        </div>
+      {/* Footer buttons */}
+      <div className="flex gap-2 px-4 py-3 border-t bg-muted/30 shrink-0">
+        <Button variant="outline" size="sm" className="flex-1 h-9" onClick={onClose} disabled={isPending}>
+          {t("common.cancel", { defaultValue: "取消" })}
+        </Button>
+        <Button size="sm" className="flex-1 h-9" onClick={handleSubmit} disabled={isPending}>
+          {isPending ? t("common.saving", { defaultValue: "保存中..." }) : t("common.save", { defaultValue: "保存" })}
+        </Button>
       </div>
     </div>
   );
