@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { MessageSquare, Clock, Trash2, ChevronUp, ChevronDown } from "lucide-react";
+import { MessageSquare, Clock, Trash2, ChevronUp, ChevronDown, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -26,6 +26,8 @@ import {
   type StreamFile,
 } from "@/hooks/useChatStream";
 import { chatApi } from "@/lib/api/chat";
+import { formatSessionAsMarkdown } from "@/lib/chatExport";
+import { save } from "@tauri-apps/plugin-dialog";
 import { compressContext } from "@/lib/contextCompression";
 import { ChatSidebar } from "./ChatSidebar";
 import type { SidebarTab } from "./ChatSidebar";
@@ -619,6 +621,48 @@ export function ChatPage({
     toast.success(t("hermes.chat.newSession"));
   }, [activeSessionId, queryClient, t]);
 
+  const handleExportSession = useCallback(
+    async (sessionId: string) => {
+      const session = sessions.find((s) => s.id === sessionId);
+      const sessionMessages = sessionId === activeSessionId ? messages : [];
+      const modelName = (session?.model ?? selectedModel ?? "")
+        .replace(/^custom_[^:]+:/, "")
+        .replace("__default__", "");
+
+      const content = formatSessionAsMarkdown(
+        session?.title ?? null,
+        modelName || null,
+        sessionMessages,
+      );
+
+      const title = session?.title || t("hermes.chat.untitled", { defaultValue: "未命名聊天" });
+      const ts = new Date().toISOString().slice(0, 16).replace(/[T:]/g, "-");
+      const defaultFilename = `${title}_${ts}.md`;
+
+      try {
+        const filePath = await save({
+          defaultPath: defaultFilename,
+          filters: [{ name: "Markdown", extensions: ["md"] }],
+        });
+        if (!filePath) return;
+
+        const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filePath.split("/").pop() || defaultFilename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        toast.success(t("hermes.chat.exportSuccess", { defaultValue: "会话已导出" }));
+      } catch {
+        toast.error(t("hermes.chat.exportFailed", { defaultValue: "导出失败" }));
+      }
+    },
+    [sessions, activeSessionId, messages, selectedModel, t],
+  );
+
   // Close area context menu on outside click
   useEffect(() => {
     if (!areaMenu) return;
@@ -711,6 +755,7 @@ export function ChatPage({
             isLocked={isStreaming || isWaiting || isSending}
             onDeleteSession={handleDeleteSession}
             onRenameSession={handleRenameSession}
+            onExportSession={handleExportSession}
           />
           <div
             className="flex-1 flex flex-col min-w-0"
@@ -1034,6 +1079,17 @@ export function ChatPage({
           className="fixed z-50 min-w-[160px] rounded-md border bg-popover shadow-md py-1 text-sm"
           style={{ left: areaMenu.x, top: areaMenu.y }}
         >
+          <button
+            className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-muted transition-colors text-left"
+            onClick={() => {
+              if (activeSessionId) void handleExportSession(activeSessionId);
+              setAreaMenu(null);
+            }}
+            disabled={!activeSessionId || messages.length === 0}
+          >
+            <Download className="w-3.5 h-3.5" />
+            {t("hermes.chat.exportSession", { defaultValue: "导出为 Markdown" })}
+          </button>
           <button
             className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-muted transition-colors text-left text-destructive"
             onClick={() => {
