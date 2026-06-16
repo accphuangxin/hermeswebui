@@ -941,11 +941,6 @@ function EditAgentForm({
           {error && <p className="text-xs text-destructive break-all font-mono">{String(error)}</p>}
         </div>
 
-        <div className="px-4 py-3 border-t bg-muted/30 shrink-0">
-          <Button variant="outline" size="sm" className="w-full h-9" onClick={onClose} disabled={isPending}>
-            {t("common.cancel", { defaultValue: "取消" })}
-          </Button>
-        </div>
       </div>
 
       {/* Right panel: Soul */}
@@ -964,8 +959,11 @@ function EditAgentForm({
           placeholder="系统提示词"
         />
 
-        <div className="px-4 py-3 border-t bg-muted/30 shrink-0">
-          <Button size="sm" className="w-full h-9" onClick={handleSubmit} disabled={isPending}>
+        <div className="flex gap-2 px-4 py-3 border-t bg-muted/30 shrink-0">
+          <Button variant="outline" size="sm" className="flex-1 h-9" onClick={onClose} disabled={isPending}>
+            {t("common.cancel", { defaultValue: "取消" })}
+          </Button>
+          <Button size="sm" className="flex-1 h-9" onClick={handleSubmit} disabled={isPending}>
             {isPending ? t("common.saving", { defaultValue: "保存中..." }) : t("common.save", { defaultValue: "保存" })}
           </Button>
         </div>
