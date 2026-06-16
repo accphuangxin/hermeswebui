@@ -518,15 +518,36 @@ function AgentCard({
           {item.description}
         </p>
       )}
-      {item.model && (
-        <p className="text-[10px] text-muted-foreground/50 font-mono truncate mt-auto pt-1">
-          {item.model}
-        </p>
-      )}
+      {/* Model tag — clickable if provider management is available */}
+      <div
+        className="mt-auto pt-1"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {item.model && item.port && item.key ? (
+          <button
+            type="button"
+            onClick={item.status === "running" ? onManageProviders : undefined}
+            title={item.status === "running" ? "管理模型" : "启动后可管理模型"}
+            className={cn(
+              "flex items-center gap-1 text-[10px] font-mono rounded px-1.5 py-0.5 transition-colors",
+              item.status === "running"
+                ? "text-primary/70 hover:text-primary hover:bg-primary/10 cursor-pointer"
+                : "text-muted-foreground/40 cursor-default",
+            )}
+          >
+            <Database className="w-2.5 h-2.5 shrink-0" />
+            <span className="truncate">{item.model}</span>
+          </button>
+        ) : item.model ? (
+          <p className="text-[10px] text-muted-foreground/50 font-mono truncate px-1.5">
+            {item.model}
+          </p>
+        ) : null}
+      </div>
 
       {/* Action buttons — right-aligned */}
       <div
-        className="flex items-center justify-end gap-0.5 pt-1 mt-auto"
+        className="flex items-center justify-end gap-0.5 pt-1"
         onClick={(e) => e.stopPropagation()}
       >
         {isRunning ? (
@@ -554,15 +575,6 @@ function AgentCard({
         <ActionBtn onClick={onEdit} label={tEdit}>
           <Pencil className="w-3 h-3" />
         </ActionBtn>
-        {item.port && item.key && (
-          <ActionBtn
-            onClick={onManageProviders}
-            label="模型"
-            disabled={item.status !== "running"}
-          >
-            <Database className="w-3 h-3" />
-          </ActionBtn>
-        )}
         {!item.isDefault && (
           <ActionBtn onClick={onDelete} label={tDelete} destructive>
             <Trash2 className="w-3 h-3" />
