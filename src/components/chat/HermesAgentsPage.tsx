@@ -108,6 +108,7 @@ export function HermesAgentsPage({
     setDetailAgent(raw);
     setEditAgent(null);
     setShowCreate(false);
+    setProviderAgent(null);
     setContextMenu(null);
   };
 
