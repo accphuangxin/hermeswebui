@@ -830,7 +830,8 @@ function EditAgentForm({
     if (model !== (agent.model ?? "")) input.model = model.trim() || undefined;
     if (provider !== (agent.provider ?? ""))
       input.provider = provider.trim() || undefined;
-    if (baseUrl !== (agent.baseUrl ?? ""))
+    // Only send base_url in manual mode; select mode uses the provider's own base_url
+    if (modelMode === "manual" && baseUrl !== (agent.baseUrl ?? ""))
       input.base_url = baseUrl.trim() || undefined;
     const portNum = apiServerPort ? Number(apiServerPort) : undefined;
     if (portNum !== agent.apiServerPort) input.api_server_port = portNum;
