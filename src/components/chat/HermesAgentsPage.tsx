@@ -270,7 +270,7 @@ export function HermesAgentsPage({
         )}
 
         {editAgent && !showCreate && (
-          <div className="flex-1 min-h-0 overflow-hidden">
+          <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
             <EditAgentForm
               agent={editAgent}
               onClose={() => setEditAgent(null)}
@@ -849,7 +849,7 @@ function EditAgentForm({
   }
 
   return (
-    <div className="flex gap-4 h-full">
+    <div className="flex gap-4 h-full w-full min-w-0">
       {/* Left panel: agent settings */}
       <div className="w-2/5 rounded-xl border border-border bg-card overflow-hidden flex flex-col">
         <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
