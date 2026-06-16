@@ -636,8 +636,9 @@ export function ChatPage({
       );
 
       const title = session?.title || t("hermes.chat.untitled", { defaultValue: "未命名聊天" });
+      const safeTitle = title.replace(/[/\\:*?"<>|]/g, "_");
       const ts = new Date().toISOString().slice(0, 16).replace(/[T:]/g, "-");
-      const defaultFilename = `${title}_${ts}.md`;
+      const defaultFilename = `${safeTitle}_${ts}.md`;
 
       try {
         const filePath = await save({
