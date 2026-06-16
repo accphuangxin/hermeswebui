@@ -847,71 +847,44 @@ function EditAgentForm({
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col h-[600px]">
-      <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
-        <p className="text-sm font-semibold">
-          {t("hermes.agents.editTitle", { name: agent.name })}
-        </p>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6 -mr-1"
-          onClick={onClose}
-        >
-          <X className="w-3.5 h-3.5" />
-        </Button>
-      </div>
+    <div className="flex gap-4 h-[600px]">
+      {/* Left panel: agent settings */}
+      <div className="flex-1 rounded-xl border border-border bg-card overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
+          <p className="text-sm font-semibold">
+            {t("hermes.agents.editTitle", { name: agent.name })}
+          </p>
+        </div>
 
-      <div className="grid grid-cols-[1fr_3fr] gap-4 p-4 flex-1 min-h-0">
-        {/* 左侧：其他属性 (1/4) */}
-        <div className="space-y-4 overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
           <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
-            <div className="text-xs text-muted-foreground uppercase tracking-wide">
-              DESCRIPTION
-            </div>
-            <Input
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder={agent.description ?? "描述"}
-              className="h-9 text-sm"
-            />
+            <div className="text-xs text-muted-foreground uppercase tracking-wide">DESCRIPTION</div>
+            <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder={agent.description ?? "描述"} className="h-9 text-sm" />
           </div>
 
-          {/* Default Model — select from providers or manual input */}
+          {/* Default Model */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <div className="text-xs text-muted-foreground uppercase tracking-wide">
-                DEFAULT MODEL
-              </div>
+              <div className="text-xs text-muted-foreground uppercase tracking-wide">DEFAULT MODEL</div>
               {hasServer && (
-                <button
-                  type="button"
-                  className="text-[10px] text-primary hover:opacity-80"
-                  onClick={() => setModelMode((m) => m === "select" ? "manual" : "select")}
-                >
+                <button type="button" className="text-[10px] text-primary hover:opacity-80"
+                  onClick={() => setModelMode((m) => m === "select" ? "manual" : "select")}>
                   {modelMode === "select" ? "手动填写" : "从列表选择"}
                 </button>
               )}
             </div>
-
             {modelMode === "select" ? (
               <div className="border rounded-md overflow-hidden">
                 {providers.length === 0 ? (
                   <p className="text-xs text-muted-foreground p-2 animate-pulse">加载中...</p>
                 ) : (
-                  <div className="max-h-36 overflow-y-auto">
+                  <div className="max-h-40 overflow-y-auto">
                     {modelOptions.map((opt, i) => {
                       const isSelected = opt.model === model && opt.provider === provider;
                       return (
-                        <button
-                          key={i}
-                          type="button"
-                          className={cn(
-                            "w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-muted/60 transition-colors",
-                            isSelected && "bg-primary/10 text-primary",
-                          )}
-                          onClick={() => { setModel(opt.model); setProvider(opt.provider); setBaseUrl(opt.baseUrl ?? ""); }}
-                        >
+                        <button key={i} type="button"
+                          className={cn("w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-muted/60 transition-colors", isSelected && "bg-primary/10 text-primary")}
+                          onClick={() => { setModel(opt.model); setProvider(opt.provider); setBaseUrl(opt.baseUrl ?? ""); }}>
                           <span className="font-mono font-medium truncate">{opt.model}</span>
                           <span className="text-muted-foreground/60 shrink-0">{opt.provider}</span>
                         </button>
@@ -928,116 +901,72 @@ function EditAgentForm({
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="shrink-0 uppercase tracking-wide">Base URL</span>
-                      <input
-                        value={baseUrl}
-                        onChange={(e) => setBaseUrl(e.target.value)}
+                      <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)}
                         placeholder="可选，留空使用 provider 默认值"
-                        className="flex-1 bg-background border border-input rounded px-2 py-0.5 text-[10px] font-mono outline-none focus:ring-1 focus:ring-ring"
-                      />
+                        className="flex-1 bg-background border border-input rounded px-2 py-0.5 text-[10px] font-mono outline-none focus:ring-1 focus:ring-ring" />
                     </div>
                   </div>
                 )}
               </div>
             ) : (
               <div className="space-y-2">
-                <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
+                <div className="grid grid-cols-[80px_1fr] gap-3 items-center">
                   <div className="text-xs text-muted-foreground">MODEL</div>
-                  <Input
-                    value={model}
-                    onChange={(e) => setModel(e.target.value)}
-                    placeholder={agent.model ?? "qwen3_6"}
-                    className="h-8 text-sm"
-                  />
+                  <Input value={model} onChange={(e) => setModel(e.target.value)} placeholder={agent.model ?? "qwen3_6"} className="h-8 text-sm" />
                 </div>
-                <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
+                <div className="grid grid-cols-[80px_1fr] gap-3 items-center">
                   <div className="text-xs text-muted-foreground">PROVIDER</div>
-                  <Input
-                    value={provider}
-                    onChange={(e) => setProvider(e.target.value)}
-                    placeholder={agent.provider ?? "custom"}
-                    className="h-8 text-sm"
-                  />
+                  <Input value={provider} onChange={(e) => setProvider(e.target.value)} placeholder={agent.provider ?? "custom"} className="h-8 text-sm" />
                 </div>
-                <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
+                <div className="grid grid-cols-[80px_1fr] gap-3 items-center">
                   <div className="text-xs text-muted-foreground">BASE URL</div>
-                  <Input
-                    value={baseUrl}
-                    onChange={(e) => setBaseUrl(e.target.value)}
-                    placeholder="可选，如 https://bedrock-runtime.us-east-1.amazonaws.com"
-                    className="h-8 text-sm"
-                  />
+                  <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="可选" className="h-8 text-sm" />
                 </div>
               </div>
             )}
           </div>
 
           <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
-            <div className="text-xs text-muted-foreground uppercase tracking-wide">
-              API PORT
-            </div>
-            <Input
-              value={apiServerPort}
-              onChange={(e) => setApiServerPort(e.target.value)}
-              placeholder={
-                agent.apiServerPort ? String(agent.apiServerPort) : "8701"
-              }
-              className="h-9 text-sm"
-            />
+            <div className="text-xs text-muted-foreground uppercase tracking-wide">API PORT</div>
+            <Input value={apiServerPort} onChange={(e) => setApiServerPort(e.target.value)} placeholder={agent.apiServerPort ? String(agent.apiServerPort) : "8701"} className="h-9 text-sm" />
           </div>
 
           <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
-            <div className="text-xs text-muted-foreground uppercase tracking-wide">
-              API KEY
-            </div>
-            <Input
-              value={apiServerKey}
-              onChange={(e) => setApiServerKey(e.target.value)}
-              placeholder="my-secret-key"
-              className="h-9 text-sm"
-            />
+            <div className="text-xs text-muted-foreground uppercase tracking-wide">API KEY</div>
+            <Input value={apiServerKey} onChange={(e) => setApiServerKey(e.target.value)} placeholder="my-secret-key" className="h-9 text-sm" />
           </div>
 
-          {error && (
-            <p className="text-xs text-destructive break-all font-mono">
-              {String(error)}
-            </p>
-          )}
+          {error && <p className="text-xs text-destructive break-all font-mono">{String(error)}</p>}
         </div>
 
-        {/* 右侧：SOUL (3/4) */}
-        <div className="flex flex-col min-h-0">
-          <div className="text-xs text-muted-foreground uppercase tracking-wide mb-2 shrink-0">
-            SOUL
-          </div>
-          <textarea
-            value={soul}
-            onChange={(e) => setSoul(e.target.value)}
-            className="flex-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-ring"
-            placeholder="系统提示词"
-          />
+        <div className="px-4 py-3 border-t bg-muted/30 shrink-0">
+          <Button variant="outline" size="sm" className="w-full h-9" onClick={onClose} disabled={isPending}>
+            {t("common.cancel", { defaultValue: "取消" })}
+          </Button>
         </div>
       </div>
 
-      <div className="flex gap-2 px-4 py-3 border-t bg-muted/30 shrink-0">
-        <Button
-          variant="outline"
-          size="sm"
-          className="flex-1 h-9"
-          onClick={onClose}
-          disabled={isPending}
-        >
-          {t("common.cancel", { defaultValue: "取消" })}
-        </Button>
-        <Button
-          size="sm"
-          className="flex-1 h-9"
-          onClick={handleSubmit}
-          disabled={isPending}
-        >
-          {isPending
-            ? t("common.saving", { defaultValue: "保存中..." })
-            : t("common.save", { defaultValue: "保存" })}
-        </Button>
+      {/* Right panel: Soul */}
+      <div className="flex-1 rounded-xl border border-border bg-card overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide">SOUL</p>
+          <Button variant="ghost" size="icon" className="h-6 w-6 -mr-1" onClick={onClose}>
+            <X className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+
+        <textarea
+          value={soul}
+          onChange={(e) => setSoul(e.target.value)}
+          className="flex-1 w-full bg-background px-4 py-3 text-sm resize-none focus:outline-none"
+          placeholder="系统提示词"
+        />
+
+        <div className="px-4 py-3 border-t bg-muted/30 shrink-0">
+          <Button size="sm" className="w-full h-9" onClick={handleSubmit} disabled={isPending}>
+            {isPending ? t("common.saving", { defaultValue: "保存中..." }) : t("common.save", { defaultValue: "保存" })}
+          </Button>
+        </div>
       </div>
     </div>
   );
