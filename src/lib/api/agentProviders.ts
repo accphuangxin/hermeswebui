@@ -45,9 +45,10 @@ export const agentProvidersApi = {
     await checkResponse(res, "GET /v1/providers");
     const data = await res.json() as unknown;
     if (Array.isArray(data)) return data as AgentProvider[];
-    // Some implementations wrap in { providers: [...] }
-    if (data && typeof data === "object" && "providers" in data) {
-      return (data as { providers: AgentProvider[] }).providers;
+    if (data && typeof data === "object") {
+      const obj = data as Record<string, unknown>;
+      if (Array.isArray(obj.custom_providers)) return obj.custom_providers as AgentProvider[];
+      if (Array.isArray(obj.providers)) return obj.providers as AgentProvider[];
     }
     return [];
   },
