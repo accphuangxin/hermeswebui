@@ -801,6 +801,24 @@ function EditAgentForm({
   );
   const [apiServerKey, setApiServerKey] = useState(agent.apiServerKey ?? "");
 
+  // Model select mode: "select" when agent has port+key, else "manual"
+  const hasServer = !!(agent.apiServerPort && agent.apiServerKey);
+  const [modelMode, setModelMode] = useState<"select" | "manual">(hasServer ? "select" : "manual");
+  const { data: providers = [] } = useAgentProviders(
+    modelMode === "select" ? agent.apiServerPort : undefined,
+    modelMode === "select" ? agent.apiServerKey : undefined,
+  );
+  // Flatten all provider models into selectable options
+  const modelOptions = providers.flatMap((p) =>
+    Object.keys(p.models ?? {}).map((m) => ({ provider: p.name, model: m, baseUrl: p.base_url }))
+  );
+  // If provider has no models key but has a default model, add it
+  providers.forEach((p) => {
+    if (!p.models || Object.keys(p.models).length === 0) {
+      modelOptions.push({ provider: p.name, model: p.model, baseUrl: p.base_url });
+    }
+  });
+
   function handleSubmit() {
     const input: UpdateAgentInput = {};
     if (description !== (agent.description ?? ""))
@@ -856,28 +874,78 @@ function EditAgentForm({
             />
           </div>
 
-          <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
-            <div className="text-xs text-muted-foreground uppercase tracking-wide">
-              MODEL
+          {/* Default Model — select from providers or manual input */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-muted-foreground uppercase tracking-wide">
+                DEFAULT MODEL
+              </div>
+              {hasServer && (
+                <button
+                  type="button"
+                  className="text-[10px] text-primary hover:opacity-80"
+                  onClick={() => setModelMode((m) => m === "select" ? "manual" : "select")}
+                >
+                  {modelMode === "select" ? "手动填写" : "从列表选择"}
+                </button>
+              )}
             </div>
-            <Input
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder={agent.model ?? "qwen3_6"}
-              className="h-9 text-sm"
-            />
-          </div>
 
-          <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
-            <div className="text-xs text-muted-foreground uppercase tracking-wide">
-              PROVIDER
-            </div>
-            <Input
-              value={provider}
-              onChange={(e) => setProvider(e.target.value)}
-              placeholder={agent.provider ?? "custom"}
-              className="h-9 text-sm"
-            />
+            {modelMode === "select" ? (
+              <div className="border rounded-md overflow-hidden">
+                {providers.length === 0 ? (
+                  <p className="text-xs text-muted-foreground p-2 animate-pulse">加载中...</p>
+                ) : (
+                  <div className="max-h-36 overflow-y-auto">
+                    {modelOptions.map((opt, i) => {
+                      const isSelected = opt.model === model && opt.provider === provider;
+                      return (
+                        <button
+                          key={i}
+                          type="button"
+                          className={cn(
+                            "w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-muted/60 transition-colors",
+                            isSelected && "bg-primary/10 text-primary",
+                          )}
+                          onClick={() => { setModel(opt.model); setProvider(opt.provider); }}
+                        >
+                          <span className="font-mono font-medium truncate">{opt.model}</span>
+                          <span className="text-muted-foreground/60 shrink-0">{opt.provider}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {model && (
+                  <div className="border-t px-3 py-1 text-[10px] text-muted-foreground bg-muted/20 flex gap-2">
+                    <span>已选：</span>
+                    <span className="font-mono font-medium text-foreground">{model}</span>
+                    {provider && <span className="text-muted-foreground/60">({provider})</span>}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
+                  <div className="text-xs text-muted-foreground">MODEL</div>
+                  <Input
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                    placeholder={agent.model ?? "qwen3_6"}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
+                  <div className="text-xs text-muted-foreground">PROVIDER</div>
+                  <Input
+                    value={provider}
+                    onChange={(e) => setProvider(e.target.value)}
+                    placeholder={agent.provider ?? "custom"}
+                    className="h-8 text-sm"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
