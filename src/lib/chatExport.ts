@@ -2,7 +2,7 @@ import type { ChatMessage } from "@/types";
 
 export function formatSessionAsMarkdown(
   title: string | null,
-  model: string,
+  model: string | null,
   messages: ChatMessage[],
 ): string {
   const sessionTitle = title ?? "未命名会话";
