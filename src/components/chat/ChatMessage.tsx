@@ -24,148 +24,73 @@ import { ToolCallBlock } from "./ToolCallBlock";
 import { cn } from "@/lib/utils";
 
 // ─── Table repair ────────────────────────────────────────────────────────────
-// AI sometimes outputs all table rows on a single line separated by " | " with
-// row boundaries indicated by tokens that contain a space (e.g. "涨跌幅 天普股份"
-// means the last cell of one row is "涨跌幅" and the first of the next is "天普股份").
-// This function splits such a line into a proper GFM table.
-
-function tryRepairCompressedTable(line: string): string | null {
-  if (!line.includes(" | ")) return null;
-  const tokens = line.split(" | ").map((t) => t.trim()).filter(Boolean);
-  if (tokens.length < 4) return null;
-
-  // Find "seam" tokens — tokens that contain a space (they span two cells / two rows)
-  const seamIndices: number[] = [];
-  for (let i = 0; i < tokens.length; i++) {
-    if (/\s/.test(tokens[i])) seamIndices.push(i);
-  }
-
-  if (seamIndices.length === 0) {
-    // No seams: single-row data, just wrap with pipes
-    return `| ${tokens.join(" | ")} |`;
-  }
-
-  const firstSeam = seamIndices[0];
-  if (firstSeam < 1) return null;
-
-  const colCount = firstSeam + 1;   // header has colCount columns
-  const rowStride = colCount - 1;   // each subsequent seam is rowStride apart
-
-  // Validate that seam positions follow the expected arithmetic pattern (±1 tolerance)
-  const valid = seamIndices.every(
-    (idx, k) => Math.abs(idx - (firstSeam + k * rowStride)) <= 1,
-  );
-  if (!valid) return null;
-
-  const splitAtFirstSpace = (token: string): [string, string] => {
-    const si = token.indexOf(" ");
-    return [token.slice(0, si).trim(), token.slice(si + 1).trim()];
-  };
-
-  const rows: string[][] = [];
-  const [headerLast, nextFirst] = splitAtFirstSpace(tokens[firstSeam]);
-  rows.push([...tokens.slice(0, firstSeam), headerLast]);
-
-  let cur: string[] = [nextFirst];
-  for (let i = firstSeam + 1; i < tokens.length; i++) {
-    if (/\s/.test(tokens[i])) {
-      const [rowLast, newFirst] = splitAtFirstSpace(tokens[i]);
-      cur.push(rowLast);
-      rows.push(cur);
-      cur = [newFirst];
-    } else {
-      cur.push(tokens[i]);
-    }
-  }
-  if (cur.some((c) => c.trim())) rows.push(cur);
-
-  if (rows.length < 2) return null;
-
-  const header = `| ${rows[0].join(" | ")} |`;
-  const sep = `| ${rows[0].map(() => "---").join(" | ")} |`;
-  const dataRows = rows.slice(1).map((r) => `| ${r.join(" | ")} |`);
-  return [header, sep, ...dataRows].join("\n");
-}
-
-// Handle "|| row separator" format: "| a | b || c | d ||" → split into rows
-function tryRepairDoublePipeTable(line: string): string | null {
-  if (!line.includes("||")) return null;
-  const trimmed = line.trim();
-  // Split on || to get raw rows
-  const rawRows = trimmed.split("||").map((r) => r.trim()).filter(Boolean);
+// Convert a || -delimited flat string into a GFM markdown table.
+// "| H1 | H2 || D1 | D2 || D3 | D4 |" → header + separator + data rows
+function doublePipeToTable(flat: string): string | null {
+  const rawRows = flat.split("||").map((r) => r.trim()).filter(Boolean);
   if (rawRows.length < 2) return null;
-
-  const rows = rawRows.map((r) => {
-    // Normalize: strip leading/trailing pipes, split on single |
-    const stripped = r.replace(/^\|/, "").replace(/\|$/, "");
-    return stripped.split("|").map((c) => c.trim()).filter((c) => c !== "");
-  });
-
-  if (rows.length < 2 || rows[0].length < 2) return null;
-
+  const rows = rawRows.map((r) =>
+    r.replace(/^\|/, "").replace(/\|$/, "")
+      .split("|").map((c) => c.trim()).filter(Boolean)
+  );
+  if (rows[0].length < 2) return null;
   const colCount = rows[0].length;
   const header = `| ${rows[0].join(" | ")} |`;
-  const sep = `| ${Array(colCount).fill("---").join(" | ")} |`;
-  const dataRows = rows.slice(1).map((r) => `| ${r.join(" | ")} |`);
-  return [header, sep, ...dataRows].join("\n");
+  const sep    = `| ${Array(colCount).fill("---").join(" | ")} |`;
+  const data   = rows.slice(1).map((r) => `| ${r.join(" | ")} |`);
+  return [header, sep, ...data].join("\n");
 }
 
+// Find paragraphs (separated by blank lines) that contain "||" and repair them.
+// Strategy: split the paragraph into tokens by "||", then reassemble rows by
+// counting pipe characters per token to detect row boundaries.
 function repairCompressedTable(content: string): string {
-  const lines = content.split("\n");
-  const out: string[] = [];
-  let i = 0;
+  const paragraphs = content.split(/\n{2,}/);
+  const processed = paragraphs.map((para) => {
+    if (!para.includes("||")) return para;
 
-  while (i < lines.length) {
-    const trimmed = lines[i].trim();
+    // Join all lines of the paragraph into one string, replacing newlines with spaces.
+    // Before joining, strip leading/trailing pipes per line to avoid creating false "||".
+    const paraLines = para.split("\n").map((l) => l.trim()).filter(Boolean);
 
-    if (!trimmed.includes("|")) {
-      out.push(lines[i]);
-      i++;
-      continue;
+    // Detect the column count from the first line that contains "||" (it has the header)
+    const firstDoublePipeLine = paraLines.find((l) => l.includes("||"));
+    if (!firstDoublePipeLine) return para;
+
+    // Count columns in header: split the portion before first "||" by "|"
+    const headerPart = firstDoublePipeLine.split("||")[0];
+    const colCount = headerPart.split("|").map((c) => c.trim()).filter(Boolean).length;
+    if (colCount < 2) return para;
+
+    // Flatten the whole paragraph into one pipe stream, removing line breaks
+    // Use a sentinel that won't appear in content to track original line boundaries
+    const flat = paraLines
+      .map((l) => l.replace(/^\|/, "").replace(/\|$/, "").trim())
+      .join(" | ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    // Now split by "||" to get row fragments, then split each by "|" for cells
+    // But first, we need to reconstruct from the flat stream using colCount
+    const allCells = flat.split(/\s*\|\|\s*|\s*\|\s*/)
+      .map((c) => c.trim())
+      .filter(Boolean);
+
+    if (allCells.length < colCount * 2) return para;
+
+    const rows: string[][] = [];
+    for (let i = 0; i < allCells.length; i += colCount) {
+      const row = allCells.slice(i, i + colCount);
+      if (row.length === colCount) rows.push(row);
     }
+    if (rows.length < 2) return para;
 
-    // Collect a block of consecutive pipe-lines that look like a compressed table
-    // (each line starts with | and contains ||, OR they together form a wrapped line)
-    const isCompressedPipeLine = (l: string) => {
-      const t = l.trim();
-      return t.startsWith("|") && t.includes("||");
-    };
-
-    if (isCompressedPipeLine(lines[i])) {
-      // Gather all consecutive compressed-pipe lines and join them
-      const block = [lines[i].trim()];
-      while (i + 1 < lines.length && (isCompressedPipeLine(lines[i + 1]) || (lines[i + 1].trim().startsWith("|") && !lines[i + 1].trim().includes("---")))) {
-        i++;
-        block.push(lines[i].trim());
-      }
-      // Ensure each line ends with || so row boundaries survive the join
-      const normalized = block.map((l) => {
-        const t = l.trimEnd();
-        if (t.endsWith("||")) return t;
-        if (t.endsWith("|")) return t + "|";
-        return t + " ||";
-      });
-      const joined = normalized.join(" ").replace(/\s+/g, " ").trim();
-      const repaired = tryRepairDoublePipeTable(joined);
-      out.push(repaired ?? block.join("\n"));
-      i++;
-      continue;
-    }
-
-    // Skip lines already in valid GFM table format (has separator row nearby)
-    if (trimmed.startsWith("|") && !trimmed.includes("||")) {
-      out.push(lines[i]);
-      i++;
-      continue;
-    }
-
-    // Try space-seam compressed table (no leading pipe)
-    const repaired = tryRepairCompressedTable(trimmed);
-    out.push(repaired ?? lines[i]);
-    i++;
-  }
-
-  return out.join("\n");
+    const header = `| ${rows[0].join(" | ")} |`;
+    const sep    = `| ${Array(colCount).fill("---").join(" | ")} |`;
+    const data   = rows.slice(1).map((r) => `| ${r.join(" | ")} |`);
+    return [header, sep, ...data].join("\n");
+  });
+  return processed.join("\n\n");
 }
 
 // ─── Media / path preprocessing ──────────────────────────────────────────────
