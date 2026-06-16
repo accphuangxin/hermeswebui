@@ -384,10 +384,11 @@ export function ChatPage({
       const fileRefsForDb =
         files.length > 0
           ? JSON.stringify(
-              files.map(({ filename, mimeType, sizeBytes }) => ({
+              files.map(({ filename, mimeType, sizeBytes, sourcePath }) => ({
                 filename,
                 mimeType,
                 sizeBytes,
+                ...(sourcePath ? { sourcePath } : {}),
               })),
             )
           : null;

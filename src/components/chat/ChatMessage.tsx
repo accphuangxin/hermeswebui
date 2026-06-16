@@ -184,7 +184,7 @@ function FilePathButton({ path: rawPath, label }: { path: string; label: string 
   );
 }
 
-function LocalImage({ src, alt }: { src: string; alt: string }) {
+function LocalImage({ src, alt, className }: { src: string; alt: string; className?: string }) {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -216,7 +216,7 @@ function LocalImage({ src, alt }: { src: string; alt: string }) {
     <img
       src={dataUrl}
       alt={alt}
-      className="max-w-full rounded-lg my-1 cursor-pointer"
+      className={className ?? "max-w-full rounded-lg my-1 cursor-pointer"}
       onClick={() => window.open(dataUrl, "_blank")}
     />
   );
@@ -545,16 +545,29 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
       >
         {isUser && (fileRefs.length > 0 || legacyFileChips.length > 0) && (
           <div className="flex flex-wrap gap-1 max-w-[85%] justify-end">
-            {fileRefs.map((f, i) => (
-              <div
-                key={`ref-${f.filename}-${i}`}
-                className="flex items-center gap-1 bg-primary/20 text-primary rounded px-2 py-0.5 text-xs"
-              >
-                <Paperclip className="w-3 h-3 flex-shrink-0" />
-                <span className="truncate max-w-[120px]">{f.filename}</span>
-                <span className="opacity-60">({formatSize(f.sizeBytes)})</span>
-              </div>
-            ))}
+            {fileRefs.map((f, i) => {
+              const isImage = f.mimeType?.startsWith("image/");
+              if (isImage && f.sourcePath) {
+                return (
+                  <LocalImage
+                    key={`ref-${f.filename}-${i}`}
+                    src={f.sourcePath}
+                    alt={f.filename}
+                    className="max-h-40 max-w-xs rounded-lg cursor-pointer object-contain"
+                  />
+                );
+              }
+              return (
+                <div
+                  key={`ref-${f.filename}-${i}`}
+                  className="flex items-center gap-1 bg-primary/20 text-primary rounded px-2 py-0.5 text-xs"
+                >
+                  <Paperclip className="w-3 h-3 flex-shrink-0" />
+                  <span className="truncate max-w-[120px]">{f.filename}</span>
+                  <span className="opacity-60">({formatSize(f.sizeBytes)})</span>
+                </div>
+              );
+            })}
             {legacyFileChips.map((f, i) => (
               <div
                 key={`legacy-${f.filename}-${i}`}
