@@ -655,8 +655,8 @@ function CreateAgentForm({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [soul, setSoul] = useState("");
-  const [apiServerPort, setApiServerPort] = useState("");
-  const [apiServerKey, setApiServerKey] = useState("");
+  const [apiServerPort, setApiServerPort] = useState("0");
+  const [apiServerKey, setApiServerKey] = useState("root@123123");
   const [isClone, setIsClone] = useState(false);
 
   function handleSubmit() {
