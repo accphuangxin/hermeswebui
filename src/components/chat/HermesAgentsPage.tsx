@@ -8,6 +8,9 @@ import {
   Square,
   RotateCcw,
   Pencil,
+  Database,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -28,6 +31,8 @@ import {
 import type { HermesAgent } from "@/lib/api/agents";
 import type { UpdateAgentInput } from "@/lib/api/agents";
 import { toast } from "sonner";
+import { useAgentProviders, useUpsertProvider, useDeleteProvider } from "@/hooks/useAgentProviders";
+import type { AgentProvider, AgentProviderModel } from "@/lib/api/agentProviders";
 
 interface HermesAgentsPageProps {
   selectedAgentId: string;
@@ -57,6 +62,7 @@ export function HermesAgentsPage({
   const [detailAgent, setDetailAgent] = useState<HermesAgent | null>(null);
   const [editAgent, setEditAgent] = useState<HermesAgent | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AgentItem | null>(null);
+  const [providerAgent, setProviderAgent] = useState<AgentItem | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -224,6 +230,14 @@ export function HermesAgentsPage({
                     e.stopPropagation();
                     setDeleteTarget(item);
                   }}
+                  onManageProviders={(e) => {
+                    e.stopPropagation();
+                    setProviderAgent(item);
+                    setDetailAgent(null);
+                    setEditAgent(null);
+                    setShowCreate(false);
+                    setContextMenu(null);
+                  }}
                   isStartPending={isStartPending(item)}
                   isStopPending={isStopPending(item)}
                   isRestartPending={isRestartPending(item)}
@@ -271,9 +285,18 @@ export function HermesAgentsPage({
           />
         )}
 
-        {detailAgent && !showCreate && !editAgent && (
+        {detailAgent && !showCreate && !editAgent && !providerAgent && (
           <div className="flex-1 min-h-0">
             <AgentDetailPanel agent={detailAgent} />
+          </div>
+        )}
+
+        {providerAgent && !showCreate && !editAgent && (
+          <div className="flex-1 min-h-0">
+            <ProviderManagerPanel
+              agent={providerAgent}
+              onClose={() => setProviderAgent(null)}
+            />
           </div>
         )}
       </div>
@@ -436,6 +459,7 @@ function AgentCard({
   onRestart,
   onEdit,
   onDelete,
+  onManageProviders,
   isStartPending,
   isStopPending,
   isRestartPending,
@@ -454,6 +478,7 @@ function AgentCard({
   onRestart: (e: React.MouseEvent) => void;
   onEdit: (e: React.MouseEvent) => void;
   onDelete: (e: React.MouseEvent) => void;
+  onManageProviders: (e: React.MouseEvent) => void;
   isStartPending: boolean;
   isStopPending: boolean;
   isRestartPending: boolean;
@@ -531,6 +556,15 @@ function AgentCard({
         <ActionBtn onClick={onEdit} label={tEdit}>
           <Pencil className="w-3 h-3" />
         </ActionBtn>
+        {item.port && item.key && (
+          <ActionBtn
+            onClick={onManageProviders}
+            label="模型"
+            disabled={item.status !== "running"}
+          >
+            <Database className="w-3 h-3" />
+          </ActionBtn>
+        )}
         {!item.isDefault && (
           <ActionBtn onClick={onDelete} label={tDelete} destructive>
             <Trash2 className="w-3 h-3" />
@@ -915,6 +949,239 @@ function DetailRow({ label, value }: { label: string; value: string }) {
         {label}
       </span>
       <span className="text-xs font-mono break-all">{value}</span>
+    </div>
+  );
+}
+
+function ProviderManagerPanel({
+  agent,
+  onClose,
+}: {
+  agent: AgentItem;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const port = agent.port;
+  const key = agent.key;
+  const { data: providers = [], isLoading, error, refetch } = useAgentProviders(port, key);
+  const upsertMutation = useUpsertProvider(port, key);
+  const deleteMutation = useDeleteProvider(port, key);
+
+  const [showForm, setShowForm] = useState(false);
+  const [formName, setFormName] = useState("");
+  const [formBaseUrl, setFormBaseUrl] = useState("");
+  const [formApiKey, setFormApiKey] = useState("");
+  const [formModel, setFormModel] = useState("");
+  // models rows: array of {id, context_length, supports_vision}
+  const [modelRows, setModelRows] = useState<{ id: string; context_length: string; supports_vision: boolean }[]>([
+    { id: "", context_length: "100000", supports_vision: false },
+  ]);
+
+  const resetForm = () => {
+    setFormName(""); setFormBaseUrl(""); setFormApiKey(""); setFormModel("");
+    setModelRows([{ id: "", context_length: "100000", supports_vision: false }]);
+    setShowForm(false);
+  };
+
+  const loadProvider = (p: AgentProvider) => {
+    setFormName(p.name);
+    setFormBaseUrl(p.base_url);
+    setFormApiKey(p.api_key);
+    setFormModel(p.model);
+    const rows = Object.entries(p.models).map(([id, m]) => ({
+      id,
+      context_length: String(m.context_length),
+      supports_vision: m.supports_vision,
+    }));
+    setModelRows(rows.length > 0 ? rows : [{ id: "", context_length: "100000", supports_vision: false }]);
+    setShowForm(true);
+  };
+
+  const handleSubmit = () => {
+    if (!formName.trim() || !formBaseUrl.trim() || !formApiKey.trim() || !formModel.trim()) return;
+    const models: Record<string, AgentProviderModel> = {};
+    for (const row of modelRows) {
+      if (row.id.trim()) {
+        models[row.id.trim()] = {
+          context_length: Number(row.context_length) || 100000,
+          supports_vision: row.supports_vision,
+        };
+      }
+    }
+    upsertMutation.mutate(
+      { name: formName.trim(), base_url: formBaseUrl.trim(), api_key: formApiKey.trim(), model: formModel.trim(), models },
+      {
+        onSuccess: () => { toast.success(`Provider "${formName}" 已保存`); resetForm(); },
+        onError: (e) => toast.error("保存失败", { description: String(e) }),
+      },
+    );
+  };
+
+  const handleDelete = (name: string) => {
+    deleteMutation.mutate(name, {
+      onSuccess: () => toast.success(`Provider "${name}" 已删除`),
+      onError: (e) => toast.error("删除失败", { description: String(e) }),
+    });
+  };
+
+  return (
+    <div className="h-full rounded-xl border border-border bg-card overflow-hidden flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
+        <div className="flex items-center gap-2">
+          <Database className="w-4 h-4 text-muted-foreground" />
+          <span className="text-sm font-semibold">模型管理 — {agent.name}</span>
+        </div>
+        <Button variant="ghost" size="icon" className="h-6 w-6 -mr-1" onClick={onClose}>
+          <X className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
+        {/* Provider list */}
+        {isLoading ? (
+          <p className="text-xs text-muted-foreground animate-pulse">加载中...</p>
+        ) : error ? (
+          <div className="flex items-center gap-2">
+            <p className="text-xs text-destructive">{String(error)}</p>
+            <Button variant="outline" size="sm" className="h-6 text-xs" onClick={() => void refetch()}>重试</Button>
+          </div>
+        ) : providers.length === 0 ? (
+          <p className="text-xs text-muted-foreground">暂无 Provider</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-1.5 px-2 font-medium text-muted-foreground">名称</th>
+                  <th className="text-left py-1.5 px-2 font-medium text-muted-foreground">Base URL</th>
+                  <th className="text-left py-1.5 px-2 font-medium text-muted-foreground">默认模型</th>
+                  <th className="py-1.5 px-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {providers.map((p) => (
+                  <tr key={p.name} className="border-b hover:bg-muted/30 transition-colors">
+                    <td className="py-1.5 px-2 font-mono font-medium">{p.name}</td>
+                    <td className="py-1.5 px-2 text-muted-foreground truncate max-w-[200px]">{p.base_url}</td>
+                    <td className="py-1.5 px-2 font-mono">{p.model}</td>
+                    <td className="py-1.5 px-2">
+                      <div className="flex items-center gap-1 justify-end">
+                        <button
+                          className="px-1.5 py-0.5 rounded text-[10px] hover:bg-muted transition-colors text-muted-foreground"
+                          onClick={() => loadProvider(p)}
+                        >
+                          编辑
+                        </button>
+                        <button
+                          className="px-1.5 py-0.5 rounded text-[10px] hover:bg-destructive/10 transition-colors text-destructive"
+                          onClick={() => handleDelete(p.name)}
+                          disabled={deleteMutation.isPending}
+                        >
+                          删除
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Add/Edit form toggle */}
+        <button
+          className="flex items-center gap-1 text-xs text-primary hover:opacity-80 transition-opacity"
+          onClick={() => { if (showForm) resetForm(); else setShowForm(true); }}
+        >
+          {showForm ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          {showForm ? "收起" : "+ 添加 / 更新 Provider"}
+        </button>
+
+        {showForm && (
+          <div className="space-y-3 border rounded-lg p-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wide">名称 *</label>
+                <Input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="CloudCI" className="h-8 text-xs" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wide">默认模型 *</label>
+                <Input value={formModel} onChange={(e) => setFormModel(e.target.value)} placeholder="qwen3_6" className="h-8 text-xs" />
+              </div>
+              <div className="space-y-1 col-span-2">
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Base URL *</label>
+                <Input value={formBaseUrl} onChange={(e) => setFormBaseUrl(e.target.value)} placeholder="http://token.cloudci.com/v1" className="h-8 text-xs" />
+              </div>
+              <div className="space-y-1 col-span-2">
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wide">API Key *</label>
+                <Input value={formApiKey} onChange={(e) => setFormApiKey(e.target.value)} placeholder="sk-xxx" className="h-8 text-xs" />
+              </div>
+            </div>
+
+            {/* Model rows */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wide">模型列表</label>
+                <button
+                  className="text-[10px] text-primary hover:opacity-80"
+                  onClick={() => setModelRows((r) => [...r, { id: "", context_length: "100000", supports_vision: false }])}
+                >
+                  + 添加模型
+                </button>
+              </div>
+              <div className="space-y-1.5">
+                {modelRows.map((row, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <Input
+                      value={row.id}
+                      onChange={(e) => setModelRows((rows) => rows.map((r, i) => i === idx ? { ...r, id: e.target.value } : r))}
+                      placeholder="model_id"
+                      className="h-7 text-xs flex-1"
+                    />
+                    <Input
+                      value={row.context_length}
+                      onChange={(e) => setModelRows((rows) => rows.map((r, i) => i === idx ? { ...r, context_length: e.target.value } : r))}
+                      placeholder="100000"
+                      className="h-7 text-xs w-24"
+                    />
+                    <label className="flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={row.supports_vision}
+                        onChange={(e) => setModelRows((rows) => rows.map((r, i) => i === idx ? { ...r, supports_vision: e.target.checked } : r))}
+                      />
+                      视觉
+                    </label>
+                    {modelRows.length > 1 && (
+                      <button
+                        className="text-destructive/60 hover:text-destructive text-xs"
+                        onClick={() => setModelRows((rows) => rows.filter((_, i) => i !== idx))}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={resetForm}>
+                {t("common.cancel", { defaultValue: "取消" })}
+              </Button>
+              <Button
+                size="sm"
+                className="h-7 text-xs"
+                onClick={handleSubmit}
+                disabled={upsertMutation.isPending || !formName.trim() || !formBaseUrl.trim() || !formApiKey.trim() || !formModel.trim()}
+              >
+                {upsertMutation.isPending ? "保存中..." : t("common.save", { defaultValue: "保存" })}
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
