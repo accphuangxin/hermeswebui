@@ -1730,7 +1730,7 @@ pub fn saveTempImage(
     use std::io::Write;
 
     let home = dirs::home_dir().ok_or("cannot determine home dir")?;
-    let temp_dir = home.join("hermes-outputs").join("temp");
+    let temp_dir = home.join(".hermes-web").join("temp");
     std::fs::create_dir_all(&temp_dir)
         .map_err(|e| format!("failed to create temp dir: {e}"))?;
 
