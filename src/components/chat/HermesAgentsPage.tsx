@@ -1033,7 +1033,7 @@ function ProviderManagerPanel({
       </div>
 
       {/* Left-right layout: provider list | form */}
-      <div className="flex-1 min-h-0 flex gap-3 p-3 overflow-hidden">
+      <div className="flex-1 min-h-0 flex gap-4 p-4 overflow-hidden">
         {/* Left: Provider list */}
         <div className="w-2/5 rounded-lg border bg-muted/20 overflow-y-auto p-3 space-y-2">
           <div className="flex items-center justify-between">
