@@ -1113,22 +1113,22 @@ function ProviderManagerPanel({
             {formName ? `编辑 — ${formName}` : "新建 Provider"}
           </span>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-[1fr_1fr_2fr_2fr] gap-2">
             <div className="space-y-1">
               <label className="text-[10px] text-muted-foreground uppercase tracking-wide">名称 *</label>
-              <Input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="CloudCI" className="h-8 text-xs" />
+              <Input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="CloudCI" className="h-7 text-xs" />
             </div>
             <div className="space-y-1">
               <label className="text-[10px] text-muted-foreground uppercase tracking-wide">默认模型 *</label>
-              <Input value={formModel} onChange={(e) => setFormModel(e.target.value)} placeholder="qwen3_6" className="h-8 text-xs" />
+              <Input value={formModel} onChange={(e) => setFormModel(e.target.value)} placeholder="qwen3_6" className="h-7 text-xs" />
             </div>
-            <div className="space-y-1 col-span-2">
+            <div className="space-y-1">
               <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Base URL *</label>
-              <Input value={formBaseUrl} onChange={(e) => setFormBaseUrl(e.target.value)} placeholder="http://token.cloudci.com/v1" className="h-8 text-xs" />
+              <Input value={formBaseUrl} onChange={(e) => setFormBaseUrl(e.target.value)} placeholder="http://token.cloudci.com/v1" className="h-7 text-xs" />
             </div>
-            <div className="space-y-1 col-span-2">
+            <div className="space-y-1">
               <label className="text-[10px] text-muted-foreground uppercase tracking-wide">API Key *</label>
-              <Input value={formApiKey} onChange={(e) => setFormApiKey(e.target.value)} placeholder="sk-xxx" className="h-8 text-xs" />
+              <Input value={formApiKey} onChange={(e) => setFormApiKey(e.target.value)} placeholder="sk-xxx" className="h-7 text-xs" />
             </div>
           </div>
 
