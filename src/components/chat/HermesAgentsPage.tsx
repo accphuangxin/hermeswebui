@@ -168,6 +168,7 @@ export function HermesAgentsPage({
     setEditAgent(raw);
     setDetailAgent(raw);
     setShowCreate(false);
+    setProviderAgent(null);
     setContextMenu(null);
   };
 
@@ -251,6 +252,8 @@ export function HermesAgentsPage({
                 onClick={() => {
                   setShowCreate(true);
                   setEditAgent(null);
+                  setDetailAgent(null);
+                  setProviderAgent(null);
                 }}
                 active={showCreate}
               />
