@@ -1107,7 +1107,8 @@ function ProviderManagerPanel({
         </div>
 
         {/* Right: Form */}
-        <div className="flex-1 rounded-lg border bg-muted/20 overflow-y-auto p-3 space-y-3">
+        <div className="flex-1 rounded-lg border bg-muted/20 flex flex-col overflow-hidden">
+        <div className="flex-1 overflow-y-auto p-3 space-y-3">
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
             {formName ? `编辑 — ${formName}` : "新建 Provider"}
           </span>
@@ -1178,7 +1179,8 @@ function ProviderManagerPanel({
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-1">
+        </div>
+          <div className="flex justify-end gap-2 px-3 py-2.5 border-t shrink-0">
             <Button variant="outline" size="sm" className="h-7 text-xs" onClick={resetForm}>
               {t("common.cancel", { defaultValue: "清空" })}
             </Button>
