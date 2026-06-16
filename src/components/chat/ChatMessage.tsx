@@ -24,23 +24,6 @@ import { ToolCallBlock } from "./ToolCallBlock";
 import { cn } from "@/lib/utils";
 
 // ─── Table repair ────────────────────────────────────────────────────────────
-// Convert a || -delimited flat string into a GFM markdown table.
-// "| H1 | H2 || D1 | D2 || D3 | D4 |" → header + separator + data rows
-function doublePipeToTable(flat: string): string | null {
-  const rawRows = flat.split("||").map((r) => r.trim()).filter(Boolean);
-  if (rawRows.length < 2) return null;
-  const rows = rawRows.map((r) =>
-    r.replace(/^\|/, "").replace(/\|$/, "")
-      .split("|").map((c) => c.trim()).filter(Boolean)
-  );
-  if (rows[0].length < 2) return null;
-  const colCount = rows[0].length;
-  const header = `| ${rows[0].join(" | ")} |`;
-  const sep    = `| ${Array(colCount).fill("---").join(" | ")} |`;
-  const data   = rows.slice(1).map((r) => `| ${r.join(" | ")} |`);
-  return [header, sep, ...data].join("\n");
-}
-
 // Find paragraphs (separated by blank lines) that contain "||" and repair them.
 // Strategy: split the paragraph into tokens by "||", then reassemble rows by
 // counting pipe characters per token to detect row boundaries.
