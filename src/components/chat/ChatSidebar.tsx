@@ -19,9 +19,10 @@ interface ChatSidebarProps {
   sessions: ChatSession[];
   activeSessionId: string | null;
   onSelectSession: (id: string) => void;
-  onNewSession: () => void;
+  onNewSession?: () => void;
   onDeleteSession: (id: string) => void;
   onRenameSession: (id: string, title: string) => void;
+  isLocked?: boolean;
 }
 
 export function ChatSidebar({
@@ -31,6 +32,7 @@ export function ChatSidebar({
   onNewSession,
   onDeleteSession,
   onRenameSession,
+  isLocked,
 }: ChatSidebarProps) {
   const { t } = useTranslation();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -59,6 +61,7 @@ export function ChatSidebar({
           size="sm"
           className="w-full justify-start gap-2"
           onClick={onNewSession}
+          disabled={!onNewSession || isLocked}
         >
           <Plus className="w-4 h-4" />
           {t("hermes.chat.newSession")}
@@ -74,11 +77,12 @@ export function ChatSidebar({
           {sessions.map((s) => (
             <button
               key={s.id}
-              onClick={() => onSelectSession(s.id)}
-              onDoubleClick={() => startRename(s)}
+              onClick={() => !isLocked && onSelectSession(s.id)}
+              onDoubleClick={() => !isLocked && startRename(s)}
               className={cn(
                 "group w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left hover:bg-muted transition-colors",
                 activeSessionId === s.id && "bg-muted font-medium",
+                isLocked && s.id !== activeSessionId && "opacity-40 cursor-not-allowed",
               )}
             >
               <MessageSquare className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />

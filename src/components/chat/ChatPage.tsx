@@ -708,6 +708,7 @@ export function ChatPage({
             activeSessionId={activeSessionId}
             onSelectSession={setActiveSessionId}
             onNewSession={handleNewSession}
+            isLocked={isStreaming || isWaiting || isSending}
             onDeleteSession={handleDeleteSession}
             onRenameSession={handleRenameSession}
           />
