@@ -1035,7 +1035,7 @@ function ProviderManagerPanel({
       {/* Left-right layout: provider list | form */}
       <div className="flex-1 min-h-0 flex overflow-hidden">
         {/* Left: Provider list */}
-        <div className="w-1/2 border-r overflow-y-auto p-4 space-y-3">
+        <div className="w-[30%] border-r overflow-y-auto p-4 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Provider 列表</span>
             <button
@@ -1059,16 +1059,18 @@ function ProviderManagerPanel({
               {providers.map((p) => (
                 <div
                   key={p.name}
-                  className={`flex items-center justify-between rounded-lg px-3 py-2 cursor-pointer transition-colors ${formName === p.name ? "bg-primary/10 border border-primary/30" : "hover:bg-muted/50"}`}
+                  className={`flex items-center justify-between rounded px-2 py-1.5 cursor-pointer transition-colors ${formName === p.name ? "bg-primary/10 border border-primary/30" : "hover:bg-muted/50"}`}
                   onClick={() => loadProvider(p)}
                 >
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold font-mono truncate">{p.name}</p>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-semibold font-mono truncate">{p.name}</span>
+                      <span className="text-[10px] text-muted-foreground/60 font-mono truncate">{p.model}</span>
+                    </div>
                     <p className="text-[10px] text-muted-foreground truncate">{p.base_url}</p>
-                    <p className="text-[10px] text-muted-foreground/60 font-mono">{p.model}</p>
                   </div>
                   <button
-                    className="shrink-0 ml-2 px-1.5 py-0.5 rounded text-[10px] hover:bg-destructive/10 transition-colors text-destructive"
+                    className="shrink-0 ml-1.5 px-1 py-0.5 rounded text-[10px] hover:bg-destructive/10 transition-colors text-destructive"
                     onClick={(e) => { e.stopPropagation(); handleDelete(p.name); }}
                     disabled={deleteMutation.isPending}
                   >
@@ -1081,7 +1083,7 @@ function ProviderManagerPanel({
         </div>
 
         {/* Right: Form */}
-        <div className="w-1/2 overflow-y-auto p-4 space-y-3">
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
             {formName ? `编辑 — ${formName}` : "新建 Provider"}
           </span>
