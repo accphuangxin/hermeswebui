@@ -657,6 +657,7 @@ function CreateAgentForm({
   const [soul, setSoul] = useState("");
   const [apiServerPort, setApiServerPort] = useState("");
   const [apiServerKey, setApiServerKey] = useState("");
+  const [isClone, setIsClone] = useState(false);
 
   function handleSubmit() {
     if (!name.trim() || !apiServerKey.trim()) return;
@@ -665,7 +666,7 @@ function CreateAgentForm({
         name: name.trim(),
         description: description.trim() || undefined,
         soul: soul.trim() || undefined,
-        clone: true,
+        clone: isClone,
         api_server_port: apiServerPort ? Number(apiServerPort) : undefined,
         api_server_key: apiServerKey.trim(),
       },
@@ -739,6 +740,21 @@ function CreateAgentForm({
               placeholder="my-secret-key"
               className="h-9 text-sm"
             />
+          </div>
+
+          <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
+            <div className="text-xs text-muted-foreground uppercase tracking-wide">
+              CLONE
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isClone}
+                onChange={(e) => setIsClone(e.target.checked)}
+                className="w-4 h-4"
+              />
+              <span className="text-xs text-muted-foreground">复制默认 Agent 的配置</span>
+            </label>
           </div>
 
           {error && (
