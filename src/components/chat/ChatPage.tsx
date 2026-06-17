@@ -624,7 +624,13 @@ export function ChatPage({
   const handleExportSession = useCallback(
     async (sessionId: string) => {
       const session = sessions.find((s) => s.id === sessionId);
-      const sessionMessages = sessionId === activeSessionId ? messages : [];
+      let sessionMessages: import("@/types").ChatMessage[];
+      if (sessionId === activeSessionId) {
+        sessionMessages = messages;
+      } else {
+        const allMsgs = await chatApi.getMessages(sessionId);
+        sessionMessages = allMsgs.filter((m) => m.role !== "timeline");
+      }
       const modelName = (session?.model ?? selectedModel ?? "")
         .replace(/^custom_[^:]+:/, "")
         .replace("__default__", "");
