@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { MessageSquare, Clock, Trash2, ChevronUp, ChevronDown, Download } from "lucide-react";
+import { MessageSquare, Clock, Trash2, ChevronUp, ChevronDown, Download, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -28,12 +28,14 @@ import {
 import { chatApi } from "@/lib/api/chat";
 import { formatSessionAsMarkdown } from "@/lib/chatExport";
 import { save } from "@tauri-apps/plugin-dialog";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { compressContext } from "@/lib/contextCompression";
 import { ChatSidebar } from "./ChatSidebar";
 import type { SidebarTab } from "./ChatSidebar";
 import { CronPage, cronKeys } from "@/components/cron/CronPage";
 import { ChatMessageBubble } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
+import { ChatMarkdownPreview } from "./ChatMarkdownPreview";
 import { ApprovalCard } from "./ApprovalCard";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -178,6 +180,7 @@ export function ChatPage({
   const isLiveRef = useRef(false); // true while streaming/sending, prevents DB restore overwriting live state
   const [timelineCollapsed, setTimelineCollapsed] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("chat");
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [areaMenu, setAreaMenu] = useState<{ x: number; y: number } | null>(
     null,
   );
@@ -195,6 +198,15 @@ export function ChatPage({
   // Split out timeline rows from regular messages
   const messages = allMessages.filter((m) => m.role !== "timeline");
   const dbTimeline = allMessages.filter((m) => m.role === "timeline");
+
+  const previewMarkdown = useMemo(() => {
+    if (!previewOpen) return "";
+    const session = sessions.find((s) => s.id === activeSessionId);
+    const modelName = (session?.model ?? selectedModel ?? "")
+      .replace(/^custom_[^:]+:/, "")
+      .replace("__default__", "");
+    return formatSessionAsMarkdown(session?.title ?? null, modelName || null, messages);
+  }, [previewOpen, activeSessionId, messages, sessions, selectedModel]);
   const createSession = useCreateChatSession();
   const deleteSession = useDeleteChatSession();
   const updateSession = useUpdateChatSession();
@@ -653,17 +665,10 @@ export function ChatPage({
         });
         if (!filePath) return;
 
-        const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = filePath.split("/").pop() || defaultFilename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        await writeTextFile(filePath, content);
         toast.success(t("hermes.chat.exportSuccess", { defaultValue: "会话已导出" }));
-      } catch {
+      } catch (err) {
+        console.error("[export]", err);
         toast.error(t("hermes.chat.exportFailed", { defaultValue: "导出失败" }));
       }
     },
@@ -691,6 +696,16 @@ export function ChatPage({
 
       if (text.trim().toLowerCase() === "/clear") {
         await handleClearMessages();
+        return;
+      }
+
+      if (text.trim().toLowerCase() === "/export") {
+        await handleExportSession(activeSessionId);
+        return;
+      }
+
+      if (text.trim().toLowerCase() === "/preview") {
+        setPreviewOpen((v) => !v);
         return;
       }
 
@@ -775,6 +790,23 @@ export function ChatPage({
               setAreaMenu({ x: e.clientX, y: e.clientY });
             }}
           >
+            {/* Top-right toolbar */}
+            {activeSessionId && messages.length > 0 && (
+              <div className="flex items-center justify-end gap-1 px-2 py-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setPreviewOpen((v) => !v)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-2 py-1 rounded text-xs hover:bg-muted transition-colors",
+                    previewOpen ? "text-primary" : "text-muted-foreground",
+                  )}
+                  title="预览 Markdown"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  预览
+                </button>
+              </div>
+            )}
             <ScrollArea className="flex-1" ref={scrollRef}>
               <div className="py-4">
                 {!activeSessionId ? (
@@ -1074,7 +1106,28 @@ export function ChatPage({
               agents={agents}
               selectedAgentId={selectedAgentId}
               onSelectAgent={onSelectAgent}
+              onTogglePreview={() => setPreviewOpen((v) => !v)}
+              isPreviewOpen={previewOpen}
             />
+          </div>
+
+          {/* Markdown preview panel */}
+          <div
+            className={cn(
+              "flex flex-col border-l bg-background overflow-hidden",
+              "transition-[max-width,opacity] duration-300 ease-in-out",
+              previewOpen
+                ? "max-w-[33vw] min-w-[320px] opacity-100"
+                : "max-w-0 opacity-0 pointer-events-none",
+            )}
+          >
+            {previewOpen && (
+              <ChatMarkdownPreview
+                markdownContent={previewMarkdown}
+                onClose={() => setPreviewOpen(false)}
+                onExport={activeSessionId ? () => void handleExportSession(activeSessionId) : undefined}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -1086,6 +1139,17 @@ export function ChatPage({
           className="fixed z-50 min-w-[160px] rounded-md border bg-popover shadow-md py-1 text-sm"
           style={{ left: areaMenu.x, top: areaMenu.y }}
         >
+          <button
+            className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-muted transition-colors text-left"
+            onClick={() => {
+              setPreviewOpen((v) => !v);
+              setAreaMenu(null);
+            }}
+            disabled={!activeSessionId || messages.length === 0}
+          >
+            <Eye className="w-3.5 h-3.5" />
+            {previewOpen ? "关闭预览" : "预览 Markdown"}
+          </button>
           <button
             className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-muted transition-colors text-left"
             onClick={() => {

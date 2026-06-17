@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus, Trash2, MessageSquare, Pencil, Download } from "lucide-react";
 import type { ChatSession } from "@/types";
@@ -40,7 +40,20 @@ export function ChatSidebar({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; session: ChatSession } | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const handle = (e: MouseEvent) => {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
+        setContextMenu(null);
+      }
+    };
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [contextMenu]);
 
   const startRename = (session: ChatSession) => {
     setEditingId(session.id);
@@ -70,7 +83,7 @@ export function ChatSidebar({
         </Button>
       </div>
       <ScrollArea className="flex-1">
-        <div className="px-2 pb-2 space-y-0.5">
+        <div className="px-2 pb-2 space-y-0.5 select-none">
           {sessions.length === 0 && (
             <div className="text-xs text-muted-foreground text-center py-4">
               {t("hermes.chat.noSessions")}
@@ -81,8 +94,14 @@ export function ChatSidebar({
               key={s.id}
               onClick={() => !isLocked && onSelectSession(s.id)}
               onDoubleClick={() => !isLocked && startRename(s)}
+              onMouseDown={(e) => { if (e.button === 2) e.preventDefault(); }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                window.getSelection()?.removeAllRanges();
+                setContextMenu({ x: e.clientX, y: e.clientY, session: s });
+              }}
               className={cn(
-                "group w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left hover:bg-muted transition-colors",
+                "group w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left hover:bg-muted transition-colors select-none",
                 activeSessionId === s.id && "bg-muted font-medium",
                 isLocked && s.id !== activeSessionId && "opacity-40 cursor-not-allowed",
               )}
@@ -107,46 +126,52 @@ export function ChatSidebar({
                   {s.title || t("hermes.chat.untitled")}
                 </span>
               )}
-              {editingId !== s.id && (
-                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      startRename(s);
-                    }}
-                    className="p-0.5 hover:text-foreground"
-                    title={t("hermes.chat.rename")}
-                  >
-                    <Pencil className="w-3 h-3" />
-                  </button>
-                  {onExportSession && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onExportSession(s.id);
-                      }}
-                      className="p-0.5 hover:text-foreground"
-                      title={t("hermes.chat.exportSession", { defaultValue: "导出为 Markdown" })}
-                    >
-                      <Download className="w-3 h-3" />
-                    </button>
-                  )}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDeletingId(s.id);
-                    }}
-                    className="p-0.5 hover:text-destructive"
-                    title={t("hermes.chat.deleteSession")}
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                </div>
+              {editingId !== s.id && onExportSession && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onExportSession(s.id);
+                  }}
+                  className="p-0.5 hover:text-foreground text-muted-foreground/40"
+                  title={t("hermes.chat.exportSession", { defaultValue: "导出为 Markdown" })}
+                >
+                  <Download className="w-3 h-3" />
+                </button>
               )}
             </button>
           ))}
         </div>
       </ScrollArea>
+
+      {/* Session context menu (right-click) */}
+      {contextMenu && (
+        <div
+          ref={contextMenuRef}
+          className="fixed z-50 min-w-[140px] rounded-md border bg-popover shadow-md py-1 text-sm"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          <button
+            className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-muted transition-colors text-left"
+            onClick={() => {
+              startRename(contextMenu.session);
+              setContextMenu(null);
+            }}
+          >
+            <Pencil className="w-3.5 h-3.5" />
+            {t("hermes.chat.rename")}
+          </button>
+          <button
+            className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-muted transition-colors text-left text-destructive"
+            onClick={() => {
+              setDeletingId(contextMenu.session.id);
+              setContextMenu(null);
+            }}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            {t("hermes.chat.deleteSession", { defaultValue: "删除" })}
+          </button>
+        </div>
+      )}
 
       {/* Delete confirm dialog */}
       <Dialog

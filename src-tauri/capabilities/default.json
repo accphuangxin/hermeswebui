@@ -17,6 +17,9 @@
     "core:window:allow-close",
     "core:window:allow-set-decorations",
     "process:allow-restart",
-    "dialog:default"
+    "dialog:default",
+    "fs:allow-write-text-file",
+    "fs:allow-write-file",
+    "fs:scope-home-recursive"
   ]
 }

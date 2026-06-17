@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState, KeyboardEvent, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Send, Square, Paperclip, X, Sparkles, Bot } from "lucide-react";
+import { Send, Square, Paperclip, X, Sparkles, Bot, Eye, EyeOff } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Button } from "@/components/ui/button";
 import { chatApi } from "@/lib/api/chat";
@@ -11,6 +11,8 @@ import type { HermesAgent } from "@/lib/api/agents";
 
 const HERMES_COMMANDS = [
   { cmd: "/clear", desc: "Clear conversation and start fresh" },
+  { cmd: "/export", desc: "Export current session as Markdown" },
+  { cmd: "/preview", desc: "Toggle Markdown preview panel" },
 ];
 
 interface ChatInputProps {
@@ -22,6 +24,8 @@ interface ChatInputProps {
   agents?: HermesAgent[];
   selectedAgentId?: string;
   onSelectAgent?: (agentId: string, port?: number, key?: string) => void;
+  onTogglePreview?: () => void;
+  isPreviewOpen?: boolean;
 }
 
 export function ChatInput({
@@ -33,6 +37,8 @@ export function ChatInput({
   agents = [],
   selectedAgentId,
   onSelectAgent,
+  onTogglePreview,
+  isPreviewOpen,
 }: ChatInputProps) {
   const { t } = useTranslation();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -612,6 +618,18 @@ export function ChatInput({
         >
           <Paperclip className="w-4 h-4" />
         </Button>
+        {onTogglePreview && (
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={onTogglePreview}
+            disabled={disabled}
+            className={cn("h-9 w-9 flex-shrink-0", isPreviewOpen && "text-primary")}
+            title="预览 Markdown"
+          >
+            {isPreviewOpen ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </Button>
+        )}
         <textarea
           ref={textareaRef}
           rows={1}
