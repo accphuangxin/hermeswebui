@@ -271,13 +271,21 @@ export function SummaryCalendarPage({ agentId, templateOpen: templateOpenProp, o
                     : hasSessions
                     ? "border-gray-400/80 dark:border-gray-500"
                     : "border-gray-300/80 dark:border-gray-600",
-                  isToday && !isDateSelected && "border-primary/60 bg-primary/5",
+                  isToday && !isDateSelected && "border-amber-400/70 bg-amber-50/80 dark:bg-amber-950/30",
                 )}
               >
                 {/* Date number */}
                 <span className={cn(
                   "text-xs font-semibold mb-1 shrink-0",
-                  isToday ? "text-primary" : hasSessions ? "text-foreground" : "text-foreground/35",
+                  isDateSelected
+                    ? "text-primary"
+                    : isToday
+                    ? "text-amber-500 dark:text-amber-400"
+                    : isWeekend
+                    ? "text-rose-500 dark:text-rose-400"
+                    : hasSessions
+                    ? "text-foreground"
+                    : "text-foreground/35",
                 )}>
                   {day}
                 </span>
