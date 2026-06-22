@@ -1757,3 +1757,327 @@ pub fn saveTempImage(
 
     Ok(path.to_string_lossy().to_string())
 }
+
+/// 把前端生成的 Markdown 内容写到临时目录，返回文件路径供摘要命令使用。
+#[tauri::command]
+pub fn saveSummaryTempFile(session_id: String, content: String) -> Result<String, String> {
+    let home = dirs::home_dir().ok_or("cannot determine home dir")?;
+    let temp_dir = home.join(".hermes-web").join("temp");
+    std::fs::create_dir_all(&temp_dir)
+        .map_err(|e| format!("failed to create temp dir: {e}"))?;
+    let path = temp_dir.join(format!("summary_{session_id}.md"));
+    std::fs::write(&path, content.as_bytes())
+        .map_err(|e| format!("failed to write temp file: {e}"))?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+// ============================================================================
+// AI Session Summary & Daily Report
+// ============================================================================
+
+/// 调用 Hermes 执行一个简单 prompt，等待 run.completed 并返回 output 文本。
+/// 通过 /v1/chat/completions 发送单次请求（用于摘要生成），返回 assistant 回复文本。
+async fn call_chat_completions(prompt: &str) -> Result<String, String> {
+    // 先做快速健康检查，避免在 proxy 未启动时挂满 120 秒超时
+    let cfg = read_api_server_config();
+    let health_url = format!("http://{}:{}/v1/health", cfg.host, cfg.port);
+    let probe = reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .no_proxy()
+        .build()
+        .map_err(|e| format!("failed to build probe client: {e}"))?;
+    let mut probe_req = probe.get(&health_url);
+    if !cfg.key.is_empty() {
+        probe_req = probe_req.header("Authorization", format!("Bearer {}", cfg.key));
+    }
+    let online = probe_req.send().await.map(|r| r.status().is_success()).unwrap_or(false);
+    if !online {
+        return Err("Hermes proxy 未启动，请先在聊天页面启动 Agent".to_string());
+    }
+
+    let (client, base, auth_header) = build_api_client(120)?;
+
+    // 读取当前配置的模型名（若未配置则由代理服务端决定默认模型）
+    let model = hermes_config::get_model_config()
+        .ok()
+        .flatten()
+        .and_then(|m| m.default)
+        .unwrap_or_default();
+
+    let mut body = serde_json::json!({
+        "messages": [
+            { "role": "system", "content": "你是一个专业的对话分析助手。严格按照用户指定的格式输出结果，不进行任何对话，不解释，不询问，直接输出。" },
+            { "role": "user", "content": prompt }
+        ]
+    });
+    if !model.is_empty() {
+        body["model"] = serde_json::json!(model);
+    }
+
+    let url = format!("{base}/v1/chat/completions");
+    let mut req = client
+        .post(&url)
+        .header("Content-Type", "application/json")
+        .body(body.to_string());
+    if !auth_header.is_empty() {
+        req = req.header("Authorization", &auth_header);
+    }
+
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| format!("chat completions request failed: {e}"))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        return Err(format!("HTTP {status}: {text}"));
+    }
+
+    let json: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("parse response failed: {e}"))?;
+
+    let text = json["choices"][0]["message"]["content"]
+        .as_str()
+        .ok_or_else(|| format!("missing content in response: {json}"))?
+        .to_string();
+
+    Ok(text)
+}
+
+const SUMMARY_TEMPLATE_KEY: &str = "summary_template";
+const DAILY_REPORT_TEMPLATE_KEY: &str = "daily_report_template";
+
+const DEFAULT_SUMMARY_TEMPLATE: &str = r#"请分析以下对话内容，用中文生成一份结构化摘要。
+
+要求：
+- 用 Markdown 格式输出
+- 包含：核心问题/任务、主要讨论内容（可用要点列表）、结论或成果
+- 篇幅适中，100-200字
+- 最后一行必须是标签行，格式严格为：**标签**：标签1, 标签2, 标签3（2-4个标签，逗号分隔）
+
+对话内容：
+{conversation}
+
+输出示例：
+用户希望为销售团队搭建基于 AI 的 CRM 看板系统。
+
+**主要讨论**：
+- 看板核心模块：客户跟进状态、销售漏斗、任务提醒
+- 技术方案选型：使用现有 AI 助手接入 CRM 数据源
+- 确定了第一期 MVP 范围和排期
+
+**结论**：优先实现客户跟进模块，下周完成原型演示。
+
+**标签**：CRM, AI看板, 销售管理, 项目计划"#;
+
+const DEFAULT_DAILY_REPORT_TEMPLATE: &str = r#"以下是今天的 {count} 条 AI 对话记录摘要：
+
+{session_list}
+
+请基于以上内容，用中文生成一份简洁的每日总结报告，包含：
+1. 今天主要做了哪些事情（按类别归纳）
+2. 有哪些值得关注的话题或成果
+3. 一句话总结今天的工作
+
+用 Markdown 格式输出，保持简洁。"#;
+
+#[tauri::command]
+pub fn getSummaryTemplate(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    let summary = state
+        .db
+        .get_setting(SUMMARY_TEMPLATE_KEY)
+        .map_err(|e| e.to_string())?
+        .unwrap_or_else(|| DEFAULT_SUMMARY_TEMPLATE.to_string());
+    let daily = state
+        .db
+        .get_setting(DAILY_REPORT_TEMPLATE_KEY)
+        .map_err(|e| e.to_string())?
+        .unwrap_or_else(|| DEFAULT_DAILY_REPORT_TEMPLATE.to_string());
+    Ok(serde_json::json!({ "summary": summary, "dailyReport": daily }))
+}
+
+#[tauri::command]
+pub fn setSummaryTemplate(
+    state: State<'_, AppState>,
+    summary: Option<String>,
+    dailyReport: Option<String>,
+) -> Result<(), String> {
+    if let Some(t) = summary {
+        state.db.set_setting(SUMMARY_TEMPLATE_KEY, &t).map_err(|e| e.to_string())?;
+    }
+    if let Some(t) = dailyReport {
+        state.db.set_setting(DAILY_REPORT_TEMPLATE_KEY, &t).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn generateSessionSummary(
+    state: State<'_, AppState>,
+    sessionId: String,
+    filePath: String,
+    agentId: Option<String>,
+) -> Result<ChatSession, String> {
+    let conversation = std::fs::read_to_string(&filePath)
+        .map_err(|e| format!("读取导出文件失败: {e}"))?;
+
+    // 删除临时文件，不阻塞主流程
+    let _ = std::fs::remove_file(&filePath);
+
+    if conversation.trim().is_empty() {
+        return Err("会话内容为空，无法生成摘要".to_string());
+    }
+
+    let template = {
+        let stored = state
+            .db
+            .get_setting(SUMMARY_TEMPLATE_KEY)
+            .map_err(|e| e.to_string())?;
+        // 旧模板要求返回 JSON，自动切换到新 Markdown 模板
+        match stored {
+            Some(t) if t.contains("\"summary\"") && t.contains("\"tags\"") => {
+                DEFAULT_SUMMARY_TEMPLATE.to_string()
+            }
+            Some(t) => t,
+            None => DEFAULT_SUMMARY_TEMPLATE.to_string(),
+        }
+    };
+
+    let prompt = template.replace("{conversation}", &conversation);
+
+    let raw = call_chat_completions(&prompt).await?;
+
+    // 从末尾找标签行：**标签**：tag1, tag2 或 标签：tag1, tag2
+    let lines: Vec<&str> = raw.trim().lines().collect();
+    let (summary, tags) = {
+        let tag_line_idx = lines.iter().rposition(|l| {
+            let stripped = l.trim();
+            stripped.starts_with("**标签**：")
+                || stripped.starts_with("**标签**:")
+                || stripped.starts_with("标签：")
+                || stripped.starts_with("标签:")
+        });
+
+        if let Some(idx) = tag_line_idx {
+            let tag_line = lines[idx].trim();
+            let tag_str = tag_line
+                .trim_start_matches("**标签**：")
+                .trim_start_matches("**标签**:")
+                .trim_start_matches("标签：")
+                .trim_start_matches("标签:");
+            let tag_vec: Vec<serde_json::Value> = tag_str
+                .split(&[',', '，', '、'][..])
+                .map(|t| serde_json::Value::String(t.trim().to_string()))
+                .filter(|v| !v.as_str().unwrap_or("").is_empty())
+                .collect();
+            let summary_text = lines[..idx]
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join("\n")
+                .trim()
+                .to_string();
+            let tags_json = serde_json::to_string(&tag_vec).unwrap_or_default();
+            (summary_text, tags_json)
+        } else {
+            (raw.trim().to_string(), String::new())
+        }
+    };
+
+    if summary.is_empty() {
+        return Err(format!("AI 未返回有效摘要，原始内容: {raw}"));
+    }
+
+    let tags_opt = if tags.is_empty() { None } else { Some(tags.as_str()) };
+
+    state
+        .db
+        .update_session_ai_metadata(
+            &sessionId,
+            Some(summary.as_str()),
+            tags_opt,
+        )
+        .map_err(|e| e.to_string())?;
+
+    state
+        .db
+        .get_chat_session(&sessionId)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "session 不存在".to_string())
+}
+
+#[tauri::command]
+pub async fn generateDailyReport(
+    state: State<'_, AppState>,
+    dateStr: String,
+    dateStartMs: i64,
+    dateEndMs: i64,
+    agentId: Option<String>,
+) -> Result<String, String> {
+    let sessions = state
+        .db
+        .list_chat_sessions_by_date_range(agentId.as_deref(), dateStartMs, dateEndMs)
+        .map_err(|e| e.to_string())?;
+
+    if sessions.is_empty() {
+        return Ok("当天没有对话记录。".to_string());
+    }
+
+    let session_list: String = sessions
+        .iter()
+        .enumerate()
+        .map(|(i, s)| {
+            let title = s.title.as_deref().unwrap_or("无标题");
+            let summary = s
+                .summary
+                .as_deref()
+                .unwrap_or("（暂无摘要）");
+            let tags = s
+                .tags
+                .as_deref()
+                .and_then(|t| serde_json::from_str::<Vec<String>>(t).ok())
+                .map(|v| v.join(", "))
+                .unwrap_or_default();
+            if tags.is_empty() {
+                format!("{}. **{}**：{}", i + 1, title, summary)
+            } else {
+                format!("{}. **{}** [{}]：{}", i + 1, title, tags, summary)
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let template = state
+        .db
+        .get_setting(DAILY_REPORT_TEMPLATE_KEY)
+        .map_err(|e| e.to_string())?
+        .unwrap_or_else(|| DEFAULT_DAILY_REPORT_TEMPLATE.to_string());
+
+    let prompt = template
+        .replace("{count}", &sessions.len().to_string())
+        .replace("{session_list}", &session_list);
+
+    let report = call_chat_completions(&prompt).await?;
+
+    state
+        .db
+        .save_daily_report(&dateStr, agentId.as_deref(), &report)
+        .map_err(|e| e.to_string())?;
+
+    Ok(report)
+}
+
+#[tauri::command]
+pub async fn getDailyReport(
+    state: State<'_, AppState>,
+    dateStr: String,
+    agentId: Option<String>,
+) -> Result<Option<String>, String> {
+    state
+        .db
+        .get_daily_report(&dateStr, agentId.as_deref())
+        .map_err(|e| e.to_string())
+}

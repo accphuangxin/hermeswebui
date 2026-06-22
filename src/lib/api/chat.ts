@@ -119,4 +119,58 @@ export const chatApi = {
   async saveTempImage(base64Data: string, filename: string): Promise<string> {
     return await invoke("saveTempImage", { base64Data: base64Data, filename });
   },
+
+  async saveSummaryTempFile(sessionId: string, content: string): Promise<string> {
+    return await invoke("saveSummaryTempFile", { sessionId, content });
+  },
+
+  async generateSessionSummary(
+    sessionId: string,
+    filePath: string,
+    agentId?: string | null,
+  ): Promise<ChatSession> {
+    return await invoke("generateSessionSummary", {
+      sessionId,
+      filePath,
+      agentId: agentId ?? null,
+    });
+  },
+
+  async generateDailyReport(
+    dateStr: string,
+    dateStartMs: number,
+    dateEndMs: number,
+    agentId?: string | null,
+  ): Promise<string> {
+    return await invoke("generateDailyReport", {
+      dateStr,
+      dateStartMs,
+      dateEndMs,
+      agentId: agentId ?? null,
+    });
+  },
+
+  async getDailyReport(
+    dateStr: string,
+    agentId?: string | null,
+  ): Promise<string | null> {
+    return await invoke("getDailyReport", {
+      dateStr,
+      agentId: agentId ?? null,
+    });
+  },
+
+  async getSummaryTemplate(): Promise<{ summary: string; dailyReport: string }> {
+    return await invoke("getSummaryTemplate");
+  },
+
+  async setSummaryTemplate(
+    summary?: string | null,
+    dailyReport?: string | null,
+  ): Promise<void> {
+    return await invoke("setSummaryTemplate", {
+      summary: summary ?? null,
+      dailyReport: dailyReport ?? null,
+    });
+  },
 };

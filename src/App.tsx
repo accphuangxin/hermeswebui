@@ -9,6 +9,8 @@ import {
   Plus,
   Settings,
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
   Minus,
   Maximize2,
   Minimize2,
@@ -44,6 +46,7 @@ import {
 import { useProviderActions } from "@/hooks/useProviderActions";
 import { openclawKeys, useOpenClawHealth } from "@/hooks/useOpenClaw";
 import { hermesKeys, useOpenHermesWebUI } from "@/hooks/useHermes";
+import { chatKeys } from "@/hooks/useHermesChat";
 import { hermesApi } from "@/lib/api/hermes";
 import { useProxyStatus } from "@/hooks/useProxyStatus";
 import { useAutoCompact } from "@/hooks/useAutoCompact";
@@ -91,6 +94,7 @@ import AgentsDefaultsPanel from "@/components/openclaw/AgentsDefaultsPanel";
 import OpenClawHealthBanner from "@/components/openclaw/OpenClawHealthBanner";
 import HermesMemoryPanel from "@/components/hermes/HermesMemoryPanel";
 import { ChatPage } from "@/components/chat/ChatPage";
+import { SummaryCalendarPage } from "@/components/chat/SummaryCalendarPage";
 import { KanbanPage } from "@/components/kanban/KanbanPage";
 
 import { HermesAgentsPage } from "@/components/chat/HermesAgentsPage";
@@ -124,7 +128,8 @@ type View =
   | "hermesMemory"
   | "hermesChat"
   | "hermesAgents"
-  | "hermesKanban";
+  | "hermesKanban"
+  | "hermesSummary";
 
 interface WebDavSyncStatusUpdatedPayload {
   source?: string;
@@ -191,7 +196,7 @@ function App() {
     mainScrollRef.current?.scrollTo({ top: 0 });
     unifiedSkillsPanelRef.current?.scrollToTop();
   }, [currentView]);
-  const [navExpanded, setNavExpanded] = useState(false);
+  const [navExpanded, setNavExpanded] = useState(true);
   const [settingsDefaultTab, setSettingsDefaultTab] = useState("general");
   const [settingsKey, setSettingsKey] = useState(0);
   const openSettings = useCallback((tab = "general") => {
@@ -216,6 +221,21 @@ function App() {
   const [hermesSelectedModel, setHermesSelectedModel] = useState("");
   const [hermesSelectedAgentId, setHermesSelectedAgentId] =
     useState<string>("default");
+  const [summaryTemplateOpen, setSummaryTemplateOpen] = useState(false);
+  const now = new Date();
+  const [summaryViewYear, setSummaryViewYear] = useState(now.getFullYear());
+  const [summaryViewMonth, setSummaryViewMonth] = useState(now.getMonth());
+  const summaryPrevMonth = () => {
+    setSummaryViewMonth(m => { if (m === 0) { setSummaryViewYear(y => y - 1); return 11; } return m - 1; });
+  };
+  const summaryNextMonth = () => {
+    setSummaryViewMonth(m => { if (m === 11) { setSummaryViewYear(y => y + 1); return 0; } return m + 1; });
+  };
+  const summaryGoToToday = () => {
+    setSummaryViewYear(now.getFullYear());
+    setSummaryViewMonth(now.getMonth());
+  };
+  const SUMMARY_MONTH_NAMES = ["一月","二月","三月","四月","五月","六月","七月","八月","九月","十月","十一月","十二月"];
   const [hermesSelectedAgentPort, setHermesSelectedAgentPort] = useState<
     number | null
   >(null);
@@ -907,7 +927,8 @@ function App() {
       currentView === "hermesChat" ||
       currentView === "skills" ||
       currentView === "hermesAgents" ||
-      currentView === "hermesKanban";
+      currentView === "hermesKanban" ||
+      currentView === "hermesSummary";
 
     const content = (() => {
       switch (currentView) {
@@ -960,6 +981,12 @@ function App() {
           return <ToolsPanel />;
         case "openclawAgents":
           return <AgentsDefaultsPanel />;
+        case "hermesSummary":
+        case "hermesChat":
+        case "hermesAgents":
+        case "hermesKanban":
+        case "skills":
+          return null;
         default:
           return (
             <div className="px-6 flex flex-col flex-1 min-h-0 overflow-hidden">
@@ -1150,6 +1177,20 @@ function App() {
           >
             <KanbanPage active={currentView === "hermesKanban"} />
           </div>
+          {currentView === "hermesSummary" && (
+            <div className="flex-1 min-h-0 flex flex-col overflow-hidden h-full">
+              <SummaryCalendarPage
+                agentId={hermesSelectedAgentId}
+                templateOpen={summaryTemplateOpen}
+                onTemplateOpenChange={setSummaryTemplateOpen}
+                viewYear={summaryViewYear}
+                viewMonth={summaryViewMonth}
+                onPrevMonth={summaryPrevMonth}
+                onNextMonth={summaryNextMonth}
+                onGoToToday={summaryGoToToday}
+              />
+            </div>
+          )}
           <div
             className={cn(
               "flex-1 min-h-0 flex flex-col overflow-hidden h-full",
@@ -1335,6 +1376,45 @@ function App() {
                   <RefreshCw className="h-3.5 w-3.5" />
                 </Button>
               </div>
+            ) : currentView === "hermesSummary" ? (
+              <div className="flex items-center gap-2 flex-1">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setCurrentView("hermesChat")}
+                  className="mr-2 rounded-lg"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </Button>
+                <h1 className="text-lg font-semibold">对话总结</h1>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => queryClient.invalidateQueries({ queryKey: chatKeys.sessions(hermesSelectedAgentId) })}
+                  title="刷新"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                </Button>
+                <div className="flex-1" />
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={summaryPrevMonth}>
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <span className="text-sm font-semibold min-w-[100px] text-center">
+                  {summaryViewYear} 年 {SUMMARY_MONTH_NAMES[summaryViewMonth]}
+                </span>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={summaryNextMonth}>
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2.5 text-xs"
+                  onClick={summaryGoToToday}
+                >
+                  今天
+                </Button>
+              </div>
             ) : currentView === "hermesAgents" ? (
               <div className="flex items-center gap-2 flex-1">
                 <Button
@@ -1410,6 +1490,15 @@ function App() {
                     >
                       <LayoutDashboard className="w-3.5 h-3.5" />
                       {t("kanban.title", { defaultValue: "看板" })}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCurrentView("hermesSummary")}
+                      className="hover:bg-black/5 dark:hover:bg-white/5 shrink-0 gap-1.5 text-xs"
+                    >
+                      <BarChart2 className="w-3.5 h-3.5" />
+                      对话总结
                     </Button>
                     <UpdateBadge
                       onClick={() => openSettings("general")}

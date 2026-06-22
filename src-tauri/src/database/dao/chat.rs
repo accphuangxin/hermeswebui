@@ -19,6 +19,8 @@ pub struct ChatSession {
     pub message_count: i64,
     pub project_dir: Option<String>,
     pub agent_id: Option<String>,
+    pub summary: Option<String>,
+    pub tags: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -75,17 +77,19 @@ impl Database {
             message_count: 0,
             project_dir: project_dir.map(|s| s.to_string()),
             agent_id: agent_id.map(|s| s.to_string()),
+            summary: None,
+            tags: None,
         })
     }
 
     pub fn list_chat_sessions(&self, agent_id: Option<&str>) -> Result<Vec<ChatSession>, AppError> {
         let conn = lock_conn!(self.conn);
         let sql = if agent_id.is_some() {
-            "SELECT id, title, model, system_prompt, created_at, updated_at, message_count, project_dir, agent_id
-             FROM chat_sessions WHERE agent_id = ?1 ORDER BY updated_at DESC"
+            "SELECT id, title, model, system_prompt, created_at, updated_at, message_count, project_dir, agent_id, summary, tags
+             FROM chat_sessions WHERE agent_id = ?1 ORDER BY created_at DESC"
         } else {
-            "SELECT id, title, model, system_prompt, created_at, updated_at, message_count, project_dir, agent_id
-             FROM chat_sessions WHERE agent_id IS NULL ORDER BY updated_at DESC"
+            "SELECT id, title, model, system_prompt, created_at, updated_at, message_count, project_dir, agent_id, summary, tags
+             FROM chat_sessions WHERE agent_id IS NULL ORDER BY created_at DESC"
         };
         let mut stmt = conn
             .prepare(sql)
@@ -102,6 +106,8 @@ impl Database {
                 message_count: row.get(6)?,
                 project_dir: row.get(7)?,
                 agent_id: row.get(8)?,
+                summary: row.get(9)?,
+                tags: row.get(10)?,
             })
         };
 
@@ -119,10 +125,60 @@ impl Database {
         Ok(sessions)
     }
 
+    pub fn list_chat_sessions_by_date_range(
+        &self,
+        agent_id: Option<&str>,
+        start_ms: i64,
+        end_ms: i64,
+    ) -> Result<Vec<ChatSession>, AppError> {
+        let conn = lock_conn!(self.conn);
+        let sql = if agent_id.is_some() {
+            "SELECT id, title, model, system_prompt, created_at, updated_at, message_count, project_dir, agent_id, summary, tags
+             FROM chat_sessions WHERE agent_id = ?1 AND created_at >= ?2 AND created_at <= ?3
+             ORDER BY created_at ASC"
+        } else {
+            "SELECT id, title, model, system_prompt, created_at, updated_at, message_count, project_dir, agent_id, summary, tags
+             FROM chat_sessions WHERE agent_id IS NULL AND created_at >= ?1 AND created_at <= ?2
+             ORDER BY created_at ASC"
+        };
+        let mut stmt = conn
+            .prepare(sql)
+            .map_err(|e| AppError::Database(format!("准备 chat sessions 日期查询失败: {e}")))?;
+
+        let map_row = |row: &rusqlite::Row<'_>| {
+            Ok(ChatSession {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                model: row.get(2)?,
+                system_prompt: row.get(3)?,
+                created_at: row.get(4)?,
+                updated_at: row.get(5)?,
+                message_count: row.get(6)?,
+                project_dir: row.get(7)?,
+                agent_id: row.get(8)?,
+                summary: row.get(9)?,
+                tags: row.get(10)?,
+            })
+        };
+
+        let rows = if let Some(aid) = agent_id {
+            stmt.query_map(params![aid, start_ms, end_ms], map_row)
+        } else {
+            stmt.query_map(params![start_ms, end_ms], map_row)
+        }
+        .map_err(|e| AppError::Database(format!("日期范围查询 chat sessions 失败: {e}")))?;
+
+        let mut sessions = Vec::new();
+        for row in rows {
+            sessions.push(row.map_err(|e| AppError::Database(e.to_string()))?);
+        }
+        Ok(sessions)
+    }
+
     pub fn get_chat_session(&self, id: &str) -> Result<Option<ChatSession>, AppError> {
         let conn = lock_conn!(self.conn);
         let result = conn.query_row(
-            "SELECT id, title, model, system_prompt, created_at, updated_at, message_count, project_dir, agent_id
+            "SELECT id, title, model, system_prompt, created_at, updated_at, message_count, project_dir, agent_id, summary, tags
              FROM chat_sessions WHERE id = ?1",
             params![id],
             |row| {
@@ -136,6 +192,8 @@ impl Database {
                     message_count: row.get(6)?,
                     project_dir: row.get(7)?,
                     agent_id: row.get(8)?,
+                    summary: row.get(9)?,
+                    tags: row.get(10)?,
                 })
             },
         );
@@ -311,6 +369,34 @@ impl Database {
         Ok(result)
     }
 
+    /// 只查 role + content，用于生成摘要，避免加载大体积的 tool_calls/file_refs 字段
+    pub fn get_chat_messages_for_summary(
+        &self,
+        session_id: &str,
+        limit: i64,
+    ) -> Result<Vec<(String, String)>, AppError> {
+        let conn = lock_conn!(self.conn);
+        let mut stmt = conn
+            .prepare(
+                "SELECT role, content FROM chat_messages
+                 WHERE session_id = ?1 AND role NOT IN ('timeline', 'system')
+                 ORDER BY created_at ASC LIMIT ?2",
+            )
+            .map_err(|e| AppError::Database(format!("准备摘要查询失败: {e}")))?;
+
+        let rows = stmt
+            .query_map(params![session_id, limit], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .map_err(|e| AppError::Database(format!("查询摘要消息失败: {e}")))?;
+
+        let mut result = Vec::new();
+        for row in rows {
+            result.push(row.map_err(|e| AppError::Database(e.to_string()))?);
+        }
+        Ok(result)
+    }
+
     pub fn get_chat_messages(&self, session_id: &str) -> Result<Vec<ChatMessage>, AppError> {
         let conn = lock_conn!(self.conn);
         let mut stmt = conn
@@ -390,5 +476,58 @@ impl Database {
         );
 
         Ok(affected as u64)
+    }
+
+    pub fn update_session_ai_metadata(
+        &self,
+        id: &str,
+        summary: Option<&str>,
+        tags: Option<&str>,
+    ) -> Result<bool, AppError> {
+        let conn = lock_conn!(self.conn);
+        let affected = conn
+            .execute(
+                "UPDATE chat_sessions SET summary = ?1, tags = ?2 WHERE id = ?3",
+                params![summary, tags, id],
+            )
+            .map_err(|e| AppError::Database(format!("更新 session AI metadata 失败: {e}")))?;
+        Ok(affected > 0)
+    }
+
+    pub fn save_daily_report(
+        &self,
+        date_str: &str,
+        agent_id: Option<&str>,
+        content: &str,
+    ) -> Result<(), AppError> {
+        let conn = lock_conn!(self.conn);
+        let now = chrono::Utc::now().timestamp_millis();
+        let id = format!("{}-{}", date_str, agent_id.unwrap_or("global"));
+        conn.execute(
+            "INSERT INTO daily_reports (id, date_str, agent_id, content, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+             ON CONFLICT(date_str, agent_id) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at",
+            params![id, date_str, agent_id, content, now, now],
+        )
+        .map_err(|e| AppError::Database(format!("保存日报失败: {e}")))?;
+        Ok(())
+    }
+
+    pub fn get_daily_report(
+        &self,
+        date_str: &str,
+        agent_id: Option<&str>,
+    ) -> Result<Option<String>, AppError> {
+        let conn = lock_conn!(self.conn);
+        let result = conn.query_row(
+            "SELECT content FROM daily_reports WHERE date_str = ?1 AND agent_id IS ?2",
+            params![date_str, agent_id],
+            |row| row.get(0),
+        );
+        match result {
+            Ok(content) => Ok(Some(content)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(AppError::Database(format!("读取日报失败: {e}"))),
+        }
     }
 }

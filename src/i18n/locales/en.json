@@ -776,7 +776,20 @@
     "messageCopied": "Message copied",
     "conversationHistory": "Conversation History",
     "expandContent": "Expand full content",
-    "collapseContent": "Collapse"
+    "collapseContent": "Collapse",
+    "generateSummary": "Generate Summary",
+    "regenerateSummary": "Regenerate Summary",
+    "generating": "Generating...",
+    "generateFailed": "Generation failed: {{error}}",
+    "summaryLabel": "Summary",
+    "tagsLabel": "Tags",
+    "dailyReport": "Daily Report",
+    "dailyReportTitle": "Daily Conversation Summary",
+    "dailyReportGenerate": "Generate Report",
+    "dailyReportGenerating": "Generating...",
+    "dailyReportEmpty": "No conversations on this day",
+    "groupToday": "Today",
+    "groupYesterday": "Yesterday"
   },
   "console": {
     "providerSwitchReceived": "Received provider switch event:",

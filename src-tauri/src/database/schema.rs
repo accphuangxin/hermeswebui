@@ -331,6 +331,25 @@ impl Database {
         )
         .map_err(|e| AppError::Database(e.to_string()))?;
 
+        // 21. Daily Reports 表
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS daily_reports (
+                id TEXT PRIMARY KEY,
+                date_str TEXT NOT NULL,
+                agent_id TEXT,
+                content TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            )",
+            [],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_reports_date_agent ON daily_reports(date_str, agent_id)",
+            [],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
         // 尝试添加 live_takeover_active 列到 proxy_config 表
         let _ = conn.execute(
             "ALTER TABLE proxy_config ADD COLUMN live_takeover_active INTEGER NOT NULL DEFAULT 0",
@@ -504,6 +523,16 @@ impl Database {
                         log::info!("迁移数据库从 v15 到 v16（移除全局 skills，agent 完全隔离）");
                         Self::migrate_v15_to_v16(conn)?;
                         Self::set_user_version(conn, 16)?;
+                    }
+                    16 => {
+                        log::info!("迁移数据库从 v16 到 v17（chat_sessions 新增 summary 和 tags 列）");
+                        Self::migrate_v16_to_v17(conn)?;
+                        Self::set_user_version(conn, 17)?;
+                    }
+                    17 => {
+                        log::info!("迁移数据库从 v17 到 v18（新增 daily_reports 表）");
+                        Self::migrate_v17_to_v18(conn)?;
+                        Self::set_user_version(conn, 18)?;
                     }
                     _ => {
                         return Err(AppError::Database(format!(
@@ -1437,6 +1466,35 @@ impl Database {
             .map_err(|e| AppError::Database(format!("重命名 skills 表失败: {e}")))?;
 
         log::info!("v15 -> v16 迁移完成：移除全局收藏，agent 完全隔离");
+        Ok(())
+    }
+
+    fn migrate_v16_to_v17(conn: &Connection) -> Result<(), AppError> {
+        Self::add_column_if_missing(conn, "chat_sessions", "summary", "TEXT")?;
+        Self::add_column_if_missing(conn, "chat_sessions", "tags", "TEXT")?;
+        log::info!("v16 -> v17 迁移完成：chat_sessions 新增 summary 和 tags 列");
+        Ok(())
+    }
+
+    fn migrate_v17_to_v18(conn: &Connection) -> Result<(), AppError> {
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS daily_reports (
+                id TEXT PRIMARY KEY,
+                date_str TEXT NOT NULL,
+                agent_id TEXT,
+                content TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            )",
+            [],
+        )
+        .map_err(|e| AppError::Database(format!("创建 daily_reports 表失败: {e}")))?;
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_reports_date_agent ON daily_reports(date_str, agent_id)",
+            [],
+        )
+        .map_err(|e| AppError::Database(format!("创建 daily_reports 索引失败: {e}")))?;
+        log::info!("v17 -> v18 迁移完成：新增 daily_reports 表");
         Ok(())
     }
 

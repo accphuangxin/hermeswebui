@@ -185,6 +185,13 @@ export function ChatPage({
     null,
   );
   const areaMenuRef = useRef<HTMLDivElement>(null);
+  const [generatingSummaryId, setGeneratingSummaryId] = useState<string | null>(null);
+  const [dailyReportOpen, setDailyReportOpen] = useState(false);
+  const [dailyReportDate, setDailyReportDate] = useState<string>(() => {
+    return new Date().toISOString().slice(0, 10);
+  });
+  const [dailyReportContent, setDailyReportContent] = useState<string | null>(null);
+  const [dailyReportLoading, setDailyReportLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollBottomRef = useRef<HTMLDivElement>(null);
 
@@ -675,6 +682,64 @@ export function ChatPage({
     [sessions, activeSessionId, messages, selectedModel, t],
   );
 
+  const handleGenerateSummary = useCallback(
+    async (sessionId: string) => {
+      setGeneratingSummaryId(sessionId);
+      try {
+        const session = sessions.find((s) => s.id === sessionId);
+        let sessionMessages: import("@/types").ChatMessage[];
+        if (sessionId === activeSessionId) {
+          sessionMessages = messages.filter((m) => m.role !== "timeline");
+        } else {
+          const allMsgs = await chatApi.getMessages(sessionId);
+          sessionMessages = allMsgs.filter((m) => m.role !== "timeline");
+        }
+        const content = formatSessionAsMarkdown(
+          session?.title ?? null,
+          (session?.model ?? "").replace(/^custom_[^:]+:/, "").replace("__default__", "") || null,
+          sessionMessages,
+        );
+        const filePath = await chatApi.saveSummaryTempFile(sessionId, content);
+
+        await chatApi.generateSessionSummary(sessionId, filePath, selectedAgentId);
+        void queryClient.invalidateQueries({
+          queryKey: chatKeys.sessions(selectedAgentId),
+        });
+        toast.success(t("sessionManager.generateSummary"));
+      } catch (err) {
+        toast.error(
+          t("sessionManager.generateFailed", {
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        );
+      } finally {
+        setGeneratingSummaryId(null);
+      }
+    },
+    [selectedAgentId, sessions, activeSessionId, messages, queryClient, t],
+  );
+
+  const handleGenerateDailyReport = useCallback(async () => {
+    if (!dailyReportDate) return;
+    setDailyReportLoading(true);
+    setDailyReportContent(null);
+    try {
+      const d = new Date(dailyReportDate + "T00:00:00");
+      const startMs = d.getTime();
+      const endMs = startMs + 86400000 - 1;
+      const report = await chatApi.generateDailyReport(dailyReportDate, startMs, endMs, selectedAgentId);
+      setDailyReportContent(report);
+    } catch (err) {
+      toast.error(
+        t("sessionManager.generateFailed", {
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
+    } finally {
+      setDailyReportLoading(false);
+    }
+  }, [dailyReportDate, selectedAgentId, t]);
+
   // Close area context menu on outside click
   useEffect(() => {
     if (!areaMenu) return;
@@ -778,6 +843,12 @@ export function ChatPage({
             onDeleteSession={handleDeleteSession}
             onRenameSession={handleRenameSession}
             onExportSession={handleExportSession}
+            onGenerateSummary={generatingSummaryId ? undefined : handleGenerateSummary}
+            onDailyReport={() => {
+              setDailyReportDate(new Date().toISOString().slice(0, 10));
+              setDailyReportContent(null);
+              setDailyReportOpen(true);
+            }}
           />
           <div
             className="flex-1 flex flex-col min-w-0"
@@ -1172,6 +1243,59 @@ export function ChatPage({
             <Trash2 className="w-3.5 h-3.5" />
             {t("hermes.chat.clearMessages", { defaultValue: "清除所有消息" })}
           </button>
+        </div>
+      )}
+
+      {/* Daily Report Dialog */}
+      {dailyReportOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => setDailyReportOpen(false)}
+        >
+          <div
+            className="bg-background rounded-lg shadow-xl w-full max-w-lg mx-4 p-5 flex flex-col gap-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold">{t("sessionManager.dailyReportTitle")}</h2>
+              <button
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => setDailyReportOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={dailyReportDate}
+                onChange={(e) => {
+                  setDailyReportDate(e.target.value);
+                  setDailyReportContent(null);
+                }}
+                className="flex h-8 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              />
+              <button
+                className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                onClick={() => void handleGenerateDailyReport()}
+                disabled={dailyReportLoading}
+              >
+                {dailyReportLoading
+                  ? t("sessionManager.dailyReportGenerating")
+                  : t("sessionManager.dailyReportGenerate")}
+              </button>
+            </div>
+            {dailyReportContent && (
+              <div className="overflow-y-auto max-h-80 text-sm whitespace-pre-wrap border rounded-md p-3 bg-muted/30">
+                {dailyReportContent}
+              </div>
+            )}
+            {!dailyReportContent && !dailyReportLoading && (
+              <p className="text-xs text-muted-foreground">
+                {t("sessionManager.dailyReportEmpty")}
+              </p>
+            )}
+          </div>
         </div>
       )}
     </div>

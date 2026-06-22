@@ -776,7 +776,20 @@
     "messageCopied": "已复制消息内容",
     "conversationHistory": "对话记录",
     "expandContent": "展开完整内容",
-    "collapseContent": "收起"
+    "collapseContent": "收起",
+    "generateSummary": "生成摘要",
+    "regenerateSummary": "重新生成摘要",
+    "generating": "生成中...",
+    "generateFailed": "生成失败: {{error}}",
+    "summaryLabel": "摘要",
+    "tagsLabel": "标签",
+    "dailyReport": "每日报告",
+    "dailyReportTitle": "每日对话总结",
+    "dailyReportGenerate": "生成报告",
+    "dailyReportGenerating": "生成中...",
+    "dailyReportEmpty": "当天没有对话记录",
+    "groupToday": "今天",
+    "groupYesterday": "昨天"
   },
   "console": {
     "providerSwitchReceived": "收到供应商切换事件:",

@@ -634,6 +634,8 @@ export interface ChatSession {
   messageCount: number;
   projectDir: string | null;
   agentId: string | null;
+  summary: string | null;
+  tags: string | null;
 }
 
 export interface ChatMessage {

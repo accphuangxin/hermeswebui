@@ -776,7 +776,20 @@
     "messageCopied": "メッセージがコピーされました",
     "conversationHistory": "会話履歴",
     "expandContent": "全文を表示",
-    "collapseContent": "折りたたむ"
+    "collapseContent": "折りたたむ",
+    "generateSummary": "要約を生成",
+    "regenerateSummary": "要約を再生成",
+    "generating": "生成中...",
+    "generateFailed": "生成失敗: {{error}}",
+    "summaryLabel": "要約",
+    "tagsLabel": "タグ",
+    "dailyReport": "日次レポート",
+    "dailyReportTitle": "日次会話サマリー",
+    "dailyReportGenerate": "レポート生成",
+    "dailyReportGenerating": "生成中...",
+    "dailyReportEmpty": "この日の会話記録がありません",
+    "groupToday": "今日",
+    "groupYesterday": "昨日"
   },
   "console": {
     "providerSwitchReceived": "プロバイダー切り替えイベントを受信:",

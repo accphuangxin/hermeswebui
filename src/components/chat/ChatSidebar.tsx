@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, Trash2, MessageSquare, Pencil, Download } from "lucide-react";
+import { Plus, Trash2, MessageSquare, Pencil, Download, Sparkles, BarChart2, ChevronDown } from "lucide-react";
 import type { ChatSession } from "@/types";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -23,7 +23,30 @@ interface ChatSidebarProps {
   onDeleteSession: (id: string) => void;
   onRenameSession: (id: string, title: string) => void;
   onExportSession?: (id: string) => void;
+  onGenerateSummary?: (id: string) => void;
+  onDailyReport?: () => void;
   isLocked?: boolean;
+}
+
+function getDateGroupLabel(ts: number, t: ReturnType<typeof useTranslation>["t"]): string {
+  const now = new Date();
+  const d = new Date(ts);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today.getTime() - 86400000);
+  const threeDaysAgo = new Date(today.getTime() - 3 * 86400000);
+  const sessionDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+  if (sessionDay.getTime() === today.getTime()) {
+    return t("sessionManager.groupToday");
+  }
+  if (sessionDay.getTime() === yesterday.getTime()) {
+    return t("sessionManager.groupYesterday");
+  }
+  if (sessionDay.getTime() <= threeDaysAgo.getTime()) {
+    const label = threeDaysAgo.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" }).replace(/\//g, "/");
+    return `${label} 以前`;
+  }
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "2-digit", day: "2-digit" });
 }
 
 export function ChatSidebar({
@@ -34,6 +57,8 @@ export function ChatSidebar({
   onDeleteSession,
   onRenameSession,
   onExportSession,
+  onGenerateSummary,
+  onDailyReport,
   isLocked,
 }: ChatSidebarProps) {
   const { t } = useTranslation();
@@ -68,9 +93,36 @@ export function ChatSidebar({
     setEditingId(null);
   };
 
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set());
+
+  const toggleGroup = (label: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
+  };
+
+  // Build grouped session list
+  type GroupedItem =
+    | { type: "header"; label: string }
+    | { type: "session"; session: ChatSession };
+
+  const groupedItems: GroupedItem[] = [];
+  let lastGroup = "";
+  for (const s of sessions) {
+    const label = getDateGroupLabel(s.createdAt, t);
+    if (label !== lastGroup) {
+      groupedItems.push({ type: "header", label });
+      lastGroup = label;
+    }
+    groupedItems.push({ type: "session", session: s });
+  }
+
   return (
     <div className="flex flex-col h-full w-56 border-r bg-muted/30">
-      <div className="p-2 shrink-0">
+      <div className="p-2 shrink-0 flex flex-col gap-1">
         <Button
           variant="outline"
           size="sm"
@@ -81,6 +133,17 @@ export function ChatSidebar({
           <Plus className="w-4 h-4" />
           {t("hermes.chat.newSession")}
         </Button>
+        {onDailyReport && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground hidden"
+            onClick={onDailyReport}
+          >
+            <BarChart2 className="w-3.5 h-3.5" />
+            {t("sessionManager.dailyReport")}
+          </Button>
+        )}
       </div>
       <ScrollArea className="flex-1">
         <div className="px-2 pb-2 space-y-0.5 select-none">
@@ -89,57 +152,85 @@ export function ChatSidebar({
               {t("hermes.chat.noSessions")}
             </div>
           )}
-          {sessions.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => !isLocked && onSelectSession(s.id)}
-              onDoubleClick={() => !isLocked && startRename(s)}
-              onMouseDown={(e) => { if (e.button === 2) e.preventDefault(); }}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                window.getSelection()?.removeAllRanges();
-                setContextMenu({ x: e.clientX, y: e.clientY, session: s });
-              }}
-              className={cn(
-                "group w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left hover:bg-muted transition-colors select-none",
-                activeSessionId === s.id && "bg-muted font-medium",
-                isLocked && s.id !== activeSessionId && "opacity-40 cursor-not-allowed",
-              )}
-            >
-              <MessageSquare className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
-              {editingId === s.id ? (
-                <input
-                  ref={inputRef}
-                  value={editValue}
-                  onChange={(e) => setEditValue(e.target.value)}
-                  onBlur={commitRename}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") commitRename();
-                    if (e.key === "Escape") setEditingId(null);
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                  className="flex-1 min-w-0 bg-background border rounded px-1 py-0 text-sm outline-none"
-                  autoFocus
-                />
-              ) : (
-                <span className="flex-1 truncate">
-                  {s.title || t("hermes.chat.untitled")}
-                </span>
-              )}
-              {editingId !== s.id && onExportSession && (
+          {groupedItems.map((item, idx) => {
+            if (item.type === "header") {
+              const isCollapsed = collapsedGroups.has(item.label);
+              return (
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onExportSession(s.id);
-                  }}
-                  className="p-0.5 hover:text-foreground text-muted-foreground/40"
-                  title={t("hermes.chat.exportSession", { defaultValue: "导出为 Markdown" })}
+                  key={`header-${item.label}-${idx}`}
+                  type="button"
+                  onClick={() => toggleGroup(item.label)}
+                  className="w-full flex items-center gap-1 pt-2 pb-0.5 px-1 text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wide hover:text-muted-foreground transition-colors"
                 >
-                  <Download className="w-3 h-3" />
+                  <ChevronDown className={cn("w-3 h-3 transition-transform shrink-0", isCollapsed && "-rotate-90")} />
+                  {item.label}
                 </button>
-              )}
-            </button>
-          ))}
+              );
+            }
+            // 找到该 session 所属的组，如果组已折叠则跳过
+            let groupLabel = "";
+            for (let i = idx - 1; i >= 0; i--) {
+              if (groupedItems[i].type === "header") {
+                groupLabel = (groupedItems[i] as { type: "header"; label: string }).label;
+                break;
+              }
+            }
+            if (collapsedGroups.has(groupLabel)) return null;
+            const s = item.session;
+            return (
+              <button
+                key={s.id}
+                onClick={() => !isLocked && onSelectSession(s.id)}
+                onDoubleClick={() => !isLocked && startRename(s)}
+                onMouseDown={(e) => { if (e.button === 2) e.preventDefault(); }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  window.getSelection()?.removeAllRanges();
+                  setContextMenu({ x: e.clientX, y: e.clientY, session: s });
+                }}
+                className={cn(
+                  "group w-full flex flex-col rounded-md px-2 py-1.5 text-sm text-left hover:bg-muted transition-colors select-none",
+                  activeSessionId === s.id && "bg-muted font-medium",
+                  isLocked && s.id !== activeSessionId && "opacity-40 cursor-not-allowed",
+                )}
+              >
+                <div className="flex items-center gap-2 w-full">
+                  <MessageSquare className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
+                  {editingId === s.id ? (
+                    <input
+                      ref={inputRef}
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onBlur={commitRename}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") commitRename();
+                        if (e.key === "Escape") setEditingId(null);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex-1 min-w-0 bg-background border rounded px-1 py-0 text-sm outline-none"
+                      autoFocus
+                    />
+                  ) : (
+                    <span className="flex-1 truncate">
+                      {s.title || t("hermes.chat.untitled")}
+                    </span>
+                  )}
+                  {editingId !== s.id && onExportSession && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onExportSession(s.id);
+                      }}
+                      className="p-0.5 hover:text-foreground text-muted-foreground/40"
+                      title={t("hermes.chat.exportSession", { defaultValue: "导出为 Markdown" })}
+                    >
+                      <Download className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              </button>
+            );
+          })}
         </div>
       </ScrollArea>
 
@@ -160,6 +251,20 @@ export function ChatSidebar({
             <Pencil className="w-3.5 h-3.5" />
             {t("hermes.chat.rename")}
           </button>
+          {onGenerateSummary && (
+            <button
+              className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-muted transition-colors text-left"
+              onClick={() => {
+                onGenerateSummary(contextMenu.session.id);
+                setContextMenu(null);
+              }}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              {contextMenu.session.summary
+                ? t("sessionManager.regenerateSummary")
+                : t("sessionManager.generateSummary")}
+            </button>
+          )}
           <button
             className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-muted transition-colors text-left text-destructive"
             onClick={() => {
