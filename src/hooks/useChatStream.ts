@@ -85,6 +85,7 @@ export function useChatStream() {
   const stopRequestedRef = useRef(false);
   const waitingStartRef = useRef<number>(0);
   const waitingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const forceResolveRef = useRef<(() => void) | null>(null);
 
   const clearWaiting = useCallback(() => {
     const elapsed = Date.now() - waitingStartRef.current;
@@ -130,9 +131,18 @@ export function useChatStream() {
 
       try {
         await new Promise<void>((resolve, reject) => {
+          let resolved = false;
+          const safeResolve = () => {
+            if (!resolved) {
+              resolved = true;
+              resolve();
+            }
+          };
+          forceResolveRef.current = safeResolve;
           const onEvent = new Channel<RunStreamEvent>();
 
           onEvent.onmessage = (event) => {
+            if (resolved) return;
             switch (event.type) {
               case "delta":
                 clearWaiting();
@@ -164,17 +174,17 @@ export function useChatStream() {
                   outputTokens: event.outputTokens ?? 0,
                   model: event.model ?? "",
                 });
-                resolve();
+                safeResolve();
                 break;
               case "failed":
                 clearWaiting();
                 onError(event.error ? String(event.error) : "Run failed");
-                resolve();
+                safeResolve();
                 break;
               case "error":
                 clearWaiting();
                 onError(event.message ?? "Unknown error");
-                resolve();
+                safeResolve();
                 break;
             }
           };
@@ -216,6 +226,7 @@ export function useChatStream() {
           clearTimeout(waitingTimerRef.current);
           waitingTimerRef.current = null;
         }
+        forceResolveRef.current = null;
         dispatch({ isStreaming: false, isWaiting: false });
         runIdRef.current = null;
         stopRequestedRef.current = false;
@@ -226,9 +237,16 @@ export function useChatStream() {
 
   const stop = useCallback(async () => {
     stopRequestedRef.current = true;
+    // Immediately resolve the promise — stop accepting any further events
+    if (forceResolveRef.current) {
+      forceResolveRef.current();
+      forceResolveRef.current = null;
+    }
+    // Fire-and-forget: tell backend to stop
     if (runIdRef.current) {
-      const { chatApi } = await import("@/lib/api/chat");
-      await chatApi.stopRun(runIdRef.current);
+      void import("@/lib/api/chat").then(({ chatApi }) =>
+        chatApi.stopRun(runIdRef.current!).catch(() => {}),
+      );
     }
   }, []);
 

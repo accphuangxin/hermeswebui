@@ -479,12 +479,13 @@ export function ChatPage({
         let fullContent = "";
         let succeeded = false;
 
+        const useSession = !wasCompressed && !!hermesSessionId;
         await sendRun({
-          input: compressedInput,
+          input: useSession ? fullText : compressedInput,
           files: pastedImageFiles.length > 0 ? pastedImageFiles : undefined,
           attachments: attachmentPaths.length > 0 ? attachmentPaths : undefined,
           model: hermesModel,
-          sessionId: wasCompressed ? undefined : (hermesSessionId ?? undefined),
+          sessionId: useSession ? hermesSessionId : undefined,
           agentId: selectedAgentId ?? undefined,
           apiServerPort: selectedAgentPort ?? undefined,
           apiServerKey: selectedAgentKey ?? undefined,
@@ -536,6 +537,10 @@ export function ChatPage({
             setPendingApproval(approval);
           },
           onCompleted: async (output, runSessionId, usage) => {
+            if (userCancelledRef.current) {
+              succeeded = true;
+              return;
+            }
             if (usage && (usage.inputTokens > 0 || usage.outputTokens > 0)) {
               setLastUsage(usage);
             }
@@ -861,23 +866,6 @@ export function ChatPage({
               setAreaMenu({ x: e.clientX, y: e.clientY });
             }}
           >
-            {/* Top-right toolbar */}
-            {activeSessionId && messages.length > 0 && (
-              <div className="flex items-center justify-end gap-1 px-2 py-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setPreviewOpen((v) => !v)}
-                  className={cn(
-                    "flex items-center gap-1.5 px-2 py-1 rounded text-xs hover:bg-muted transition-colors",
-                    previewOpen ? "text-primary" : "text-muted-foreground",
-                  )}
-                  title="预览 Markdown"
-                >
-                  <Eye className="w-3.5 h-3.5" />
-                  预览
-                </button>
-              </div>
-            )}
             <ScrollArea className="flex-1" ref={scrollRef}>
               <div className="py-4">
                 {!activeSessionId ? (
@@ -1171,14 +1159,12 @@ export function ChatPage({
             <ChatInput
               onSend={handleSend}
               onStop={handleStop}
-              isStreaming={isStreaming}
+              isStreaming={isStreaming || isWaiting || isSending}
               disabled={!isOnline || !activeSessionId}
               favoriteSkills={favoriteSkills}
               agents={agents}
               selectedAgentId={selectedAgentId}
               onSelectAgent={onSelectAgent}
-              onTogglePreview={() => setPreviewOpen((v) => !v)}
-              isPreviewOpen={previewOpen}
             />
           </div>
 
