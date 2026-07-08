@@ -13,6 +13,8 @@ export { proxyApi } from "./proxy";
 export { openclawApi } from "./openclaw";
 export { sessionsApi } from "./sessions";
 export { workspaceApi } from "./workspace";
+export { knowledgeApi, knowledgeKeys } from "./knowledge";
+export type { KnowledgeEntry } from "./knowledge";
 export * as configApi from "./config";
 export * as authApi from "./auth";
 export * as copilotApi from "./copilot";

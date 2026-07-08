@@ -253,14 +253,17 @@ pub async fn triggerCronJob(jobId: String) -> Result<serde_json::Value, String> 
     if !api_auth.is_empty() {
         req = req.header("Authorization", &api_auth);
     }
-    let resp = req
-        .send()
-        .await
-        .map_err(|e| format!("trigger failed: {e}"))?;
+    let resp = req.send().await.map_err(|e| {
+        let msg = format!("[v1/runs] trigger cron job failed: {e}, URL: {runs_url}");
+        log::error!("{msg}");
+        msg
+    })?;
     if !resp.status().is_success() {
         let status = resp.status();
         let text = resp.text().await.unwrap_or_default();
-        return Err(format!("HTTP {status}: {text}"));
+        let msg = format!("[v1/runs] trigger cron job HTTP {status}: {text}, URL: {runs_url}");
+        log::error!("{msg}");
+        return Err(msg);
     }
     resp.json().await.map_err(|e| format!("parse failed: {e}"))
 }

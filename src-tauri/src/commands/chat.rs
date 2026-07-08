@@ -3,6 +3,18 @@
 use std::time::Duration;
 use tauri::{ipc::Channel, State};
 
+fn log_chat_request_error(msg: &str) {
+    use std::io::Write;
+    let log_dir = crate::panic_hook::get_log_dir();
+    if std::fs::create_dir_all(&log_dir).is_ok() {
+        let path = log_dir.join("chat-request.log");
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+            let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
+            let _ = writeln!(f, "[{now}] {msg}");
+        }
+    }
+}
+
 use crate::database::{ChatMessage, ChatMessageInput, ChatSession};
 use crate::hermes_config;
 use crate::store::AppState;
@@ -439,7 +451,11 @@ pub(crate) fn build_api_client(
         .timeout(Duration::from_secs(timeout_secs))
         .no_proxy()
         .build()
-        .map_err(|e| format!("failed to build client: {e}"))?;
+        .map_err(|e| {
+            let msg = format!("failed to build client: {e}");
+            log_chat_request_error(&msg);
+            msg
+        })?;
     Ok((client, base_url, auth_header))
 }
 
@@ -457,7 +473,11 @@ pub(crate) fn build_stream_client() -> Result<(reqwest::Client, String, String),
         .connect_timeout(Duration::from_secs(10)) // only limit connection setup
         .no_proxy()
         .build()
-        .map_err(|e| format!("failed to build stream client: {e}"))?;
+        .map_err(|e| {
+            let msg = format!("failed to build stream client: {e}");
+            log_chat_request_error(&msg);
+            msg
+        })?;
     Ok((client, base_url, auth_header))
 }
 
@@ -1092,10 +1112,12 @@ pub async fn startChatRun(
     if !auth_header.is_empty() {
         req = req.header("Authorization", &auth_header);
     }
-    let resp = req
-        .send()
-        .await
-        .map_err(|e| format!("create run failed: {e}"))?;
+    let resp = req.send().await.map_err(|e| {
+        let msg = format!("[v1/runs] create run failed: {e}, URL: {url}");
+        log::error!("{msg}");
+        log_chat_request_error(&msg);
+        msg
+    })?;
 
     if !resp.status().is_success() {
         let status = resp.status();
@@ -1134,9 +1156,12 @@ pub async fn startChatRun(
             }
             b.to_string()
         };
-        return Err(format!(
+        let err_msg = format!(
             "HTTP {status}: {text}\nURL: {url}\nKey: {key_display}\nBody: {body_preview}"
-        ));
+        );
+        log::error!("[v1/runs] {err_msg}");
+        log_chat_request_error(&format!("[v1/runs] {err_msg}"));
+        return Err(err_msg);
     }
 
     let create_resp: serde_json::Value = resp
@@ -1150,20 +1175,26 @@ pub async fn startChatRun(
         .to_string();
 
     // GET /v1/runs/{run_id}/events — SSE stream (no overall timeout)
-    let (stream_client, _, stream_auth) = build_stream_client()?;
+    // Use same base/auth_header as the POST /v1/runs request (agent port + key)
+    let (stream_client, _, _) = build_stream_client()?;
     let events_url = format!("{base}/v1/runs/{run_id}/events");
     let mut events_req = stream_client.get(&events_url);
-    if !stream_auth.is_empty() {
-        events_req = events_req.header("Authorization", &stream_auth);
+    if !auth_header.is_empty() {
+        events_req = events_req.header("Authorization", &auth_header);
     }
-    let events_resp = events_req
-        .send()
-        .await
-        .map_err(|e| format!("subscribe events failed: {e}"))?;
+    let events_resp = events_req.send().await.map_err(|e| {
+        let msg = format!("[v1/runs] subscribe events failed: {e}, URL: {events_url}");
+        log::error!("{msg}");
+        log_chat_request_error(&msg);
+        msg
+    })?;
 
     if !events_resp.status().is_success() {
         let text = events_resp.text().await.unwrap_or_default();
-        return Err(format!("events subscribe failed: {text}"));
+        let msg = format!("[v1/runs] events subscribe failed: {text}, URL: {events_url}");
+        log::error!("{msg}");
+        log_chat_request_error(&msg);
+        return Err(msg);
     }
 
     let run_id_clone = run_id.clone();
@@ -1187,9 +1218,9 @@ pub async fn startChatRun(
             let chunk = match chunk {
                 Ok(c) => c,
                 Err(e) => {
-                    let _ = on_event.send(RunStreamEvent::Error {
-                        message: format!("stream error: {e}"),
-                    });
+                    let msg = format!("stream error: {e}");
+                    log_chat_request_error(&format!("[v1/runs/events] {msg}"));
+                    let _ = on_event.send(RunStreamEvent::Error { message: msg });
                     return;
                 }
             };
@@ -1294,6 +1325,7 @@ pub async fn startChatRun(
                     }
                     "run.failed" => {
                         let error = json["error"].as_str().unwrap_or("run failed").to_string();
+                        log_chat_request_error(&format!("[run.failed] {error}"));
                         let _ = on_event.send(RunStreamEvent::Failed { error });
                         return;
                     }
@@ -1339,14 +1371,19 @@ pub async fn getChatRunStatus(runId: String) -> Result<serde_json::Value, String
     if !auth_header.is_empty() {
         req = req.header("Authorization", &auth_header);
     }
-    let resp = req
-        .send()
-        .await
-        .map_err(|e| format!("get run status failed: {e}"))?;
+    let resp = req.send().await.map_err(|e| {
+        let msg = format!("[v1/runs] get run status failed: {e}, URL: {url}");
+        log::error!("{msg}");
+        log_chat_request_error(&msg);
+        msg
+    })?;
 
     if !resp.status().is_success() {
         let text = resp.text().await.unwrap_or_default();
-        return Err(format!("get run status failed: {text}"));
+        let msg = format!("[v1/runs] get run status failed: {text}, URL: {url}");
+        log::error!("{msg}");
+        log_chat_request_error(&msg);
+        return Err(msg);
     }
 
     resp.json()
@@ -1356,30 +1393,55 @@ pub async fn getChatRunStatus(runId: String) -> Result<serde_json::Value, String
 
 // POST /v1/runs/{run_id}/stop — stop run
 #[tauri::command]
-pub async fn stopChatRun(runId: String) -> Result<bool, String> {
-    let (client, base, auth_header) = build_api_client(10)?;
+pub async fn stopChatRun(runId: String, apiServerPort: Option<u16>, apiServerKey: Option<String>) -> Result<bool, String> {
+    let (client, mut base, mut auth_header) = build_api_client(10)?;
+    if let Some(port) = apiServerPort {
+        let cfg = read_api_server_config();
+        base = format!("http://{}:{}", cfg.host, port);
+    }
+    if let Some(key) = apiServerKey {
+        if !key.is_empty() {
+            auth_header = format!("Bearer {key}");
+        }
+    }
     let url = format!("{base}/v1/runs/{runId}/stop");
 
     let mut req = client.post(&url);
     if !auth_header.is_empty() {
         req = req.header("Authorization", &auth_header);
     }
-    let resp = req
-        .send()
-        .await
-        .map_err(|e| format!("stop request failed: {e}"))?;
+    let resp = req.send().await.map_err(|e| {
+        let msg = format!("[v1/runs] stop request failed: {e}, URL: {url}");
+        log::error!("{msg}");
+        log_chat_request_error(&msg);
+        msg
+    })?;
 
-    Ok(resp.status().is_success())
+    let success = resp.status().is_success();
+    if !success {
+        let text = resp.text().await.unwrap_or_default();
+        let msg = format!("[v1/runs] stop failed: {text}, URL: {url}");
+        log::error!("{msg}");
+        log_chat_request_error(&msg);
+    }
+
+    Ok(success)
 }
 
-// POST /v1/runs/{run_id}/approval — approve/deny
-#[tauri::command]
-pub async fn approveChatRun(runId: String, approve: bool) -> Result<bool, String> {
-    let (client, base, auth_header) = build_api_client(10)?;
-    let url = format!("{base}/v1/runs/{runId}/approval");
-
-    let body = serde_json::json!({ "approved": approve });
-
+async fn post_approval(run_id: &str, choice: &str, api_server_port: Option<u16>, api_server_key: Option<String>) -> Result<bool, String> {
+    let (client, mut base, mut auth_header) = build_api_client(10)?;
+    // 使用 agent 实际端口（如果提供）
+    if let Some(port) = api_server_port {
+        let cfg = read_api_server_config();
+        base = format!("http://{}:{}", cfg.host, port);
+    }
+    if let Some(key) = api_server_key {
+        if !key.is_empty() {
+            auth_header = format!("Bearer {key}");
+        }
+    }
+    let url = format!("{base}/v1/runs/{run_id}/approval");
+    let body = serde_json::json!({ "choice": choice, "all": false });
     let mut req = client
         .post(&url)
         .header("Content-Type", "application/json")
@@ -1387,12 +1449,29 @@ pub async fn approveChatRun(runId: String, approve: bool) -> Result<bool, String
     if !auth_header.is_empty() {
         req = req.header("Authorization", &auth_header);
     }
-    let resp = req
-        .send()
-        .await
-        .map_err(|e| format!("approval request failed: {e}"))?;
+    let resp = req.send().await.map_err(|e| {
+        let msg = format!("[v1/runs] approval request failed: {e}, URL: {url}");
+        log::error!("{msg}");
+        msg
+    })?;
+    let success = resp.status().is_success();
+    if !success {
+        let text = resp.text().await.unwrap_or_default();
+        log::error!("[v1/runs] approval failed: {text}, URL: {url}");
+    }
+    Ok(success)
+}
 
-    Ok(resp.status().is_success())
+// POST /v1/runs/{run_id}/approval — approve/deny
+#[tauri::command]
+pub async fn approveChatRun(runId: String, approve: bool, apiServerPort: Option<u16>, apiServerKey: Option<String>) -> Result<bool, String> {
+    let choice = if approve { "once" } else { "deny" };
+    post_approval(&runId, choice, apiServerPort, apiServerKey).await
+}
+
+#[tauri::command]
+pub async fn approveRunChoice(runId: String, choice: String, apiServerPort: Option<u16>, apiServerKey: Option<String>) -> Result<bool, String> {
+    post_approval(&runId, &choice, apiServerPort, apiServerKey).await
 }
 
 // ============================================================================

@@ -33,6 +33,7 @@ import {
   Bot,
   RefreshCw,
   ChevronDown,
+  BookOpen,
 } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Provider, VisibleApps } from "@/types";
@@ -96,6 +97,7 @@ import HermesMemoryPanel from "@/components/hermes/HermesMemoryPanel";
 import { ChatPage } from "@/components/chat/ChatPage";
 import { SummaryCalendarPage } from "@/components/chat/SummaryCalendarPage";
 import { KanbanPage } from "@/components/kanban/KanbanPage";
+import { KnowledgePage } from "@/components/knowledge/KnowledgePage";
 
 import { HermesAgentsPage } from "@/components/chat/HermesAgentsPage";
 import {
@@ -129,7 +131,8 @@ type View =
   | "hermesChat"
   | "hermesAgents"
   | "hermesKanban"
-  | "hermesSummary";
+  | "hermesSummary"
+  | "hermesKnowledge";
 
 interface WebDavSyncStatusUpdatedPayload {
   source?: string;
@@ -175,6 +178,7 @@ const VALID_VIEWS: View[] = [
   "openclawAgents",
   "hermesMemory",
   "hermesChat",
+  "hermesKnowledge",
 ];
 
 const getInitialView = (): View => {
@@ -928,7 +932,8 @@ function App() {
       currentView === "skills" ||
       currentView === "hermesAgents" ||
       currentView === "hermesKanban" ||
-      currentView === "hermesSummary";
+      currentView === "hermesSummary" ||
+      currentView === "hermesKnowledge";
 
     const content = (() => {
       switch (currentView) {
@@ -985,6 +990,7 @@ function App() {
         case "hermesChat":
         case "hermesAgents":
         case "hermesKanban":
+        case "hermesKnowledge":
         case "skills":
           return null;
         default:
@@ -1255,6 +1261,14 @@ function App() {
               }}
             />
           </div>
+          <div
+            className={cn(
+              "flex-1 min-h-0 flex flex-col overflow-hidden h-full",
+              currentView !== "hermesKnowledge" && "hidden",
+            )}
+          >
+            <KnowledgePage />
+          </div>
         </div>
         {/* All other views — normal switch-based rendering with animation */}
         {!isHermesView && (
@@ -1351,7 +1365,21 @@ function App() {
             className="flex flex-1 items-center gap-1"
             style={{ WebkitAppRegion: "no-drag" } as any}
           >
-            {currentView === "hermesKanban" ? (
+            {currentView === "hermesKnowledge" ? (
+              <div className="flex items-center gap-2 flex-1">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setCurrentView("hermesChat")}
+                  className="mr-2 rounded-lg"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </Button>
+                <h1 className="text-lg font-semibold">
+                  {t("knowledge.title", { defaultValue: "知识库" })}
+                </h1>
+              </div>
+            ) : currentView === "hermesKanban" ? (
               <div className="flex items-center gap-2 flex-1">
                 <Button
                   variant="outline"
@@ -1499,6 +1527,15 @@ function App() {
                     >
                       <BarChart2 className="w-3.5 h-3.5" />
                       对话总结
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCurrentView("hermesKnowledge")}
+                      className="hover:bg-black/5 dark:hover:bg-white/5 shrink-0 gap-1.5 text-xs"
+                    >
+                      <BookOpen className="w-3.5 h-3.5" />
+                      {t("knowledge.title", { defaultValue: "知识库" })}
                     </Button>
                     <UpdateBadge
                       onClick={() => openSettings("general")}

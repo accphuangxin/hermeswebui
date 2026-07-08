@@ -82,6 +82,8 @@ export function useChatStream() {
     { isStreaming: false, isWaiting: false },
   );
   const runIdRef = useRef<string | null>(null);
+  const stopPortRef = useRef<number | null>(null);
+  const stopKeyRef = useRef<string | null>(null);
   const stopRequestedRef = useRef(false);
   const waitingStartRef = useRef<number>(0);
   const waitingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -124,6 +126,8 @@ export function useChatStream() {
         waitingTimerRef.current = null;
       }
       stopRequestedRef.current = false;
+      stopPortRef.current = apiServerPort ?? null;
+      stopKeyRef.current = apiServerKey ?? null;
       waitingStartRef.current = Date.now();
       // Dispatch synchronously before any async work — React will schedule this
       // render immediately since we're not inside a transition
@@ -160,13 +164,23 @@ export function useChatStream() {
                   event.result,
                 );
                 break;
-              case "approvalRequired":
-                onApprovalRequired({
-                  runId: runIdRef.current ?? "",
-                  tool: event.tool ?? "",
-                  args: event.args ?? "",
-                });
+              case "approvalRequired": {
+                // runId may not be set yet if the invoke .then() hasn't resolved;
+                // poll briefly until it's available before notifying the caller
+                const notifyApproval = () => {
+                  if (runIdRef.current) {
+                    onApprovalRequired({
+                      runId: runIdRef.current,
+                      tool: event.tool ?? "",
+                      args: event.args ?? "",
+                    });
+                  } else {
+                    setTimeout(notifyApproval, 50);
+                  }
+                };
+                notifyApproval();
                 break;
+              }
               case "completed":
                 clearWaiting();
                 onCompleted(event.output ?? "", event.sessionId ?? "", {
@@ -242,10 +256,12 @@ export function useChatStream() {
       forceResolveRef.current();
       forceResolveRef.current = null;
     }
-    // Fire-and-forget: tell backend to stop
+    // Fire-and-forget: tell backend to stop (with agent's port/key)
     if (runIdRef.current) {
+      const port = stopPortRef.current;
+      const key = stopKeyRef.current;
       void import("@/lib/api/chat").then(({ chatApi }) =>
-        chatApi.stopRun(runIdRef.current!).catch(() => {}),
+        chatApi.stopRun(runIdRef.current!, port, key).catch(() => {}),
       );
     }
   }, []);

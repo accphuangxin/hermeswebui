@@ -35,6 +35,8 @@ pub mod fwd {
     pub const PROVIDER_FAILED_RETRY: &str = "FWD-001";
     pub const ALL_PROVIDERS_FAILED: &str = "FWD-002";
     pub const SINGLE_PROVIDER_FAILED: &str = "FWD-003";
+    pub const NON_RETRYABLE_ERROR: &str = "FWD-004";
+    pub const SINGLE_PROVIDER_TERMINAL: &str = "FWD-005";
 }
 
 /// 故障转移日志码

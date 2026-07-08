@@ -95,12 +95,16 @@ export const chatApi = {
     return await invoke("getHermesChatModels");
   },
 
-  async stopRun(runId: string): Promise<boolean> {
-    return await invoke("stopChatRun", { runId });
+  async stopRun(runId: string, apiServerPort?: number | null, apiServerKey?: string | null): Promise<boolean> {
+    return await invoke("stopChatRun", { runId, apiServerPort: apiServerPort ?? null, apiServerKey: apiServerKey ?? null });
   },
 
-  async approveRun(runId: string, approve: boolean): Promise<boolean> {
-    return await invoke("approveChatRun", { runId, approve });
+  async approveRun(runId: string, approve: boolean, apiServerPort?: number | null, apiServerKey?: string | null): Promise<boolean> {
+    return await invoke("approveChatRun", { runId, approve, apiServerPort: apiServerPort ?? null, apiServerKey: apiServerKey ?? null });
+  },
+
+  async approveRunChoice(runId: string, choice: "once" | "session" | "always" | "deny", apiServerPort?: number | null, apiServerKey?: string | null): Promise<boolean> {
+    return await invoke("approveRunChoice", { runId, choice, apiServerPort: apiServerPort ?? null, apiServerKey: apiServerKey ?? null });
   },
 
   async getRunStatus(runId: string): Promise<Record<string, unknown>> {

@@ -714,6 +714,9 @@ impl RequestForwarder {
                                 &e,
                             );
                             log::warn!("[{app_type_str}] [{log_code}] {log_message}");
+                            append_chat_request_log(&format!(
+                                "[{app_type_str}] [{log_code}] {log_message}"
+                            ));
 
                             last_error = Some(e);
                             last_provider = Some(provider.clone());
@@ -732,6 +735,16 @@ impl RequestForwarder {
                                         * 100.0;
                                 }
                             }
+                            let error_summary = summarize_proxy_error(&e);
+                            let log_message = format!(
+                                "Provider {} 请求失败（不可重试）: {error_summary}",
+                                provider.name
+                            );
+                            log::warn!("[{app_type_str}] [{}] {log_message}", log_fwd::NON_RETRYABLE_ERROR);
+                            append_chat_request_log(&format!(
+                                "[{app_type_str}] [{}] {log_message}",
+                                log_fwd::NON_RETRYABLE_ERROR
+                            ));
                             return Err(ForwardError {
                                 error: e,
                                 provider: Some(provider.clone()),
@@ -774,6 +787,16 @@ impl RequestForwarder {
             build_terminal_failure_log(attempted_providers, providers.len(), last_error.as_ref())
         {
             log::warn!("[{app_type_str}] [{log_code}] {log_message}");
+            append_chat_request_log(&format!("[{app_type_str}] [{log_code}] {log_message}"));
+        } else if let Some(ref e) = last_error {
+            // 单 Provider 失败时 build_terminal_failure_log 返回 None，此处补写日志
+            let error_summary = summarize_proxy_error(e);
+            let log_message = format!("Provider 请求失败: {error_summary}");
+            log::warn!("[{app_type_str}] [{}] {log_message}", log_fwd::SINGLE_PROVIDER_TERMINAL);
+            append_chat_request_log(&format!(
+                "[{app_type_str}] [{}] {log_message}",
+                log_fwd::SINGLE_PROVIDER_TERMINAL
+            ));
         }
 
         Err(ForwardError {
@@ -1686,6 +1709,18 @@ fn is_bedrock_provider(provider: &Provider) -> bool {
         .and_then(|v| v.as_str())
         .map(|v| v == "1")
         .unwrap_or(false)
+}
+
+fn append_chat_request_log(msg: &str) {
+    use std::io::Write;
+    let log_dir = crate::panic_hook::get_log_dir();
+    if std::fs::create_dir_all(&log_dir).is_ok() {
+        let path = log_dir.join("chat-request.log");
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+            let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
+            let _ = writeln!(f, "[{now}] {msg}");
+        }
+    }
 }
 
 fn build_retryable_failure_log(
