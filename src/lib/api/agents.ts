@@ -18,6 +18,7 @@ export interface HermesAgent {
   isDefault?: boolean;
   source?: string;
   soul?: string;
+  env?: Record<string, string>;
 }
 
 export interface CreateAgentInput {
@@ -37,6 +38,7 @@ export interface UpdateAgentInput {
   base_url?: string;
   api_server_port?: number;
   api_server_key?: string;
+  env?: Record<string, string | null>;
 }
 
 export const agentsApi = {

@@ -19,6 +19,7 @@ interface ChatInputProps {
   onSend: (text: string, files: ChatFileRef[]) => void;
   onStop: () => void;
   isStreaming: boolean;
+  isStopping?: boolean;
   disabled?: boolean;
   favoriteSkills?: InstalledSkill[];
   agents?: HermesAgent[];
@@ -26,12 +27,14 @@ interface ChatInputProps {
   onSelectAgent?: (agentId: string, port?: number, key?: string) => void;
   onTogglePreview?: () => void;
   isPreviewOpen?: boolean;
+  onHeightChange?: (delta: number) => void;
 }
 
 export function ChatInput({
   onSend,
   onStop,
   isStreaming,
+  isStopping = false,
   disabled,
   favoriteSkills = [],
   agents = [],
@@ -39,10 +42,12 @@ export function ChatInput({
   onSelectAgent,
   onTogglePreview,
   isPreviewOpen,
+  onHeightChange,
 }: ChatInputProps) {
   const { t } = useTranslation();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [files, setFiles] = useState<ChatFileRef[]>([]);
+  const attachCounterRef = useRef(0);
 
   // slash command state
   const [showCommands, setShowCommands] = useState(false);
@@ -119,6 +124,24 @@ export function ChatInput({
       ];
     el?.scrollIntoView({ block: "nearest" });
   }, [agentSelectedIndex, showAgents]);
+
+  const insertFilePlaceholder = (file: ChatFileRef) => {
+    const el = textareaRef.current;
+    if (!el) return;
+    const placeholder = `[${file.filename}]`;
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? start;
+    const before = el.value.slice(0, start);
+    const after = el.value.slice(end);
+    const needSpace = before.length > 0 && !before.endsWith(" ") && !before.endsWith("\n");
+    const inserted = (needSpace ? " " : "") + placeholder + " ";
+    el.value = before + inserted + after;
+    const newPos = start + inserted.length;
+    el.setSelectionRange(newPos, newPos);
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 160) + "px";
+    el.focus();
+  };
 
   const handleSend = useCallback(() => {
     const value = textareaRef.current?.value.trim();
@@ -265,6 +288,23 @@ export function ChatInput({
       }
     }
 
+    // Backspace: delete entire [Image #N] / [File #N] placeholder as one unit
+    if (e.key === "Backspace" && !isComposingRef.current) {
+      const el = textareaRef.current;
+      if (el && el.selectionStart === el.selectionEnd) {
+        const before = el.value.slice(0, el.selectionStart);
+        const match = before.match(/\[(?:Image|File) #\d+\] ?$/);
+        if (match) {
+          e.preventDefault();
+          const newPos = before.length - match[0].length;
+          el.value = before.slice(0, newPos) + el.value.slice(el.selectionStart);
+          el.setSelectionRange(newPos, newPos);
+          el.dispatchEvent(new Event("input", { bubbles: true }));
+          return;
+        }
+      }
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       // Block if IME is composing, or if compositionend fired within the last 30ms
       // (macOS WebKit fires compositionend before keydown for the confirming Enter)
@@ -334,8 +374,12 @@ export function ChatInput({
   const handleInput = () => {
     const el = textareaRef.current;
     if (!el) return;
+    const prevHeight = el.offsetHeight;
     el.style.height = "auto";
-    el.style.height = Math.min(el.scrollHeight, 160) + "px";
+    const nextHeight = Math.min(el.scrollHeight, 160);
+    el.style.height = nextHeight + "px";
+    const delta = nextHeight - prevHeight;
+    if (delta !== 0) onHeightChange?.(delta);
 
     const value = el.value;
     const cursor = el.selectionStart;
@@ -394,12 +438,15 @@ export function ChatInput({
     const paths = Array.isArray(selected) ? selected : [selected];
     for (const path of paths) {
       try {
-        const { filename, content, sizeBytes, mimeType } =
-          await chatApi.readFile(path);
-        setFiles((prev) => [
-          ...prev,
-          { filename, content, sizeBytes, mimeType, sourcePath: path },
-        ]);
+        const { content, sizeBytes, mimeType } = await chatApi.readFile(path);
+        attachCounterRef.current += 1;
+        const isImage = mimeType?.startsWith("image/");
+        const label = isImage
+          ? `Image #${attachCounterRef.current}`
+          : `File #${attachCounterRef.current}`;
+        const fileRef: ChatFileRef = { filename: label, content, sizeBytes, mimeType, sourcePath: path };
+        setFiles((prev) => [...prev, fileRef]);
+        insertFilePlaceholder(fileRef);
       } catch (err) {
         console.error("Failed to read file:", err);
       }
@@ -441,8 +488,9 @@ export function ChatInput({
 
         if (item.type.startsWith("image/")) {
           const ext = item.type.split("/")[1]?.replace("jpeg", "jpg") ?? "png";
-          const filename = `paste_${Date.now()}.${ext}`;
-          // Try to save to a temp file so the agent can reference it by path
+          const tempFilename = `paste_${Date.now()}.${ext}`;
+          attachCounterRef.current += 1;
+          const label = `Image #${attachCounterRef.current}`;
           try {
             const reader = new FileReader();
             const base64 = await new Promise<string>((resolve, reject) => {
@@ -450,17 +498,21 @@ export function ChatInput({
               reader.onerror = reject;
               reader.readAsDataURL(blob);
             });
-            const savedPath = await chatApi.saveTempImage(base64, filename);
+            const savedPath = await chatApi.saveTempImage(base64, tempFilename);
             const { content, sizeBytes, mimeType } = await chatApi.readFile(savedPath);
-            setFiles((prev) => [...prev, { filename, content, sizeBytes, mimeType, sourcePath: savedPath }]);
+            const fileRef: ChatFileRef = { filename: label, content, sizeBytes, mimeType, sourcePath: savedPath };
+            setFiles((prev) => [...prev, fileRef]);
+            insertFilePlaceholder(fileRef);
           } catch {
-            // Fallback: no path, send as base64
-            await addFileFromBlob(blob, filename);
+            const fileRef: ChatFileRef = { filename: label, content: "", sizeBytes: blob.size, mimeType: blob.type };
+            await addFileFromBlob(blob, label);
+            insertFilePlaceholder(fileRef);
           }
         } else {
-          const file = blob as File;
-          const filename = file.name || `paste_${Date.now()}`;
-          await addFileFromBlob(blob, filename);
+          attachCounterRef.current += 1;
+          const label = `File #${attachCounterRef.current}`;
+          await addFileFromBlob(blob, label);
+          insertFilePlaceholder({ filename: label, content: "", sizeBytes: blob.size, mimeType: blob.type });
         }
       }
     },
@@ -652,9 +704,13 @@ export function ChatInput({
             size="icon"
             variant="destructive"
             onClick={onStop}
+            disabled={isStopping}
             className="h-9 w-9"
+            title={isStopping ? "停止中..." : "停止"}
           >
-            <Square className="w-4 h-4" />
+            {isStopping
+              ? <span className="w-3 h-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
+              : <Square className="w-4 h-4" />}
           </Button>
         ) : (
           <Button

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { MessageSquare, Clock, Trash2, ChevronUp, ChevronDown, Download, Eye, Copy } from "lucide-react";
+import { MessageSquare, Clock, Trash2, ChevronUp, ChevronDown, Download, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -190,9 +190,6 @@ export function ChatPage({
   // ── 已永久授权的工具（不再提示）──
   const [alwaysAllowedTools, setAlwaysAllowedTools] = useState<Set<string>>(new Set());
   // ── 多选状态 ──
-  const [selectedMsgIds, setSelectedMsgIds] = useState<Set<string>>(new Set());
-  const isDraggingSelectRef = useRef(false);
-  const dragStartIdRef = useRef<string | null>(null);
   const [dailyReportDate, setDailyReportDate] = useState<string>(() => {
     return new Date().toISOString().slice(0, 10);
   });
@@ -226,7 +223,7 @@ export function ChatPage({
   const saveMessage = useSaveChatMessage();
   const deleteMessage = useDeleteChatMessage(activeSessionId);
   const userCancelledRef = useRef(false);
-  const { sendRun, isStreaming, isWaiting, stop, runIdRef } = useChatStream();
+  const { sendRun, isStreaming, isWaiting, isStopping, stop, runIdRef } = useChatStream();
   const handleStop = useCallback(() => {
     userCancelledRef.current = true;
     void stop();
@@ -320,11 +317,14 @@ export function ChatPage({
 
   // Track whether user has scrolled up manually
   const userScrolledUpRef = useRef(false);
+  const inputResizingRef = useRef(false);
 
   useEffect(() => {
     const el = scrollRef.current?.querySelector("[data-radix-scroll-area-viewport]") as HTMLElement | null;
     if (!el) return;
     const onScroll = () => {
+      // Ignore scroll events caused by input resize (viewport shrink moves scrollTop)
+      if (inputResizingRef.current) return;
       const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
       userScrolledUpRef.current = !atBottom;
     };
@@ -878,31 +878,10 @@ export function ChatPage({
               setAreaMenu({ x: e.clientX, y: e.clientY });
             }}
           >
-            <ScrollArea className="flex-1" ref={scrollRef}>
+            <ScrollArea className="flex-1 min-h-0" ref={scrollRef}>
               <div
                 className="py-4"
-                onMouseDown={(e) => {
-                  const el = (e.target as HTMLElement).closest("[data-message-id]") as HTMLElement | null;
-                  if (!el) return;
-                  isDraggingSelectRef.current = true;
-                  dragStartIdRef.current = el.dataset.messageId ?? null;
-                }}
-                onMouseMove={(e) => {
-                  if (!isDraggingSelectRef.current || !dragStartIdRef.current) return;
-                  const el = (e.target as HTMLElement).closest("[data-message-id]") as HTMLElement | null;
-                  if (!el) return;
-                  const hoverId = el.dataset.messageId;
-                  if (!hoverId) return;
-                  // 选中从 dragStart 到 hover 之间的所有消息
-                  const visibleIds = messages.filter(m => m.role !== "tool").map(m => m.id);
-                  const startIdx = visibleIds.indexOf(dragStartIdRef.current!);
-                  const endIdx = visibleIds.indexOf(hoverId);
-                  if (startIdx === -1 || endIdx === -1) return;
-                  const lo = Math.min(startIdx, endIdx);
-                  const hi = Math.max(startIdx, endIdx);
-                  setSelectedMsgIds(new Set(visibleIds.slice(lo, hi + 1)));
-                }}
-                onMouseUp={() => { isDraggingSelectRef.current = false; dragStartIdRef.current = null; }}
+                style={{ overflowAnchor: "auto" }}
               >
                 {!activeSessionId ? (
                   <div className="flex items-center justify-center h-full text-muted-foreground text-sm py-20">
@@ -929,12 +908,6 @@ export function ChatPage({
                           message={msg}
                           onDelete={(id) => deleteMessage.mutate(id)}
                           onResend={(content) => void doSendToAgent(content)}
-                          selected={selectedMsgIds.has(msg.id)}
-                          onToggleSelect={(id) => setSelectedMsgIds(prev => {
-                            const next = new Set(prev);
-                            if (next.has(id)) next.delete(id); else next.add(id);
-                            return next;
-                          })}
                         />
                       ))}
                     {/* Pure text streaming (no tool calls) */}
@@ -1157,45 +1130,10 @@ export function ChatPage({
                     )}
                   </>
                 )}
-                <div ref={scrollBottomRef} />
+                <div ref={scrollBottomRef} style={{ overflowAnchor: "auto" }} />
               </div>
             </ScrollArea>
 
-            {/* 多选操作栏 */}
-            {selectedMsgIds.size > 0 && (
-              <div className="flex items-center gap-2 px-4 py-2 border-t bg-muted/50 text-sm shrink-0">
-                <span className="text-muted-foreground flex-1">已选 {selectedMsgIds.size} 条</span>
-                <button
-                  className="flex items-center gap-1 px-3 py-1 rounded bg-background border text-xs hover:bg-accent"
-                  onClick={async () => {
-                    const selected = messages.filter(m => selectedMsgIds.has(m.id));
-                    const text = selected.map(m => `[${m.role === "user" ? "用户" : "助手"}]\n${m.content}`).join("\n\n---\n\n");
-                    await navigator.clipboard.writeText(text);
-                    toast.success(`已复制 ${selected.length} 条消息`);
-                  }}
-                >
-                  <Copy className="w-3.5 h-3.5" /> 复制
-                </button>
-                <button
-                  className="flex items-center gap-1 px-3 py-1 rounded bg-destructive text-destructive-foreground text-xs hover:opacity-90"
-                  onClick={async () => {
-                    for (const id of selectedMsgIds) {
-                      await deleteMessage.mutateAsync(id);
-                    }
-                    setSelectedMsgIds(new Set());
-                    toast.success("已删除所选消息");
-                  }}
-                >
-                  <Trash2 className="w-3.5 h-3.5" /> 删除
-                </button>
-                <button
-                  className="px-3 py-1 rounded border text-xs hover:bg-accent"
-                  onClick={() => setSelectedMsgIds(new Set())}
-                >
-                  取消
-                </button>
-              </div>
-            )}
 
             {/* Token usage & compression status bar */}
             {activeSessionId &&
@@ -1272,11 +1210,20 @@ export function ChatPage({
               onSend={handleSend}
               onStop={handleStop}
               isStreaming={isStreaming || isWaiting || isSending}
+              isStopping={isStopping}
               disabled={!isOnline || !activeSessionId}
               favoriteSkills={favoriteSkills}
               agents={agents}
               selectedAgentId={selectedAgentId}
               onSelectAgent={onSelectAgent}
+              onHeightChange={(delta) => {
+                const viewport = scrollRef.current?.querySelector("[data-radix-scroll-area-viewport]") as HTMLElement | null;
+                if (!viewport) return;
+                inputResizingRef.current = true;
+                viewport.scrollTop += delta;
+                // Clear flag after scroll event fired by the scrollTop assignment
+                setTimeout(() => { inputResizingRef.current = false; }, 0);
+              }}
             />
           </div>
 

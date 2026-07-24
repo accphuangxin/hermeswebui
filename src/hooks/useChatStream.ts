@@ -76,10 +76,10 @@ export function useChatStream() {
   // even in concurrent mode — unlike useState batching after await
   const [state, dispatch] = useReducer(
     (
-      _: { isStreaming: boolean; isWaiting: boolean },
-      action: { isStreaming: boolean; isWaiting: boolean },
+      _: { isStreaming: boolean; isWaiting: boolean; isStopping: boolean },
+      action: { isStreaming: boolean; isWaiting: boolean; isStopping: boolean },
     ) => action,
-    { isStreaming: false, isWaiting: false },
+    { isStreaming: false, isWaiting: false, isStopping: false },
   );
   const runIdRef = useRef<string | null>(null);
   const stopPortRef = useRef<number | null>(null);
@@ -94,11 +94,11 @@ export function useChatStream() {
     const remaining = MIN_WAITING_MS - elapsed;
     if (remaining > 0) {
       waitingTimerRef.current = setTimeout(
-        () => dispatch({ isStreaming: true, isWaiting: false }),
+        () => dispatch({ isStreaming: true, isWaiting: false, isStopping: false }),
         remaining,
       );
     } else {
-      dispatch({ isStreaming: true, isWaiting: false });
+      dispatch({ isStreaming: true, isWaiting: false, isStopping: false });
     }
   }, []);
 
@@ -131,7 +131,7 @@ export function useChatStream() {
       waitingStartRef.current = Date.now();
       // Dispatch synchronously before any async work — React will schedule this
       // render immediately since we're not inside a transition
-      dispatch({ isStreaming: true, isWaiting: true });
+      dispatch({ isStreaming: true, isWaiting: true, isStopping: false });
 
       try {
         await new Promise<void>((resolve, reject) => {
@@ -241,7 +241,7 @@ export function useChatStream() {
           waitingTimerRef.current = null;
         }
         forceResolveRef.current = null;
-        dispatch({ isStreaming: false, isWaiting: false });
+        dispatch({ isStreaming: false, isWaiting: false, isStopping: false });
         runIdRef.current = null;
         stopRequestedRef.current = false;
       }
@@ -251,18 +251,21 @@ export function useChatStream() {
 
   const stop = useCallback(async () => {
     stopRequestedRef.current = true;
-    // Immediately resolve the promise — stop accepting any further events
-    if (forceResolveRef.current) {
-      forceResolveRef.current();
-      forceResolveRef.current = null;
-    }
-    // Fire-and-forget: tell backend to stop (with agent's port/key)
+    // Show stopping state immediately so user sees the button change
+    dispatch({ isStreaming: true, isWaiting: false, isStopping: true });
+
+    // Wait for backend to confirm stop, then resolve the stream promise
     if (runIdRef.current) {
       const port = stopPortRef.current;
       const key = stopKeyRef.current;
-      void import("@/lib/api/chat").then(({ chatApi }) =>
-        chatApi.stopRun(runIdRef.current!, port, key).catch(() => {}),
-      );
+      const { chatApi } = await import("@/lib/api/chat");
+      await chatApi.stopRun(runIdRef.current!, port, key).catch(() => {});
+    }
+
+    // Now resolve the stream promise — this triggers finally → dispatch(false)
+    if (forceResolveRef.current) {
+      forceResolveRef.current();
+      forceResolveRef.current = null;
     }
   }, []);
 
@@ -270,6 +273,7 @@ export function useChatStream() {
     sendRun,
     isStreaming: state.isStreaming,
     isWaiting: state.isWaiting,
+    isStopping: state.isStopping,
     stop,
     runIdRef,
   };

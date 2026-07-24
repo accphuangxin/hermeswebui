@@ -725,6 +725,8 @@ pub struct HermesAgent {
     pub source: Option<String>,
     #[serde(default)]
     pub soul: Option<String>,
+    #[serde(default)]
+    pub env: Option<std::collections::HashMap<String, String>>,
 }
 
 /// Set the globally active Hermes agent.
@@ -944,6 +946,7 @@ pub struct UpdateAgentInput {
     pub base_url: Option<String>,
     pub api_server_port: Option<u16>,
     pub api_server_key: Option<String>,
+    pub env: Option<std::collections::HashMap<String, Option<String>>>,
 }
 
 #[tauri::command]
@@ -980,6 +983,9 @@ pub async fn updateHermesAgent(
     }
     if let Some(v) = input.api_server_key {
         body["api_server_key"] = serde_json::json!(v);
+    }
+    if let Some(env) = input.env {
+        body["env"] = serde_json::json!(env);
     }
 
     let mut req = client.patch(&url).json(&body);

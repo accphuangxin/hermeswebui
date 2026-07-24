@@ -413,8 +413,6 @@ interface ChatMessageProps {
   toolResults?: Map<string, string>;
   onDelete?: (messageId: string) => void;
   onResend?: (content: string) => void;
-  selected?: boolean;
-  onToggleSelect?: (id: string) => void;
 }
 
 export const ChatMessageBubble = memo(function ChatMessageBubble({
@@ -422,8 +420,6 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
   toolResults,
   onDelete,
   onResend,
-  selected = false,
-  onToggleSelect,
 }: ChatMessageProps) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
@@ -554,32 +550,11 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
       className={cn(
         "group flex gap-2 px-3 py-2 relative",
         isUser && "flex-row-reverse",
-        selected && "bg-primary/5",
       )}
       data-message-bubble
       data-message-id={message.id}
       onContextMenu={(e) => e.stopPropagation()}
     >
-      {/* 选择 checkbox */}
-      {onToggleSelect && (
-        <div
-          className={cn(
-            "absolute left-1 top-1/2 -translate-y-1/2 flex items-center justify-center",
-            "opacity-0 group-hover:opacity-100 transition-opacity",
-            selected && "opacity-100",
-          )}
-          onClick={(e) => { e.stopPropagation(); onToggleSelect(message.id); }}
-        >
-          <div className={cn(
-            "w-4 h-4 rounded border-2 flex items-center justify-center cursor-pointer",
-            selected
-              ? "bg-primary border-primary"
-              : "border-muted-foreground/40 bg-background hover:border-primary",
-          )}>
-            {selected && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
-          </div>
-        </div>
-      )}
       <div
         className={cn(
           "flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center mt-0.5",

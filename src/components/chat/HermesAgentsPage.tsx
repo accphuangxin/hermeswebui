@@ -276,6 +276,7 @@ export function HermesAgentsPage({
         {editAgent && !showCreate && (
           <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
             <EditAgentForm
+              key={editAgent.id}
               agent={editAgent}
               onClose={() => setEditAgent(null)}
               onSaved={(updated) => {
@@ -823,6 +824,10 @@ function EditAgentForm({
   );
   const [apiServerKey, setApiServerKey] = useState(agent.apiServerKey ?? "");
   const [baseUrl, setBaseUrl] = useState(agent.baseUrl ?? "");
+  const [envExpanded, setEnvExpanded] = useState(false);
+  const [envEntries, setEnvEntries] = useState<{ key: string; value: string }[]>(
+    Object.entries(agent.env ?? {}).map(([k, v]) => ({ key: k, value: v }))
+  );
 
   // Model select mode: "select" when agent has port+key, else "manual"
   const hasServer = !!(agent.apiServerPort && agent.apiServerKey);
@@ -858,6 +863,21 @@ function EditAgentForm({
     if (portNum !== agent.apiServerPort) input.api_server_port = portNum;
     if (apiServerKey !== (agent.apiServerKey ?? ""))
       input.api_server_key = apiServerKey.trim() || undefined;
+
+    // Build env diff: new/updated keys → value, removed keys → null
+    const originalEnv = agent.env ?? {};
+    const newEnv: Record<string, string> = {};
+    for (const { key, value } of envEntries) {
+      if (key.trim()) newEnv[key.trim()] = value;
+    }
+    const envDiff: Record<string, string | null> = {};
+    for (const [k, v] of Object.entries(newEnv)) {
+      if (originalEnv[k] !== v) envDiff[k] = v;
+    }
+    for (const k of Object.keys(originalEnv)) {
+      if (!(k in newEnv)) envDiff[k] = null;
+    }
+    if (Object.keys(envDiff).length > 0) input.env = envDiff;
 
     updateAgent(
       { agentId: agent.id, input },
@@ -972,6 +992,72 @@ function EditAgentForm({
           <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
             <div className="text-xs text-muted-foreground uppercase tracking-wide">API KEY</div>
             <Input value={apiServerKey} onChange={(e) => setApiServerKey(e.target.value)} placeholder="my-secret-key" className="h-9 text-sm" />
+          </div>
+
+          {/* ENV VARS */}
+          <div className="space-y-1.5">
+            <div
+              className="flex items-center justify-between cursor-pointer select-none"
+              onClick={() => setEnvExpanded((v) => !v)}
+            >
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground uppercase tracking-wide">
+                <span>{envExpanded ? "▾" : "▸"}</span>
+                <span>ENV VARS</span>
+                {!envExpanded && envEntries.length > 0 && (
+                  <span className="normal-case text-foreground/60 ml-1">{envEntries.length} 个变量</span>
+                )}
+              </div>
+              {envExpanded && (
+                <button
+                  type="button"
+                  className="text-[10px] text-primary hover:opacity-80"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEnvEntries((prev) => [...prev, { key: "", value: "" }]);
+                  }}
+                >
+                  + 添加
+                </button>
+              )}
+            </div>
+            {envExpanded && (
+              <div className="space-y-1.5">
+                {envEntries.length === 0 && (
+                  <p className="text-xs text-muted-foreground py-1">暂无环境变量</p>
+                )}
+                {envEntries.map((entry, i) => (
+                  <div key={i} className="flex gap-1.5 items-center">
+                    <Input
+                      value={entry.key}
+                      onChange={(e) =>
+                        setEnvEntries((prev) =>
+                          prev.map((item, idx) => idx === i ? { ...item, key: e.target.value } : item)
+                        )
+                      }
+                      placeholder="KEY"
+                      className="h-7 text-xs font-mono w-2/5"
+                    />
+                    <Input
+                      value={entry.value}
+                      onChange={(e) =>
+                        setEnvEntries((prev) =>
+                          prev.map((item, idx) => idx === i ? { ...item, value: e.target.value } : item)
+                        )
+                      }
+                      placeholder="VALUE"
+                      className="h-7 text-xs font-mono flex-1"
+                    />
+                    <button
+                      type="button"
+                      className="text-muted-foreground hover:text-destructive shrink-0"
+                      onClick={() => setEnvEntries((prev) => prev.filter((_, idx) => idx !== i))}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {error && <p className="text-xs text-destructive break-all font-mono">{String(error)}</p>}
