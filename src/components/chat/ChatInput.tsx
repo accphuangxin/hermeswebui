@@ -9,6 +9,23 @@ import type { ChatFileRef } from "@/types";
 import type { InstalledSkill } from "@/lib/api/skills";
 import type { HermesAgent } from "@/lib/api/agents";
 
+function mimeToExt(mimeType: string): string {
+  const map: Record<string, string> = {
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+    "application/vnd.ms-excel": "xls",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "application/msword": "doc",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
+    "application/vnd.ms-powerpoint": "ppt",
+    "application/pdf": "pdf",
+    "text/plain": "txt",
+    "text/csv": "csv",
+    "application/json": "json",
+    "application/zip": "zip",
+  };
+  return map[mimeType] ?? mimeType.split("/")[1]?.split(";")[0] ?? "bin";
+}
+
 const HERMES_COMMANDS = [
   { cmd: "/clear", desc: "Clear conversation and start fresh" },
   { cmd: "/export", desc: "Export current session as Markdown" },
@@ -139,7 +156,7 @@ export function ChatInput({
     const newPos = start + inserted.length;
     el.setSelectionRange(newPos, newPos);
     el.style.height = "auto";
-    el.style.height = Math.min(el.scrollHeight, 160) + "px";
+    el.style.height = Math.min(el.scrollHeight, 320) + "px";
     el.focus();
   };
 
@@ -180,7 +197,7 @@ export function ChatInput({
     el.setSelectionRange(newPos, newPos);
     el.focus();
     el.style.height = "auto";
-    el.style.height = Math.min(el.scrollHeight, 160) + "px";
+    el.style.height = Math.min(el.scrollHeight, 320) + "px";
 
     setShowMentions(false);
     setMentionFilter("");
@@ -197,7 +214,7 @@ export function ChatInput({
     el.setSelectionRange(before.length, before.length);
     el.focus();
     el.style.height = "auto";
-    el.style.height = Math.min(el.scrollHeight, 160) + "px";
+    el.style.height = Math.min(el.scrollHeight, 320) + "px";
 
     setShowAgents(false);
     setAgentFilter("");
@@ -206,7 +223,7 @@ export function ChatInput({
     if (onSelectAgent) {
       const agentId =
         agent.isDefault || agent.name === "default" ? "default" : agent.name;
-      onSelectAgent(agentId, agent.apiServerPort, agent.apiServerKey);
+      onSelectAgent(agentId, agent.actualPort ?? agent.apiServerPort, agent.apiServerKey);
     }
   };
 
@@ -293,8 +310,8 @@ export function ChatInput({
       const el = textareaRef.current;
       if (el && el.selectionStart === el.selectionEnd) {
         const before = el.value.slice(0, el.selectionStart);
-        const match = before.match(/\[(?:Image|File) #\d+\] ?$/);
-        if (match) {
+        const match = before.match(/\[[^\]]+\] ?$/);
+        if (match && files.some((f) => match[0].trimEnd() === `[${f.filename}]`)) {
           e.preventDefault();
           const newPos = before.length - match[0].length;
           el.value = before.slice(0, newPos) + el.value.slice(el.selectionStart);
@@ -376,12 +393,18 @@ export function ChatInput({
     if (!el) return;
     const prevHeight = el.offsetHeight;
     el.style.height = "auto";
-    const nextHeight = Math.min(el.scrollHeight, 160);
+    const nextHeight = Math.min(el.scrollHeight, 320);
     el.style.height = nextHeight + "px";
     const delta = nextHeight - prevHeight;
     if (delta !== 0) onHeightChange?.(delta);
 
     const value = el.value;
+
+    // Sync files: remove any file whose placeholder is no longer in the text
+    setFiles((prev) => {
+      const next = prev.filter((f) => value.includes(`[${f.filename}]`));
+      return next.length === prev.length ? prev : next;
+    });
     const cursor = el.selectionStart;
     const textBeforeCursor = value.slice(0, cursor);
 
@@ -439,12 +462,12 @@ export function ChatInput({
     for (const path of paths) {
       try {
         const { content, sizeBytes, mimeType } = await chatApi.readFile(path);
-        attachCounterRef.current += 1;
+        const actualName = path.split("/").pop() ?? path.split("\\").pop() ?? `file_${Date.now()}`;
         const isImage = mimeType?.startsWith("image/");
-        const label = isImage
-          ? `Image #${attachCounterRef.current}`
-          : `File #${attachCounterRef.current}`;
-        const fileRef: ChatFileRef = { filename: label, content, sizeBytes, mimeType, sourcePath: path };
+        const label = isImage ? `Image #${++attachCounterRef.current}` : actualName;
+        // Images are sent by path so the agent can process them directly.
+        // Non-image files (Excel, PDF, etc.) have already been extracted to text by readFile — send content inline.
+        const fileRef: ChatFileRef = { filename: label, content, sizeBytes, mimeType, ...(isImage ? { sourcePath: path } : {}) };
         setFiles((prev) => [...prev, fileRef]);
         insertFilePlaceholder(fileRef);
       } catch (err) {
@@ -510,9 +533,27 @@ export function ChatInput({
           }
         } else {
           attachCounterRef.current += 1;
-          const label = `File #${attachCounterRef.current}`;
-          await addFileFromBlob(blob, label);
-          insertFilePlaceholder({ filename: label, content: "", sizeBytes: blob.size, mimeType: blob.type });
+          const blobName = (blob as File).name;
+          const ext = mimeToExt(item.type);
+          const label = blobName && blobName !== "blob"
+            ? blobName
+            : `file_${attachCounterRef.current}.${ext}`;
+          try {
+            const reader = new FileReader();
+            const base64 = await new Promise<string>((resolve, reject) => {
+              reader.onload = () => resolve(reader.result as string);
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+            });
+            const savedPath = await chatApi.saveTempImage(base64, label);
+            const { content, sizeBytes, mimeType } = await chatApi.readFile(savedPath);
+            const fileRef: ChatFileRef = { filename: label, content, sizeBytes, mimeType };
+            setFiles((prev) => [...prev, fileRef]);
+            insertFilePlaceholder(fileRef);
+          } catch {
+            await addFileFromBlob(blob, label);
+            insertFilePlaceholder({ filename: label, content: "", sizeBytes: blob.size, mimeType: blob.type });
+          }
         }
       }
     },
@@ -520,7 +561,18 @@ export function ChatInput({
   );
 
   const removeFile = (index: number) => {
-    setFiles((prev) => prev.filter((_, i) => i !== index));
+    setFiles((prev) => {
+      const file = prev[index];
+      if (file && textareaRef.current) {
+        const el = textareaRef.current;
+        const escapedName = file.filename.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const placeholder = `\\[${escapedName}\\]`;
+        el.value = el.value.replace(new RegExp(`\\s*${placeholder}\\s*`, "g"), " ").trim();
+        el.style.height = "auto";
+        el.style.height = Math.min(el.scrollHeight, 160) + "px";
+      }
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
   const formatSize = (bytes: number) => {
@@ -684,7 +736,7 @@ export function ChatInput({
         )}
         <textarea
           ref={textareaRef}
-          rows={1}
+          rows={3}
           placeholder={t("hermes.chat.placeholder")}
           disabled={disabled}
           onKeyDown={(e) => { handleKeyDown(e); handleKeyDownAccel(e); }}
@@ -697,7 +749,7 @@ export function ChatInput({
             isComposingRef.current = false;
             compositionEndTimeRef.current = Date.now();
           }}
-          className="flex-1 resize-none rounded-md border bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50 min-h-[36px] max-h-[160px]"
+          className="flex-1 resize-none rounded-md border bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50 min-h-[72px] max-h-[320px]"
         />
         {isStreaming ? (
           <Button

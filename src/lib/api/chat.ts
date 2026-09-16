@@ -91,8 +91,11 @@ export const chatApi = {
     return await invoke("getHermesChatStatus");
   },
 
-  async getModels(): Promise<HermesChatModel[]> {
-    return await invoke("getHermesChatModels");
+  async getModels(_agentId?: string | null, apiServerPort?: number | null, apiServerKey?: string | null): Promise<HermesChatModel[]> {
+    return await invoke("getHermesChatModels", {
+      apiServerPort: apiServerPort ?? null,
+      apiServerKey: apiServerKey ?? null,
+    });
   },
 
   async stopRun(runId: string, apiServerPort?: number | null, apiServerKey?: string | null): Promise<boolean> {

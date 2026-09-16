@@ -22,7 +22,6 @@ import {
   useChatStream,
   type ToolActivity,
   type ApprovalRequest,
-  type RunUsage,
   type StreamFile,
 } from "@/hooks/useChatStream";
 import { chatApi } from "@/lib/api/chat";
@@ -153,12 +152,8 @@ export function ChatPage({
   const [pendingApproval, setPendingApproval] =
     useState<ApprovalRequest | null>(null);
   const [hermesSessionId, setHermesSessionId] = useState<string | null>(null);
-  const [lastUsage, setLastUsage] = useState<RunUsage | null>(null);
-  const [compressionInfo, setCompressionInfo] = useState<{
-    wasCompressed: boolean;
-    droppedCount: number;
-  } | null>(null);
   const [isSending, setIsSending] = useState(false);
+  const [processingSessionIds, setProcessingSessionIds] = useState<Set<string>>(new Set());
   const [, setStreamStartTime] = useState<number | null>(null);
   const [currentTool, setCurrentTool] = useState<string | null>(null);
   const [streamTokens, setStreamTokens] = useState(0);
@@ -199,7 +194,7 @@ export function ChatPage({
   const scrollBottomRef = useRef<HTMLDivElement>(null);
 
   const { data: status } = useChatStatus(true);
-  const { data: chatModels = [] } = useChatModels();
+  const { data: chatModels = [] } = useChatModels(selectedAgentId, selectedAgentPort, selectedAgentKey);
   const { data: agents = [] } = useHermesAgents();
   const { data: installedSkills = [] } = useInstalledSkills(selectedAgentId);
   const favoriteSkills = installedSkills.filter((s) => s.isFavorite);
@@ -405,8 +400,14 @@ export function ChatPage({
               .map((f) => `<file name="${f.filename}">\n${f.content}\n</file>`)
               .join("\n\n")
           : "";
+      // Strip [filename] placeholders for inlined files — content is already in fileBlocks
+      let userText = text;
+      for (const f of inlineFiles) {
+        const escaped = f.filename.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        userText = userText.replace(new RegExp(`\\s*\\[${escaped}\\]\\s*`, "g"), " ").trim();
+      }
       const fullText =
-        fileBlocks && text ? `${fileBlocks}\n\n${text}` : fileBlocks || text;
+        fileBlocks && userText ? `${fileBlocks}\n\n${userText}` : fileBlocks || userText;
 
       const fileRefsForDb =
         files.length > 0
@@ -441,6 +442,7 @@ export function ChatPage({
       setStreamTokens(0);
       isLiveRef.current = true;
       setIsSending(true);
+      setProcessingSessionIds((prev) => new Set(prev).add(activeSessionId));
 
       const hermesModel =
         selectedModel && selectedModel !== "__default__"
@@ -452,7 +454,6 @@ export function ChatPage({
         fullText,
         activeContextWindow,
       );
-      setCompressionInfo({ wasCompressed, droppedCount });
       if (wasCompressed) {
         toast.info(
           t("hermes.chat.contextCompressed", {
@@ -542,13 +543,10 @@ export function ChatPage({
           onApprovalRequired: (approval) => {
             setPendingApproval(approval);
           },
-          onCompleted: async (output, runSessionId, usage) => {
+          onCompleted: async (output, runSessionId) => {
             if (userCancelledRef.current) {
               succeeded = true;
               return;
-            }
-            if (usage && (usage.inputTokens > 0 || usage.outputTokens > 0)) {
-              setLastUsage(usage);
             }
             const content = fullContent || output;
             // No content means the server responded but produced nothing — treat as failure
@@ -564,6 +562,7 @@ export function ChatPage({
             setStreamingContent("");
             setToolActivities([]);
             setIsSending(false);
+            setProcessingSessionIds((prev) => { const s = new Set(prev); s.delete(activeSessionId); return s; });
 
             if (runSessionId) {
               setHermesSessionId(runSessionId);
@@ -620,6 +619,7 @@ export function ChatPage({
       setCurrentTool(null);
       isLiveRef.current = false;
       setIsSending(false);
+      setProcessingSessionIds((prev) => { const s = new Set(prev); s.delete(activeSessionId); return s; });
       if (!userCancelledRef.current && lastError) {
         const errMsgId = crypto.randomUUID();
         await saveMessage.mutateAsync({
@@ -856,7 +856,8 @@ export function ChatPage({
             activeSessionId={activeSessionId}
             onSelectSession={setActiveSessionId}
             onNewSession={handleNewSession}
-            isLocked={isStreaming || isWaiting || isSending}
+            isLocked={false}
+            processingSessionIds={processingSessionIds}
             onDeleteSession={handleDeleteSession}
             onRenameSession={handleRenameSession}
             onExportSession={handleExportSession}
@@ -1135,77 +1136,6 @@ export function ChatPage({
             </ScrollArea>
 
 
-            {/* Token usage & compression status bar */}
-            {activeSessionId &&
-              messages.length > 0 &&
-              (() => {
-                const modelName = lastUsage?.model || selectedModel || "";
-                const displayModel = modelName
-                  .replace(/^custom_[^:]+:/, "")
-                  .replace("__default__", "");
-                const activeModel = chatModels.find(
-                  (m) => m.id === displayModel || m.id === selectedModel,
-                );
-                const estimatedTokens = lastUsage?.inputTokens
-                  ? lastUsage.inputTokens + lastUsage.outputTokens
-                  : Math.ceil(
-                      messages.reduce((s, m) => s + m.content.length, 0) / 4,
-                    );
-                const contextWindow = activeModel?.contextLength ?? 100000;
-                const pct = Math.min(
-                  100,
-                  Math.round((estimatedTokens / contextWindow) * 100),
-                );
-                const barColor =
-                  pct > 80
-                    ? "bg-red-500"
-                    : pct > 50
-                      ? "bg-amber-500"
-                      : "bg-green-500";
-                return (
-                  <div className="flex items-center gap-2 px-3 py-1 text-[10px] font-mono border-t border-border/40 bg-muted/20 text-muted-foreground/60 select-none">
-                    {displayModel && (
-                      <span className="text-muted-foreground/80 truncate max-w-[120px]">
-                        {displayModel}
-                      </span>
-                    )}
-                    {displayModel && <span className="opacity-30">|</span>}
-                    <span
-                      title={
-                        lastUsage?.inputTokens
-                          ? "实际 tokens"
-                          : "估算 tokens（1 token ≈ 4 字符）"
-                      }
-                    >
-                      {lastUsage?.inputTokens ? "" : "~"}
-                      {estimatedTokens.toLocaleString()}/
-                      {contextWindow >= 1000
-                        ? `${contextWindow / 1000}K`
-                        : contextWindow}
-                    </span>
-                    <div className="flex items-center gap-1">
-                      <div className="w-16 h-1.5 rounded-full bg-muted-foreground/20 overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all ${barColor}`}
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                      <span>{pct}%</span>
-                    </div>
-                    {compressionInfo?.wasCompressed && (
-                      <>
-                        <span className="opacity-30">|</span>
-                        <span
-                          className="text-amber-500/80"
-                          title={`已省略最旧 ${compressionInfo.droppedCount} 条消息`}
-                        >
-                          ⚡ -{compressionInfo.droppedCount}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                );
-              })()}
             <ChatInput
               onSend={handleSend}
               onStop={handleStop}

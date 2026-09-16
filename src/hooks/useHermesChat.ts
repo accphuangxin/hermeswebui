@@ -28,10 +28,10 @@ export function useChatStatus(enabled: boolean) {
   });
 }
 
-export function useChatModels() {
+export function useChatModels(agentId?: string | null, apiServerPort?: number | null, apiServerKey?: string | null) {
   return useQuery({
-    queryKey: chatKeys.models,
-    queryFn: () => chatApi.getModels(),
+    queryKey: [...chatKeys.models, agentId ?? null],
+    queryFn: () => chatApi.getModels(agentId, apiServerPort, apiServerKey),
     staleTime: 0,
     refetchOnWindowFocus: true,
   });

@@ -29,7 +29,7 @@ import {
 import type { HermesAgent } from "@/lib/api/agents";
 import type { UpdateAgentInput } from "@/lib/api/agents";
 import { toast } from "sonner";
-import { useAgentProviders, useUpsertProvider, useDeleteProvider } from "@/hooks/useAgentProviders";
+import { useAgentProviders, useUpsertProvider, useUpdateProvider, useDeleteProvider } from "@/hooks/useAgentProviders";
 import type { AgentProvider, AgentProviderModel } from "@/lib/api/agentProviders";
 
 interface HermesAgentsPageProps {
@@ -90,7 +90,7 @@ export function HermesAgentsPage({
       name: a.name,
       description: a.description,
       model: a.model ?? (a.provider ? `${a.provider}` : undefined),
-      port: a.apiServerPort,
+      port: a.actualPort ?? a.apiServerPort,
       key: a.apiServerKey,
       status: a.status,
       isDefault: a.isDefault || a.name === "default",
@@ -138,7 +138,7 @@ export function HermesAgentsPage({
       await startMutation.mutateAsync(item.rawId);
       toast.success(`${item.name} — ${t("hermes.agents.startSuccess")}`);
     } catch (err) {
-      toast.error(t("hermes.agents.startFail"), { description: String(err) });
+      toast.error(String(err));
     }
   };
 
@@ -158,7 +158,7 @@ export function HermesAgentsPage({
       await restartMutation.mutateAsync(item.rawId);
       toast.success(`${item.name} — ${t("hermes.agents.restartSuccess")}`);
     } catch (err) {
-      toast.error(t("hermes.agents.restartFail"), { description: String(err) });
+      toast.error(String(err));
     }
   };
 
@@ -533,22 +533,27 @@ function AgentCard({
         {item.model && item.port && item.key ? (
           <button
             type="button"
-            onClick={item.status === "running" ? onManageProviders : undefined}
-            title={item.status === "running" ? "管理模型" : "启动后可管理模型"}
+            onClick={(e) => { e.stopPropagation(); onSelect(); if (item.status === "running") onManageProviders(e); }}
+            title={item.status === "running" ? "管理模型" : "切换到此智能体"}
             className={cn(
               "flex items-center gap-1 text-[10px] font-mono rounded px-1.5 py-0.5 transition-colors",
               item.status === "running"
                 ? "text-primary/70 hover:text-primary hover:bg-primary/10 cursor-pointer"
-                : "text-muted-foreground/40 cursor-default",
+                : "text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted cursor-pointer",
             )}
           >
             <Database className="w-2.5 h-2.5 shrink-0" />
             <span className="truncate">{item.model}</span>
           </button>
         ) : item.model ? (
-          <p className="text-[10px] text-muted-foreground/50 font-mono truncate px-1.5">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onSelect(); }}
+            title="切换到此智能体"
+            className="flex items-center gap-1 text-[10px] text-muted-foreground/50 hover:text-muted-foreground font-mono truncate px-1.5 py-0.5 rounded hover:bg-muted cursor-pointer transition-colors"
+          >
             {item.model}
-          </p>
+          </button>
         ) : null}
       </div>
 
@@ -731,16 +736,21 @@ function CreateAgentForm({
             />
           </div>
 
-          <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
-            <div className="text-xs text-muted-foreground uppercase tracking-wide">
+          <div className="grid grid-cols-[100px_1fr] gap-3 items-start">
+            <div className="text-xs text-muted-foreground uppercase tracking-wide pt-2.5">
               API KEY <span className="text-destructive">*</span>
             </div>
-            <Input
-              value={apiServerKey}
-              onChange={(e) => setApiServerKey(e.target.value)}
-              placeholder="my-secret-key"
-              className="h-9 text-sm"
-            />
+            <div className="space-y-1">
+              <Input
+                value={apiServerKey}
+                onChange={(e) => setApiServerKey(e.target.value)}
+                placeholder="my-secret-key-16chars+"
+                className="h-9 text-sm"
+              />
+              {apiServerKey.trim().length > 0 && apiServerKey.trim().length < 16 && (
+                <p className="text-xs text-destructive">API KEY 最少需要 16 位字符</p>
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
@@ -793,7 +803,7 @@ function CreateAgentForm({
           size="sm"
           className="flex-1 h-9"
           onClick={handleSubmit}
-          disabled={isPending || !name.trim() || !apiServerKey.trim()}
+          disabled={isPending || !name.trim() || apiServerKey.trim().length < 16}
         >
           {isPending
             ? t("common.creating", { defaultValue: "创建中..." })
@@ -989,9 +999,14 @@ function EditAgentForm({
             <Input value={apiServerPort} onChange={(e) => setApiServerPort(e.target.value)} placeholder={agent.apiServerPort ? String(agent.apiServerPort) : "8701"} className="h-9 text-sm" />
           </div>
 
-          <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
-            <div className="text-xs text-muted-foreground uppercase tracking-wide">API KEY</div>
-            <Input value={apiServerKey} onChange={(e) => setApiServerKey(e.target.value)} placeholder="my-secret-key" className="h-9 text-sm" />
+          <div className="grid grid-cols-[100px_1fr] gap-3 items-start">
+            <div className="text-xs text-muted-foreground uppercase tracking-wide pt-2.5">API KEY</div>
+            <div className="space-y-1">
+              <Input value={apiServerKey} onChange={(e) => setApiServerKey(e.target.value)} placeholder="my-secret-key-16chars+" className="h-9 text-sm" />
+              {apiServerKey.trim().length > 0 && apiServerKey.trim().length < 16 && (
+                <p className="text-xs text-destructive">API KEY 最少需要 16 位字符</p>
+              )}
+            </div>
           </div>
 
           {/* ENV VARS */}
@@ -1082,7 +1097,7 @@ function EditAgentForm({
         <Button variant="outline" size="sm" className="flex-1 h-9" onClick={onClose} disabled={isPending}>
           {t("common.cancel", { defaultValue: "取消" })}
         </Button>
-        <Button size="sm" className="flex-1 h-9" onClick={handleSubmit} disabled={isPending}>
+        <Button size="sm" className="flex-1 h-9" onClick={handleSubmit} disabled={isPending || (apiServerKey.trim().length > 0 && apiServerKey.trim().length < 16)}>
           {isPending ? t("common.saving", { defaultValue: "保存中..." }) : t("common.save", { defaultValue: "保存" })}
         </Button>
       </div>
@@ -1113,9 +1128,11 @@ function ProviderManagerPanel({
   const key = agent.key;
   const { data: providers = [], isLoading, error, refetch } = useAgentProviders(port, key);
   const upsertMutation = useUpsertProvider(port, key);
+  const updateMutation = useUpdateProvider(port, key);
   const deleteMutation = useDeleteProvider(port, key);
 
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState<string | null>(null);
   const [formName, setFormName] = useState("");
   const [formBaseUrl, setFormBaseUrl] = useState("");
   const [formApiKey, setFormApiKey] = useState("");
@@ -1128,6 +1145,7 @@ function ProviderManagerPanel({
   const resetForm = () => {
     setFormName(""); setFormBaseUrl(""); setFormApiKey(""); setFormModel("");
     setModelRows([{ id: "", context_length: "100000", supports_vision: false }]);
+    setEditingName(null);
   };
 
   const loadProvider = (p: AgentProvider) => {
@@ -1135,6 +1153,7 @@ function ProviderManagerPanel({
     setFormBaseUrl(p.base_url);
     setFormApiKey(p.api_key);
     setFormModel(p.model);
+    setEditingName(p.name);
     const rows = Object.entries(p.models).map(([id, m]) => ({
       id,
       context_length: String(m.context_length),
@@ -1154,13 +1173,24 @@ function ProviderManagerPanel({
         };
       }
     }
-    upsertMutation.mutate(
-      { name: formName.trim(), base_url: formBaseUrl.trim(), api_key: formApiKey.trim(), model: formModel.trim(), models },
-      {
-        onSuccess: () => { toast.success(`Provider "${formName}" 已保存`); resetForm(); },
-        onError: (e) => toast.error("保存失败", { description: String(e) }),
-      },
-    );
+    const input = { name: formName.trim(), base_url: formBaseUrl.trim(), api_key: formApiKey.trim(), model: formModel.trim(), models };
+    if (editingName) {
+      updateMutation.mutate(
+        { name: editingName, input },
+        {
+          onSuccess: () => { toast.success(`Provider "${formName}" 已更新`); resetForm(); },
+          onError: (e) => toast.error("更新失败", { description: String(e) }),
+        },
+      );
+    } else {
+      upsertMutation.mutate(
+        input,
+        {
+          onSuccess: () => { toast.success(`Provider "${formName}" 已创建`); resetForm(); },
+          onError: (e) => toast.error("创建失败", { description: String(e) }),
+        },
+      );
+    }
   };
 
   const handleDelete = (name: string) => setDeleteTarget(name);
@@ -1338,9 +1368,9 @@ function ProviderManagerPanel({
               size="sm"
               className="h-7 text-xs"
               onClick={handleSubmit}
-              disabled={upsertMutation.isPending || !formName.trim() || !formBaseUrl.trim() || !formApiKey.trim() || !formModel.trim()}
+              disabled={(upsertMutation.isPending || updateMutation.isPending) || !formName.trim() || !formBaseUrl.trim() || !formApiKey.trim() || !formModel.trim()}
             >
-              {upsertMutation.isPending ? "保存中..." : t("common.save", { defaultValue: "保存" })}
+              {(upsertMutation.isPending || updateMutation.isPending) ? "保存中..." : editingName ? t("common.save", { defaultValue: "更新" }) : t("common.save", { defaultValue: "创建" })}
             </Button>
           </div>
         </div>

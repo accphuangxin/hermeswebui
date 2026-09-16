@@ -70,6 +70,7 @@ interface StreamOptions {
 }
 
 const MIN_WAITING_MS = 600;
+const STREAM_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 export function useChatStream() {
   // useReducer gives a stable dispatch that React always processes synchronously
@@ -139,9 +140,17 @@ export function useChatStream() {
           const safeResolve = () => {
             if (!resolved) {
               resolved = true;
+              clearTimeout(timeoutId);
               resolve();
             }
           };
+
+          const timeoutId = setTimeout(() => {
+            if (!resolved) {
+              onError("请求超时（5分钟无响应）");
+              safeResolve();
+            }
+          }, STREAM_TIMEOUT_MS);
           forceResolveRef.current = safeResolve;
           const onEvent = new Channel<RunStreamEvent>();
 

@@ -63,7 +63,7 @@ interface UnifiedSkillsPanelProps {
   onOpenDiscovery: () => void;
   currentApp: AppId;
   agentId: string;
-  onSelectAgent?: (agentId: string) => void;
+  onSelectAgent?: (agentId: string, port?: number, key?: string) => void;
 }
 
 export interface UnifiedSkillsPanelHandle {

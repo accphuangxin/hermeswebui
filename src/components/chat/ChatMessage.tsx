@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import Markdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { invoke } from "@tauri-apps/api/core";
+import { homeDir } from "@tauri-apps/api/path";
 import { toast } from "sonner";
 import {
   Copy,
@@ -99,6 +100,25 @@ function preprocessMediaLinks(content: string): string {
   return result;
 }
 
+let _cachedHomeDir: string | null = null;
+async function getCachedHomeDir(): Promise<string> {
+  if (_cachedHomeDir) return _cachedHomeDir;
+  _cachedHomeDir = await homeDir();
+  return _cachedHomeDir;
+}
+
+const HOME_SUBDIRS = ["Documents", "Downloads", "Desktop", "Pictures", "Movies", "Music", "Library"];
+
+function needsHomeExpansion(path: string): boolean {
+  if (path.startsWith("~/")) return true;
+  return HOME_SUBDIRS.some((d) => path.startsWith(`/${d}/`) || path === `/${d}`);
+}
+
+function expandHomePath(path: string, home: string): string {
+  if (path.startsWith("~/")) return home.replace(/\/$/, "") + path.slice(1);
+  return home.replace(/\/$/, "") + path;
+}
+
 function isLocalPath(src: string): boolean {
   return (
     src.startsWith("MEDIA:") || src.startsWith("file://") || src.startsWith("/")
@@ -113,7 +133,12 @@ function extractLocalPath(src: string): string {
 }
 
 function FilePathButton({ path: rawPath, label }: { path: string; label: string }) {
-  const path = rawPath.includes("%") ? decodeURIComponent(rawPath) : rawPath;
+  const [path, setPath] = useState(() => rawPath.includes("%") ? decodeURIComponent(rawPath) : rawPath);
+  useEffect(() => {
+    const decoded = rawPath.includes("%") ? decodeURIComponent(rawPath) : rawPath;
+    if (!needsHomeExpansion(decoded)) { setPath(decoded); return; }
+    getCachedHomeDir().then((home) => setPath(expandHomePath(decoded, home)));
+  }, [rawPath]);
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const [copied, setCopied] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -335,16 +360,18 @@ function MarkdownPre({ children }: { children?: React.ReactNode }) {
 function MarkdownCode({ children, className }: { children?: React.ReactNode; className?: string }) {
   if (!className) {
     const text = String(children);
-    const mdLink = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(text);
+    // Match both [label](path) and ~[label](path) inside inline code
+    const mdLink = /^~?\[([^\]]+)\]\(([^)]+)\)$/.exec(text);
     if (mdLink) {
       const [, label, href] = mdLink;
       const localPath = extractLocalPath(href);
-      if (href.startsWith("/") || href.startsWith("file://")) {
+      if (needsHomeExpansion(localPath) || href.startsWith("/") || href.startsWith("file://")) {
         return <FilePathButton path={localPath} label={label} />;
       }
     }
-    if (/^\/(?:[^\s]+\/)+[^\s]+\.\w+$/.test(text)) {
-      return <FilePathButton path={text} label={text} />;
+    if (/^~?\/(?:[^\s]+\/)+[^\s]+\.\w+$/.test(text)) {
+      const localPath = text.startsWith("~") ? text.slice(1) : text;
+      return <FilePathButton path={localPath} label={localPath.split("/").pop() ?? localPath} />;
     }
   }
   return className ? (
@@ -360,7 +387,7 @@ function MarkdownA({ href, children }: { href?: string; children?: React.ReactNo
   if (href && /MEDIA:[^\s"'<>]+\.html?$/i.test(href)) {
     return <LocalHtml path={extractLocalPath(href)} />;
   }
-  if (href && (href.startsWith("/") || href.startsWith("file://"))) {
+  if (href && (href.startsWith("/") || href.startsWith("file://") || href.startsWith("~/") || needsHomeExpansion(href))) {
     const localPath = extractLocalPath(href);
     return <FilePathButton path={localPath} label={String(children)} />;
   }

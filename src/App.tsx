@@ -30,7 +30,6 @@ import {
   MessageSquare,
   Sparkles,
   Users,
-  Bot,
   RefreshCw,
   ChevronDown,
   BookOpen,
@@ -220,7 +219,6 @@ function App() {
 
   // Hermes chat status & model selector (hoisted to title bar)
   const { data: hermesChatStatus } = useChatStatus(true);
-  const { data: hermesChatModels = [] } = useChatModels();
   const { data: hermesAgents = [] } = useHermesAgents();
   const [hermesSelectedModel, setHermesSelectedModel] = useState("");
   const [hermesSelectedAgentId, setHermesSelectedAgentId] =
@@ -246,7 +244,27 @@ function App() {
   const [hermesSelectedAgentKey, setHermesSelectedAgentKey] = useState<
     string | null
   >(null);
+  const { data: hermesChatModels = [] } = useChatModels(hermesSelectedAgentId, hermesSelectedAgentPort, hermesSelectedAgentKey);
   const prevApiHostRef = useRef<string>("");
+
+  // Auto-activate the default agent's port/key once agents load
+  const defaultAgentActivatedRef = useRef(false);
+  useEffect(() => {
+    if (defaultAgentActivatedRef.current) return;
+    if (hermesAgents.length === 0) return;
+    defaultAgentActivatedRef.current = true;
+    const defaultAgent = hermesAgents.find((a) => a.isDefault || a.name === "default") ?? hermesAgents[0];
+    if (!defaultAgent) return;
+    const port = defaultAgent.actualPort ?? defaultAgent.apiServerPort ?? null;
+    const key = defaultAgent.apiServerKey ?? null;
+    setHermesSelectedAgentPort(port);
+    setHermesSelectedAgentKey(key);
+    void invoke("setActiveHermesAgent", {
+      agentId: hermesSelectedAgentId,
+      apiServerPort: port,
+      apiServerKey: key,
+    });
+  }, [hermesAgents]);
   useEffect(() => {
     const host = hermesChatStatus?.host ?? "127.0.0.1";
     const hostChanged =
@@ -1162,12 +1180,14 @@ function App() {
               onOpenDiscovery={() => setCurrentView("skills")}
               currentApp="hermes"
               agentId={hermesSelectedAgentId}
-              onSelectAgent={(id) => {
+              onSelectAgent={(id, port, key) => {
                 setHermesSelectedAgentId(id);
+                setHermesSelectedAgentPort(port ?? null);
+                setHermesSelectedAgentKey(key ?? null);
                 void invoke("setActiveHermesAgent", {
                   agentId: id,
-                  apiServerPort: null,
-                  apiServerKey: null,
+                  apiServerPort: port ?? null,
+                  apiServerKey: key ?? null,
                 });
                 void queryClient.invalidateQueries({
                   queryKey: ["skills", "installed", id],
@@ -1677,15 +1697,10 @@ function App() {
           >
             {currentView === "hermesChat" &&
               (() => {
-                const agent = hermesSelectedAgentId
-                  ? hermesAgents.find((a) => a.name === hermesSelectedAgentId)
-                  : null;
-                const name = agent ? agent.name : null;
-                const description = agent?.description;
                 const online = hermesChatStatus?.online ?? false;
                 return (
                   <button
-                    className="pointer-events-auto flex items-center gap-2 px-3 py-1 rounded-full bg-muted/60 hover:bg-muted transition-colors border border-border max-w-sm"
+                    className="pointer-events-auto flex items-center gap-2 px-3 py-1 rounded-full bg-muted/60 hover:bg-muted transition-colors border border-border"
                     style={{ WebkitAppRegion: "no-drag" } as any}
                     onClick={() => setCurrentView("hermesAgents")}
                   >
@@ -1706,22 +1721,6 @@ function App() {
                         ? t("hermes.chat.connected")
                         : t("hermes.chat.disconnected")}
                     </span>
-                    {name && name !== "default" && (
-                      <>
-                        <span className="text-muted-foreground/40 text-xs shrink-0">
-                          |
-                        </span>
-                        <Bot className="w-3 h-3 text-primary shrink-0" />
-                        <span className="text-xs font-medium text-primary shrink-0">
-                          {name}
-                        </span>
-                        {description && (
-                          <span className="text-[10px] text-muted-foreground truncate">
-                            {description}
-                          </span>
-                        )}
-                      </>
-                    )}
                   </button>
                 );
               })()}
@@ -1793,7 +1792,7 @@ function App() {
                         hermesChatModels.length === 0
                       }
                     >
-                      <SelectTrigger className="h-7 w-[240px] text-xs gap-1">
+                      <SelectTrigger className="h-7 w-[300px] text-xs gap-1">
                         <span className="text-muted-foreground shrink-0">
                           模型
                         </span>
@@ -1818,12 +1817,25 @@ function App() {
                           <SelectItem
                             key={`${m.provider}/${m.id}`}
                             value={`custom_${m.provider}:${m.id}`}
+                            textValue={`${m.id} (${m.provider})`}
                             className="text-xs"
                           >
                             <span>{m.id}</span>
                             <span className="ml-2 text-muted-foreground">
                               ({m.provider})
                             </span>
+                            {m.contextLength != null && (
+                              <span className="ml-1.5 text-[10px] text-muted-foreground">
+                                {m.contextLength >= 1000
+                                  ? `${Math.round(m.contextLength / 1000)}K`
+                                  : String(m.contextLength)}
+                              </span>
+                            )}
+                            {m.supportsVision && (
+                              <span className="ml-1 text-[10px] text-muted-foreground">
+                                视觉
+                              </span>
+                            )}
                             {m.isDefault && (
                               <span className="ml-1.5 text-[10px] text-primary font-medium">
                                 ●
@@ -1850,7 +1862,7 @@ function App() {
                               (a) => a.name === val,
                             );
                             const id = val === "__default__" ? "default" : val;
-                            const port = agent?.apiServerPort;
+                            const port = agent?.actualPort ?? agent?.apiServerPort;
                             const key = agent?.apiServerKey;
                             setHermesSelectedAgentId(id);
                             setHermesSelectedAgentPort(port ?? null);

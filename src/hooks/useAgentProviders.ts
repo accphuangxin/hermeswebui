@@ -26,6 +26,19 @@ export function useUpsertProvider(port: number | undefined, key: string | undefi
   });
 }
 
+export function useUpdateProvider(port: number | undefined, key: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ name, input }: { name: string; input: Partial<UpsertProviderInput> }) =>
+      agentProvidersApi.update(port!, key!, name, input),
+    onSuccess: () => {
+      if (port && key) {
+        void queryClient.invalidateQueries({ queryKey: providerKeys(port, key) });
+      }
+    },
+  });
+}
+
 export function useDeleteProvider(port: number | undefined, key: string | undefined) {
   const queryClient = useQueryClient();
   return useMutation({

@@ -519,13 +519,14 @@ pub async fn getHermesChatStatus() -> Result<HermesChatStatus, String> {
     })
 }
 
-/// Fetch the model list from a provider's /v1/models endpoint.
-/// Returns (id, owned_by) pairs on success, empty vec on any failure (non-fatal).
+/// Fetch the model list from /v1/providers.
+/// Each provider entry has a `models` map: { model_id: { context_length, supports_vision } }.
+/// Returns (id, provider_name, context_length, supports_vision) tuples.
 async fn fetch_remote_models(
     base_url: &str,
     api_key: &str,
 ) -> Vec<(String, String, Option<u64>, bool)> {
-    let url = format!("{}/v1/models", base_url.trim_end_matches('/'));
+    let url = format!("{}/v1/providers", base_url.trim_end_matches('/'));
     let client = match reqwest::Client::builder()
         .timeout(Duration::from_secs(15))
         .no_proxy()
@@ -550,19 +551,28 @@ async fn fetch_remote_models(
         .and_then(|d| d.as_array())
         .map(|arr| {
             arr.iter()
-                .filter_map(|m| {
-                    let id = m.get("id").and_then(|v| v.as_str())?.to_string();
-                    let owned_by = m
-                        .get("owned_by")
+                .flat_map(|p| {
+                    let provider_name = p
+                        .get("name")
                         .and_then(|v| v.as_str())
                         .unwrap_or("api_server")
                         .to_string();
-                    let context_window = m.get("context_window").and_then(|v| v.as_u64());
-                    let supports_vision = m
-                        .get("supports_vision")
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(false);
-                    Some((id, owned_by, context_window, supports_vision))
+                    let models_obj = p.get("models").and_then(|v| v.as_object());
+                    match models_obj {
+                        Some(models) => models
+                            .iter()
+                            .map(|(model_id, info)| {
+                                let context_length =
+                                    info.get("context_length").and_then(|v| v.as_u64());
+                                let supports_vision = info
+                                    .get("supports_vision")
+                                    .and_then(|v| v.as_bool())
+                                    .unwrap_or(false);
+                                (model_id.clone(), provider_name.clone(), context_length, supports_vision)
+                            })
+                            .collect::<Vec<_>>(),
+                        None => vec![],
+                    }
                 })
                 .collect()
         })
@@ -570,9 +580,16 @@ async fn fetch_remote_models(
 }
 
 #[tauri::command]
-pub async fn getHermesChatModels() -> Result<Vec<HermesChatModel>, String> {
+pub async fn getHermesChatModels(
+    api_server_port: Option<u16>,
+    api_server_key: Option<String>,
+) -> Result<Vec<HermesChatModel>, String> {
     let api_cfg = read_api_server_config();
-    let api_base = format!("http://{}:{}", api_cfg.host, api_cfg.port);
+    let port = api_server_port.unwrap_or(api_cfg.port);
+    let key = api_server_key
+        .filter(|s| !s.is_empty())
+        .unwrap_or(api_cfg.key);
+    let api_base = format!("http://{}:{}", api_cfg.host, port);
 
     let model_config = hermes_config::get_model_config().ok().flatten();
     let default_model = model_config
@@ -584,7 +601,7 @@ pub async fn getHermesChatModels() -> Result<Vec<HermesChatModel>, String> {
         .and_then(|m| m.provider.as_deref())
         .unwrap_or("");
 
-    let remote_models = fetch_remote_models(&api_base, &api_cfg.key).await;
+    let remote_models = fetch_remote_models(&api_base, &key).await;
 
     let mut models: Vec<HermesChatModel> = remote_models
         .into_iter()
@@ -711,7 +728,7 @@ pub struct HermesAgent {
     #[serde(default, alias = "api_key")]
     pub api_server_key: Option<String>,
     /// actual_port: the port the agent is actually listening on
-    #[serde(default)]
+    #[serde(default, alias = "actual_port")]
     pub actual_port: Option<u16>,
     #[serde(default)]
     pub status: Option<String>,
@@ -899,6 +916,122 @@ pub async fn deleteHermesAgent(agent_id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn listAgentProviders(
+    api_server_port: u16,
+    api_server_key: String,
+) -> Result<serde_json::Value, String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .no_proxy()
+        .build()
+        .map_err(|e| format!("failed to build client: {e}"))?;
+    let host = read_api_server_config().host;
+    let url = format!("http://{host}:{api_server_port}/v1/providers");
+    let resp = client
+        .get(&url)
+        .bearer_auth(&api_server_key)
+        .send()
+        .await
+        .map_err(|e| format!("request failed: {e}"))?;
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        return Err(format!("HTTP {status}: {text}"));
+    }
+    resp.json::<serde_json::Value>()
+        .await
+        .map_err(|e| format!("parse failed: {e}"))
+}
+
+#[tauri::command]
+pub async fn upsertAgentProvider(
+    api_server_port: u16,
+    api_server_key: String,
+    provider: serde_json::Value,
+) -> Result<(), String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .no_proxy()
+        .build()
+        .map_err(|e| format!("failed to build client: {e}"))?;
+    let host = read_api_server_config().host;
+    let url = format!("http://{host}:{api_server_port}/v1/providers");
+    let resp = client
+        .post(&url)
+        .bearer_auth(&api_server_key)
+        .json(&provider)
+        .send()
+        .await
+        .map_err(|e| format!("request failed: {e}"))?;
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        return Err(format!("HTTP {status}: {text}"));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn updateAgentProvider(
+    api_server_port: u16,
+    api_server_key: String,
+    name: String,
+    provider: serde_json::Value,
+) -> Result<(), String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .no_proxy()
+        .build()
+        .map_err(|e| format!("failed to build client: {e}"))?;
+    let host = read_api_server_config().host;
+    let encoded = name.replace('/', "%2F").replace(' ', "%20");
+    let url = format!("http://{host}:{api_server_port}/v1/providers/{encoded}");
+    let resp = client
+        .patch(&url)
+        .bearer_auth(&api_server_key)
+        .json(&provider)
+        .send()
+        .await
+        .map_err(|e| format!("request failed: {e}"))?;
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        return Err(format!("HTTP {status}: {text}"));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn deleteAgentProvider(
+    api_server_port: u16,
+    api_server_key: String,
+    name: String,
+) -> Result<(), String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .no_proxy()
+        .build()
+        .map_err(|e| format!("failed to build client: {e}"))?;
+    let host = read_api_server_config().host;
+    let url = format!(
+        "http://{host}:{api_server_port}/v1/providers/{}",
+        name.replace('/', "%2F").replace(' ', "%20")
+    );
+    let resp = client
+        .delete(&url)
+        .bearer_auth(&api_server_key)
+        .send()
+        .await
+        .map_err(|e| format!("request failed: {e}"))?;
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        return Err(format!("HTTP {status}: {text}"));
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn startHermesAgent(agent_id: String) -> Result<(), String> {
     agent_lifecycle_action(&agent_id, "start").await
 }
@@ -933,6 +1066,13 @@ async fn agent_lifecycle_action(agent_id: &str, action: &str) -> Result<(), Stri
         let status = resp.status();
         let text = resp.text().await.unwrap_or_default();
         return Err(format!("HTTP {status}: {text}"));
+    }
+    // start/restart 时检查响应体：HTTP 200 但 agent 未能启动会带 startError
+    if action == "start" || action == "restart" {
+        let body: serde_json::Value = resp.json().await.unwrap_or_default();
+        if let Some(err_msg) = body.get("startError").and_then(|v| v.as_str()).filter(|s| !s.is_empty()) {
+            return Err(err_msg.to_string());
+        }
     }
     Ok(())
 }

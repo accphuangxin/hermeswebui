@@ -1776,7 +1776,7 @@
       "newSession": "新建聊天",
       "send": "发送",
       "stop": "停止",
-      "placeholder": "输入消息...",
+      "placeholder": "输入消息… 用 @ 插入技能，/ 执行指令（清除/导出）",
       "offline": "Hermes 未运行。请先执行 `hermes dashboard` 启动。",
       "noSessions": "暂无聊天记录",
       "deleteSession": "删除此会话",

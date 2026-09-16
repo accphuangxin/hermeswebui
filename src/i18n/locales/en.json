@@ -1776,7 +1776,7 @@
       "newSession": "New Chat",
       "send": "Send",
       "stop": "Stop",
-      "placeholder": "Type a message...",
+      "placeholder": "Type a message… @ for skills, / for commands (clear/export)",
       "offline": "Hermes is offline. Start it with `hermes dashboard`.",
       "noSessions": "No chat sessions yet",
       "deleteSession": "Delete this session",

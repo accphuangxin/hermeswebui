@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, Trash2, MessageSquare, Pencil, Download, Sparkles, BarChart2, ChevronDown } from "lucide-react";
+import { Plus, Trash2, MessageSquare, Pencil, Sparkles, BarChart2, ChevronDown, Loader2 } from "lucide-react";
 import type { ChatSession } from "@/types";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -22,10 +22,11 @@ interface ChatSidebarProps {
   onNewSession?: () => void;
   onDeleteSession: (id: string) => void;
   onRenameSession: (id: string, title: string) => void;
-  onExportSession?: (id: string) => void;
+  onExportSession?: (id: string) => void; // kept for API compatibility
   onGenerateSummary?: (id: string) => void;
   onDailyReport?: () => void;
   isLocked?: boolean;
+  processingSessionIds?: Set<string>;
 }
 
 function getDateGroupLabel(ts: number, t: ReturnType<typeof useTranslation>["t"]): string {
@@ -56,10 +57,10 @@ export function ChatSidebar({
   onNewSession,
   onDeleteSession,
   onRenameSession,
-  onExportSession,
   onGenerateSummary,
   onDailyReport,
   isLocked,
+  processingSessionIds,
 }: ChatSidebarProps) {
   const { t } = useTranslation();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -80,45 +81,54 @@ export function ChatSidebar({
     return () => document.removeEventListener("mousedown", handle);
   }, [contextMenu]);
 
-  const startRename = (session: ChatSession) => {
+  const startRename = useCallback((session: ChatSession) => {
     setEditingId(session.id);
     setEditValue(session.title || "");
     setTimeout(() => inputRef.current?.select(), 0);
-  };
+  }, []);
 
-  const commitRename = () => {
+  const commitRename = useCallback(() => {
     if (editingId && editValue.trim()) {
       onRenameSession(editingId, editValue.trim());
     }
     setEditingId(null);
-  };
+  }, [editingId, editValue, onRenameSession]);
 
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set());
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const threeDaysAgo = new Date(today.getTime() - 3 * 86400000);
+    const dateLabel = threeDaysAgo.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
+    return new Set([`${dateLabel} 以前`]);
+  });
 
-  const toggleGroup = (label: string) => {
+  const toggleGroup = useCallback((label: string) => {
     setCollapsedGroups(prev => {
       const next = new Set(prev);
       if (next.has(label)) next.delete(label);
       else next.add(label);
       return next;
     });
-  };
+  }, []);
 
   // Build grouped session list
   type GroupedItem =
     | { type: "header"; label: string }
     | { type: "session"; session: ChatSession };
 
-  const groupedItems: GroupedItem[] = [];
-  let lastGroup = "";
-  for (const s of sessions) {
-    const label = getDateGroupLabel(s.createdAt, t);
-    if (label !== lastGroup) {
-      groupedItems.push({ type: "header", label });
-      lastGroup = label;
+  const groupedItems = useMemo<GroupedItem[]>(() => {
+    const items: GroupedItem[] = [];
+    let lastGroup = "";
+    for (const s of sessions) {
+      const label = getDateGroupLabel(s.createdAt, t);
+      if (label !== lastGroup) {
+        items.push({ type: "header", label });
+        lastGroup = label;
+      }
+      items.push({ type: "session", session: s });
     }
-    groupedItems.push({ type: "session", session: s });
-  }
+    return items;
+  }, [sessions, t]);
 
   return (
     <div className="flex flex-col h-full w-56 border-r bg-muted/30">
@@ -190,12 +200,16 @@ export function ChatSidebar({
                 }}
                 className={cn(
                   "group w-full flex flex-col rounded-md px-2 py-1.5 text-sm text-left hover:bg-muted transition-colors select-none",
-                  activeSessionId === s.id && "bg-muted font-medium",
+                  activeSessionId === s.id && "bg-primary/10 font-semibold text-primary",
                   isLocked && s.id !== activeSessionId && "opacity-40 cursor-not-allowed",
                 )}
               >
                 <div className="flex items-center gap-2 w-full">
-                  <MessageSquare className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
+                  {processingSessionIds?.has(s.id) ? (
+                    <Loader2 className="w-3.5 h-3.5 flex-shrink-0 text-primary animate-spin" />
+                  ) : (
+                    <MessageSquare className={cn("w-3.5 h-3.5 flex-shrink-0", activeSessionId === s.id ? "text-primary" : "text-muted-foreground")} />
+                  )}
                   {editingId === s.id ? (
                     <input
                       ref={inputRef}
@@ -214,18 +228,6 @@ export function ChatSidebar({
                     <span className="flex-1 truncate">
                       {s.title || t("hermes.chat.untitled")}
                     </span>
-                  )}
-                  {editingId !== s.id && onExportSession && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onExportSession(s.id);
-                      }}
-                      className="p-0.5 hover:text-foreground text-muted-foreground/40"
-                      title={t("hermes.chat.exportSession", { defaultValue: "导出为 Markdown" })}
-                    >
-                      <Download className="w-3 h-3" />
-                    </button>
                   )}
                 </div>
               </button>

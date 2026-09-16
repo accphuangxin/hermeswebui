@@ -1776,7 +1776,7 @@
       "newSession": "新規チャット",
       "send": "送信",
       "stop": "停止",
-      "placeholder": "メッセージを入力...",
+      "placeholder": "メッセージを入力… @ でスキル挿入、/ でコマンド実行（クリア/エクスポート）",
       "offline": "Hermes はオフラインです。`hermes dashboard` で起動してください。",
       "noSessions": "チャットセッションがありません",
       "deleteSession": "このセッションを削除",
