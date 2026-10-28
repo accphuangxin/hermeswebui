@@ -167,6 +167,12 @@ export interface ProviderMeta {
     | "gemini_native";
   // 通用认证绑定
   authBinding?: AuthBinding;
+  // 自定义 User-Agent（仅本地路由生效，会替换转发到上游的 User-Agent）
+  customUserAgent?: string;
+  // 本地代理请求覆盖（仅本地路由生效，在格式转换之后合并）
+  localProxyRequestOverrides?: LocalProxyRequestOverrides;
+  // 用户在「获取模型列表」弹窗里勾选的模型集合，作为「实际请求模型」下拉框的候选
+  availableModels?: string[];
   // Claude 认证字段名
   apiKeyField?: ClaudeApiKeyField;
   // 是否将 base_url 视为完整 API 端点（代理直接使用此 URL，不拼接路径）
@@ -201,6 +207,17 @@ export type ClaudeApiFormat =
 // Claude 认证字段类型
 export type ClaudeApiKeyField = "ANTHROPIC_AUTH_TOKEN" | "ANTHROPIC_API_KEY";
 
+/**
+ * 本地代理请求覆盖：在格式转换之后、发往上游之前合并进请求。
+ * 仅在本地路由模式下生效。
+ */
+export interface LocalProxyRequestOverrides {
+  /** 需要覆盖 / 追加的请求头 */
+  headers?: Record<string, string>;
+  /** 需要覆盖 / 追加的请求体字段 */
+  body?: Record<string, unknown>;
+}
+
 // 主页面显示的应用配置
 export interface VisibleApps {
   claude: boolean;
@@ -220,6 +237,22 @@ export interface WebDavSyncStatus {
   lastRemoteEtag?: string | null;
   lastLocalManifestHash?: string | null;
   lastRemoteManifestHash?: string | null;
+}
+
+// 语音输入（语音转文字）设置
+// 走后端 OpenAI 兼容的 /v1/audio/transcriptions，Key 只保存在后端
+export interface VoiceInputSettings {
+  enabled?: boolean;
+  // OpenAI 兼容的 API 根地址（会自动补 /v1/audio/transcriptions）
+  baseUrl?: string;
+  // 转写模型名
+  model?: string;
+  // 识别语言（zh / en ...）；不设置表示自动识别
+  language?: string;
+  // 仅用于「保存」时提交新 Key；读取时由后端清空
+  apiKey?: string;
+  // 后端派生字段：是否已保存过 Key
+  hasApiKey?: boolean;
 }
 
 // WebDAV 同步配置
@@ -337,6 +370,9 @@ export interface Settings {
   // Windows: "cmd" | "powershell" | "wt"
   // Linux: "gnome-terminal" | "konsole" | "xfce4-terminal" | "alacritty" | "kitty" | "ghostty"
   preferredTerminal?: string;
+
+  // ===== 语音输入（语音转文字）=====
+  voiceInput?: VoiceInputSettings;
 }
 
 export interface SessionMeta {

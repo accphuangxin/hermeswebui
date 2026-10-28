@@ -201,7 +201,7 @@ fn truncate_body(body: String) -> String {
 ///
 /// 依赖 [`KNOWN_COMPAT_SUFFIXES`] 按长度降序排列，确保最长前缀优先命中
 /// （否则 `/anthropic` 会提前匹配掉 `/api/anthropic` 的场景）。
-fn strip_compat_suffix(base_url: &str) -> Option<&str> {
+pub(crate) fn strip_compat_suffix(base_url: &str) -> Option<&str> {
     for suffix in KNOWN_COMPAT_SUFFIXES {
         if base_url.ends_with(*suffix) {
             return Some(&base_url[..base_url.len() - suffix.len()]);

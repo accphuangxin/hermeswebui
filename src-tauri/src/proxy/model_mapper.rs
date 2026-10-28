@@ -10,7 +10,22 @@ pub struct ModelMapping {
     pub haiku_model: Option<String>,
     pub sonnet_model: Option<String>,
     pub opus_model: Option<String>,
+    pub fable_model: Option<String>,
+    pub subagent_model: Option<String>,
     pub default_model: Option<String>,
+}
+
+/// 去掉模型名末尾的 `[1M]` 声明后缀。
+///
+/// `[1M]` 是 Claude Code 的上下文能力声明，只对客户端有意义，
+/// 不能透传给上游，否则上游会因模型名不存在而报错。
+fn strip_one_m_marker(model: &str) -> String {
+    let trimmed = model.trim_end();
+    if trimmed.to_lowercase().ends_with("[1m]") {
+        trimmed[..trimmed.len() - 4].trim_end().to_string()
+    } else {
+        model.to_string()
+    }
 }
 
 impl ModelMapping {
@@ -22,23 +37,33 @@ impl ModelMapping {
             haiku_model: env
                 .and_then(|e| e.get("ANTHROPIC_DEFAULT_HAIKU_MODEL"))
                 .and_then(|v| v.as_str())
-                .filter(|s| !s.is_empty())
-                .map(String::from),
+                .map(strip_one_m_marker)
+                .filter(|s| !s.is_empty()),
             sonnet_model: env
                 .and_then(|e| e.get("ANTHROPIC_DEFAULT_SONNET_MODEL"))
                 .and_then(|v| v.as_str())
-                .filter(|s| !s.is_empty())
-                .map(String::from),
+                .map(strip_one_m_marker)
+                .filter(|s| !s.is_empty()),
             opus_model: env
                 .and_then(|e| e.get("ANTHROPIC_DEFAULT_OPUS_MODEL"))
                 .and_then(|v| v.as_str())
-                .filter(|s| !s.is_empty())
-                .map(String::from),
+                .map(strip_one_m_marker)
+                .filter(|s| !s.is_empty()),
+            fable_model: env
+                .and_then(|e| e.get("ANTHROPIC_DEFAULT_FABLE_MODEL"))
+                .and_then(|v| v.as_str())
+                .map(strip_one_m_marker)
+                .filter(|s| !s.is_empty()),
+            subagent_model: env
+                .and_then(|e| e.get("CLAUDE_CODE_SUBAGENT_MODEL"))
+                .and_then(|v| v.as_str())
+                .map(strip_one_m_marker)
+                .filter(|s| !s.is_empty()),
             default_model: env
                 .and_then(|e| e.get("ANTHROPIC_MODEL"))
                 .and_then(|v| v.as_str())
-                .filter(|s| !s.is_empty())
-                .map(String::from),
+                .map(strip_one_m_marker)
+                .filter(|s| !s.is_empty()),
         }
     }
 
@@ -47,12 +72,19 @@ impl ModelMapping {
         self.haiku_model.is_some()
             || self.sonnet_model.is_some()
             || self.opus_model.is_some()
+            || self.fable_model.is_some()
+            || self.subagent_model.is_some()
             || self.default_model.is_some()
     }
 
     /// 根据原始模型名称获取映射后的模型
+    ///
+    /// 优先级：Haiku / Opus / Sonnet / Fable 按角色匹配 → Subagent → 默认兜底模型。
+    /// Fable 未单独配置时回退到 Opus 映射。
     pub fn map_model(&self, original_model: &str) -> String {
-        let model_lower = original_model.to_lowercase();
+        // 客户端可能带 `[1M]` 声明，匹配与透传前都先去掉
+        let base_model = strip_one_m_marker(original_model);
+        let model_lower = base_model.to_lowercase();
 
         // 1. 按模型类型匹配
         if model_lower.contains("haiku") {
@@ -70,18 +102,32 @@ impl ModelMapping {
                 return m.clone();
             }
         }
+        if model_lower.contains("fable") {
+            if let Some(m) = self.fable_model.as_ref().or(self.opus_model.as_ref()) {
+                return m.clone();
+            }
+        }
 
-        // 2. 默认模型
+        // 2. 子代理模型
+        if let Some(ref m) = self.subagent_model {
+            if base_model == *m {
+                return m.clone();
+            }
+        }
+
+        // 3. 默认模型
         if let Some(ref m) = self.default_model {
             return m.clone();
         }
 
-        // 3. 无映射，保持原样
-        original_model.to_string()
+        // 4. 无映射，保持原样（已去掉 1M 声明）
+        base_model
     }
 }
 
 /// 对请求体应用模型映射
+///
+/// 无论是否配置映射，都会去掉模型名里的 `[1M]` 声明（该后缀只对客户端有意义）。
 ///
 /// 返回 (映射后的请求体, 原始模型名, 映射后模型名)
 pub fn apply_model_mapping(
@@ -89,27 +135,25 @@ pub fn apply_model_mapping(
     provider: &Provider,
 ) -> (Value, Option<String>, Option<String>) {
     let mapping = ModelMapping::from_provider(provider);
-
-    // 如果没有配置映射，直接返回
-    if !mapping.has_mapping() {
-        let original = body.get("model").and_then(|m| m.as_str()).map(String::from);
-        return (body, original, None);
-    }
-
-    // 提取原始模型名
     let original_model = body.get("model").and_then(|m| m.as_str()).map(String::from);
 
-    if let Some(ref original) = original_model {
-        let mapped = mapping.map_model(original);
+    let Some(original) = original_model else {
+        return (body, None, None);
+    };
 
-        if mapped != *original {
-            log::debug!("[ModelMapper] 模型映射: {original} → {mapped}");
-            body["model"] = serde_json::json!(mapped);
-            return (body, Some(original.clone()), Some(mapped));
-        }
+    let mapped = if mapping.has_mapping() {
+        mapping.map_model(&original)
+    } else {
+        strip_one_m_marker(&original)
+    };
+
+    if mapped != original {
+        log::debug!("[ModelMapper] 模型映射: {original} → {mapped}");
+        body["model"] = serde_json::json!(mapped);
+        return (body, Some(original), Some(mapped));
     }
 
-    (body, original_model, None)
+    (body, Some(original), None)
 }
 
 #[cfg(test)]
@@ -250,5 +294,68 @@ mod tests {
         let (result, _, mapped) = apply_model_mapping(body, &provider);
         assert_eq!(result["model"], "sonnet-mapped");
         assert_eq!(mapped, Some("sonnet-mapped".to_string()));
+    }
+
+    #[test]
+    fn test_one_m_marker_stripped_without_mapping() {
+        let provider = create_provider_without_mapping();
+        let body = json!({"model": "deepseek-chat [1M]"});
+        let (result, _, mapped) = apply_model_mapping(body, &provider);
+        assert_eq!(result["model"], "deepseek-chat");
+        assert_eq!(mapped, Some("deepseek-chat".to_string()));
+    }
+
+    #[test]
+    fn test_one_m_marker_stripped_in_mapped_value() {
+        let provider = Provider {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            settings_config: json!({
+                "env": { "ANTHROPIC_DEFAULT_SONNET_MODEL": "kimi-k3 [1M]" }
+            }),
+            website_url: None,
+            category: None,
+            created_at: None,
+            sort_index: None,
+            notes: None,
+            meta: None,
+            icon: None,
+            icon_color: None,
+            in_failover_queue: false,
+        };
+        let body = json!({"model": "claude-sonnet-4-6"});
+        let (result, _, _) = apply_model_mapping(body, &provider);
+        assert_eq!(result["model"], "kimi-k3");
+    }
+
+    #[test]
+    fn test_fable_mapping_falls_back_to_opus() {
+        let provider = create_provider_with_mapping();
+        let body = json!({"model": "claude-fable-5-1"});
+        let (result, _, _) = apply_model_mapping(body, &provider);
+        assert_eq!(result["model"], "opus-mapped");
+    }
+
+    #[test]
+    fn test_subagent_mapping() {
+        let provider = Provider {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            settings_config: json!({
+                "env": { "CLAUDE_CODE_SUBAGENT_MODEL": "deepseek-v4-flash" }
+            }),
+            website_url: None,
+            category: None,
+            created_at: None,
+            sort_index: None,
+            notes: None,
+            meta: None,
+            icon: None,
+            icon_color: None,
+            in_failover_queue: false,
+        };
+        let body = json!({"model": "deepseek-v4-flash [1M]"});
+        let (result, _, _) = apply_model_mapping(body, &provider);
+        assert_eq!(result["model"], "deepseek-v4-flash");
     }
 }

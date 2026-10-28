@@ -112,6 +112,12 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
 
   const normalizedSelected = normalizeEndpointUrl(value);
 
+  // 上游每次重渲染都会给出新的 initialEndpoints 数组/对象；按 URL 内容比较，
+  // 避免身份变化导致编辑模式下反复重新加载自定义端点并 setEntries（列表闪动）
+  const initialUrlsKey = JSON.stringify(
+    initialEndpoints.map((ep) => normalizeEndpointUrl(ep.url)),
+  );
+
   const hasEndpoints = entries.length > 0;
   const isEditMode = Boolean(providerId); // 编辑模式有 providerId
 
@@ -193,7 +199,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [appId, providerId, t, initialEndpoints]);
+  }, [appId, providerId, t, initialUrlsKey]);
 
   // 新建模式：将自定义端点变化透传给父组件（仅限 isCustom）
   // 编辑模式：不使用此回调，端点已通过 API 直接保存

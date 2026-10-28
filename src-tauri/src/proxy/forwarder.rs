@@ -740,7 +740,10 @@ impl RequestForwarder {
                                 "Provider {} 请求失败（不可重试）: {error_summary}",
                                 provider.name
                             );
-                            log::warn!("[{app_type_str}] [{}] {log_message}", log_fwd::NON_RETRYABLE_ERROR);
+                            log::warn!(
+                                "[{app_type_str}] [{}] {log_message}",
+                                log_fwd::NON_RETRYABLE_ERROR
+                            );
                             append_chat_request_log(&format!(
                                 "[{app_type_str}] [{}] {log_message}",
                                 log_fwd::NON_RETRYABLE_ERROR
@@ -792,7 +795,10 @@ impl RequestForwarder {
             // 单 Provider 失败时 build_terminal_failure_log 返回 None，此处补写日志
             let error_summary = summarize_proxy_error(e);
             let log_message = format!("Provider 请求失败: {error_summary}");
-            log::warn!("[{app_type_str}] [{}] {log_message}", log_fwd::SINGLE_PROVIDER_TERMINAL);
+            log::warn!(
+                "[{app_type_str}] [{}] {log_message}",
+                log_fwd::SINGLE_PROVIDER_TERMINAL
+            );
             append_chat_request_log(&format!(
                 "[{app_type_str}] [{}] {log_message}",
                 log_fwd::SINGLE_PROVIDER_TERMINAL
@@ -1027,6 +1033,18 @@ impl RequestForwarder {
             adapter.build_url(&base_url, &effective_endpoint)
         };
 
+        // 上游模型名里可能带 `[1M]` 上下文声明：本地路由会在发往上游前去掉该后缀，
+        // 因此需要补上 `context-1m` beta，否则上游会按小上下文处理。
+        // 注意 apply_model_mapping 已剥离该后缀，所以原始 body 也要一起判断。
+        let has_one_m = |value: &Value| {
+            value
+                .get("model")
+                .and_then(|v| v.as_str())
+                .map(|m| m.trim_end().to_ascii_lowercase().ends_with("[1m]"))
+                .unwrap_or(false)
+        };
+        let upstream_model_has_one_m = has_one_m(&mapped_body) || has_one_m(body);
+
         // 转换请求体（如果需要）
         let request_body = if needs_transform {
             if adapter.name() == "Claude" {
@@ -1050,7 +1068,20 @@ impl RequestForwarder {
 
         // 过滤私有参数（以 `_` 开头的字段），防止内部信息泄露到上游
         // 默认使用空白名单，过滤所有 _ 前缀字段
-        let filtered_body = prepare_upstream_request_body(request_body);
+        let mut filtered_body = prepare_upstream_request_body(request_body);
+
+        // 供应商级本地代理请求覆盖：在格式转换之后、发往上游之前合并请求体
+        if let Some(overrides) = provider
+            .meta
+            .as_ref()
+            .and_then(|meta| meta.local_proxy_request_overrides.as_ref())
+        {
+            if let Some(target) = filtered_body.as_object_mut() {
+                for (key, value) in &overrides.body {
+                    target.insert(key.clone(), value.clone());
+                }
+            }
+        }
         log_prompt_cache_trace(
             app_type,
             provider,
@@ -1262,19 +1293,24 @@ impl RequestForwarder {
         // 预计算 anthropic-beta 值（仅 Claude）
         let anthropic_beta_value = if should_send_anthropic_headers {
             const CLAUDE_CODE_BETA: &str = "claude-code-20250219";
-            Some(if let Some(beta) = headers.get("anthropic-beta") {
-                if let Ok(beta_str) = beta.to_str() {
-                    if beta_str.contains(CLAUDE_CODE_BETA) {
-                        beta_str.to_string()
-                    } else {
-                        format!("{CLAUDE_CODE_BETA},{beta_str}")
+            const CONTEXT_1M_BETA: &str = "context-1m";
+            let existing = headers
+                .get("anthropic-beta")
+                .and_then(|beta| beta.to_str().ok());
+            let mut parts: Vec<String> = Vec::new();
+            parts.push(CLAUDE_CODE_BETA.to_string());
+            if upstream_model_has_one_m {
+                parts.push(CONTEXT_1M_BETA.to_string());
+            }
+            if let Some(beta_str) = existing {
+                for part in beta_str.split(',') {
+                    let part = part.trim();
+                    if !part.is_empty() && !parts.iter().any(|p| p == part) {
+                        parts.push(part.to_string());
                     }
-                } else {
-                    CLAUDE_CODE_BETA.to_string()
                 }
-            } else {
-                CLAUDE_CODE_BETA.to_string()
-            })
+            }
+            Some(parts.join(","))
         } else {
             None
         };
@@ -1435,6 +1471,25 @@ impl RequestForwarder {
         // 只发送客户端提供的 session_id；生成的 UUID 每次不同，反而会破坏前缀缓存。
         for (name, value) in codex_oauth_session_headers {
             ordered_headers.insert(name, value);
+        }
+
+        // 供应商级本地代理请求覆盖：自定义请求头 + 自定义 User-Agent
+        if let Some(meta) = provider.meta.as_ref() {
+            if let Some(overrides) = meta.local_proxy_request_overrides.as_ref() {
+                for (name, value) in &overrides.headers {
+                    if let (Ok(header_name), Ok(header_value)) = (
+                        http::HeaderName::from_bytes(name.as_bytes()),
+                        http::HeaderValue::from_str(value),
+                    ) {
+                        ordered_headers.insert(header_name, header_value);
+                    }
+                }
+            }
+            if let Some(ref user_agent) = meta.custom_user_agent {
+                if let Ok(header_value) = http::HeaderValue::from_str(user_agent) {
+                    ordered_headers.insert(http::header::USER_AGENT, header_value);
+                }
+            }
         }
 
         // 序列化请求体
@@ -1716,7 +1771,11 @@ fn append_chat_request_log(msg: &str) {
     let log_dir = crate::panic_hook::get_log_dir();
     if std::fs::create_dir_all(&log_dir).is_ok() {
         let path = log_dir.join("chat-request.log");
-        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+        {
             let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
             let _ = writeln!(f, "[{now}] {msg}");
         }

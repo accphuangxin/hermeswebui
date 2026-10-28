@@ -238,6 +238,18 @@ pub struct ClaudeDesktopModelRoute {
     pub supports_1m: Option<bool>,
 }
 
+/// 本地代理请求覆盖：在格式转换之后、发往上游之前合并进请求。
+/// 仅在本地路由模式下生效。
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct LocalProxyRequestOverrides {
+    /// 需要覆盖 / 追加的请求头
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub headers: HashMap<String, String>,
+    /// 需要覆盖 / 追加的请求体字段
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub body: HashMap<String, Value>,
+}
+
 /// 供应商元数据
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ProviderMeta {
@@ -307,6 +319,23 @@ pub struct ProviderMeta {
     /// 是否将 base_url 视为完整 API 端点（不拼接 endpoint 路径）
     #[serde(rename = "isFullUrl", skip_serializing_if = "Option::is_none")]
     pub is_full_url: Option<bool>,
+    /// 自定义 User-Agent（仅本地路由生效，会替换转发到上游的 User-Agent）
+    #[serde(rename = "customUserAgent", skip_serializing_if = "Option::is_none")]
+    pub custom_user_agent: Option<String>,
+    /// 本地代理请求覆盖（仅本地路由生效，在格式转换之后合并）
+    #[serde(
+        rename = "localProxyRequestOverrides",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub local_proxy_request_overrides: Option<LocalProxyRequestOverrides>,
+    /// 用户在「获取模型列表」弹窗里勾选的模型集合。
+    /// 作为「实际请求模型」下拉框的候选来源持久化，重开编辑面板后仍可用。
+    #[serde(
+        default,
+        rename = "availableModels",
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub available_models: Vec<String>,
     /// Prompt cache key for OpenAI Responses-compatible endpoints.
     /// When set, injected into converted Responses requests to improve cache hit rate.
     /// If not set, Claude -> Responses conversions use a client-provided session/thread

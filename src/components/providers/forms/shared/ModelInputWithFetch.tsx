@@ -1,15 +1,22 @@
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { ChevronDown, Download, Loader2 } from "lucide-react";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { cn } from "@/lib/utils";
+import { Check, ChevronsUpDown, Download, Loader2, X } from "lucide-react";
 import type { FetchedModel } from "@/lib/api/model-fetch";
 
 interface ModelInputWithFetchProps {
@@ -23,6 +30,10 @@ interface ModelInputWithFetchProps {
   onFetch?: () => void;
 }
 
+/**
+ * 模型输入框：有拉取结果时变成可搜索的下拉框（选项 = 获取模型列表的返回），
+ * 同时保留手动输入能力（搜索词不存在时可作为自定义模型名使用）。
+ */
 export function ModelInputWithFetch({
   id,
   value,
@@ -33,55 +44,144 @@ export function ModelInputWithFetch({
   onFetch,
 }: ModelInputWithFetchProps) {
   const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
 
-  // 有模型数据: Input + DropdownMenu
-  if (fetchedModels.length > 0) {
-    const grouped: Record<string, FetchedModel[]> = {};
-    for (const model of fetchedModels) {
+  const keyword = query.trim().toLowerCase();
+  const filtered = useMemo(() => {
+    if (!keyword) return fetchedModels;
+    return fetchedModels.filter((m) => m.id.toLowerCase().includes(keyword));
+  }, [fetchedModels, keyword]);
+
+  // 按 vendor 分组，保持服务端返回顺序
+  const grouped = useMemo(() => {
+    const map = new Map<string, FetchedModel[]>();
+    for (const model of filtered) {
       const vendor = model.ownedBy || "Other";
-      if (!grouped[vendor]) grouped[vendor] = [];
-      grouped[vendor].push(model);
+      const list = map.get(vendor);
+      if (list) list.push(model);
+      else map.set(vendor, [model]);
     }
-    const vendors = Object.keys(grouped).sort();
+    return Array.from(map.entries());
+  }, [filtered]);
 
+  const trimmedQuery = query.trim();
+  const canUseCustom =
+    trimmedQuery.length > 0 &&
+    !fetchedModels.some((m) => m.id === trimmedQuery);
+
+  const closeAndSelect = (next: string) => {
+    onChange(next);
+    setQuery("");
+    setOpen(false);
+  };
+
+  // 有模型数据：可搜索下拉框
+  if (fetchedModels.length > 0) {
     return (
-      <div className="flex gap-1">
-        <Input
-          id={id}
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          autoComplete="off"
-          className="flex-1"
-        />
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="icon" className="shrink-0">
-              <ChevronDown className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            className="max-h-64 overflow-y-auto z-[200]"
+      <Popover
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (!next) setQuery("");
+        }}
+        modal
+      >
+        <PopoverTrigger asChild>
+          <button
+            id={id}
+            type="button"
+            role="combobox"
+            aria-expanded={open}
+            className="flex h-9 w-full items-center justify-between gap-1 whitespace-nowrap rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm ring-offset-background focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {vendors.map((vendor, vi) => (
-              <div key={vendor}>
-                {vi > 0 && <DropdownMenuSeparator />}
-                <DropdownMenuLabel>{vendor}</DropdownMenuLabel>
-                {grouped[vendor].map((model) => (
-                  <DropdownMenuItem
-                    key={model.id}
-                    onSelect={() => onChange(model.id)}
+            <span
+              className={cn(
+                "min-w-0 truncate",
+                !value && "text-muted-foreground",
+              )}
+            >
+              {value ||
+                placeholder ||
+                t("providerForm.modelSelectPlaceholder", {
+                  defaultValue: "选择或输入模型",
+                })}
+            </span>
+            <span className="flex shrink-0 items-center gap-0.5">
+              {value && (
+                <X
+                  className="h-3.5 w-3.5 cursor-pointer opacity-50 hover:opacity-100"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onChange("");
+                  }}
+                />
+              )}
+              <ChevronsUpDown className="h-3.5 w-3.5 opacity-50" />
+            </span>
+          </button>
+        </PopoverTrigger>
+        <PopoverContent
+          side="bottom"
+          align="start"
+          sideOffset={6}
+          avoidCollisions
+          collisionPadding={8}
+          className="z-[1000] w-[var(--radix-popover-trigger-width)] border-border-default p-0"
+        >
+          <Command shouldFilter={false}>
+            <CommandInput
+              value={query}
+              onValueChange={setQuery}
+              placeholder={t("providerForm.modelPickerSearch", {
+                defaultValue: "搜索模型",
+              })}
+            />
+            <CommandList>
+              {grouped.length === 0 && !canUseCustom && (
+                <CommandEmpty>
+                  {t("providerForm.modelPickerNoMatch", {
+                    defaultValue: "没有匹配的模型",
+                  })}
+                </CommandEmpty>
+              )}
+              {grouped.map(([vendor, models]) => (
+                <CommandGroup key={vendor} heading={vendor}>
+                  {models.map((model) => (
+                    <CommandItem
+                      key={model.id}
+                      value={model.id}
+                      onSelect={() => closeAndSelect(model.id)}
+                    >
+                      <span className="min-w-0 flex-1 truncate font-mono text-xs">
+                        {model.id}
+                      </span>
+                      {value === model.id && (
+                        <Check className="h-3.5 w-3.5 shrink-0" />
+                      )}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ))}
+              {canUseCustom && (
+                <CommandGroup>
+                  <CommandItem
+                    value={`__custom__${trimmedQuery}`}
+                    onSelect={() => closeAndSelect(trimmedQuery)}
                   >
-                    {model.id}
-                  </DropdownMenuItem>
-                ))}
-              </div>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+                    <span className="min-w-0 flex-1 truncate text-xs">
+                      {t("providerForm.modelUseCustom", {
+                        defaultValue: "使用自定义模型 “{{model}}”",
+                        model: trimmedQuery,
+                      })}
+                    </span>
+                  </CommandItem>
+                </CommandGroup>
+              )}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
     );
   }
 

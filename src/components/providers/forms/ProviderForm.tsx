@@ -91,6 +91,7 @@ import {
   useCodexOauth,
 } from "./hooks";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { parseJsonObjectOverride } from "./LocalProxyRequestOverridesField";
 import { useSettingsQuery } from "@/lib/query";
 import {
   CLAUDE_DEFAULT_CONFIG,
@@ -225,6 +226,30 @@ function ProviderFormFull({
     ),
   }));
 
+  // 自定义 User-Agent / 本地代理请求覆盖（仅路由模式生效，存于 provider.meta）
+  const [customUserAgent, setCustomUserAgent] = useState<string>(
+    () => initialData?.meta?.customUserAgent ?? "",
+  );
+  // 「获取模型列表」里勾选的模型集合（存于 provider.meta.availableModels）
+  const [availableModels, setAvailableModels] = useState<string[]>(
+    () => initialData?.meta?.availableModels ?? [],
+  );
+  const [localProxyHeadersOverride, setLocalProxyHeadersOverride] =
+    useState<string>(() => {
+      const headers = initialData?.meta?.localProxyRequestOverrides?.headers;
+      return headers && Object.keys(headers).length > 0
+        ? JSON.stringify(headers, null, 2)
+        : "";
+    });
+  const [localProxyBodyOverride, setLocalProxyBodyOverride] = useState<string>(
+    () => {
+      const body = initialData?.meta?.localProxyRequestOverrides?.body;
+      return body && Object.keys(body).length > 0
+        ? JSON.stringify(body, null, 2)
+        : "";
+    },
+  );
+
   const { category } = useProviderCategory({
     appId,
     selectedPresetId,
@@ -256,6 +281,20 @@ function ProviderFormFull({
         initialData?.meta?.pricingModelSource,
       ),
     });
+
+    const overrides = initialData?.meta?.localProxyRequestOverrides;
+    setCustomUserAgent(initialData?.meta?.customUserAgent ?? "");
+    setAvailableModels(initialData?.meta?.availableModels ?? []);
+    setLocalProxyHeadersOverride(
+      overrides?.headers && Object.keys(overrides.headers).length > 0
+        ? JSON.stringify(overrides.headers, null, 2)
+        : "",
+    );
+    setLocalProxyBodyOverride(
+      overrides?.body && Object.keys(overrides.body).length > 0
+        ? JSON.stringify(overrides.body, null, 2)
+        : "",
+    );
   }, [appId, initialData, supportsFullUrl]);
 
   const defaultValues: ProviderFormData = useMemo(
@@ -346,6 +385,12 @@ function ProviderFormFull({
     defaultHaikuModel,
     defaultSonnetModel,
     defaultOpusModel,
+    defaultFableModel,
+    subagentModel,
+    defaultHaikuModelName,
+    defaultSonnetModelName,
+    defaultOpusModelName,
+    defaultFableModelName,
     handleModelChange,
   } = useModelState({
     settingsConfig: form.getValues("settingsConfig"),
@@ -1209,6 +1254,39 @@ function ProviderFormFull({
       delete nextMeta.codexFastMode;
     }
 
+    // 自定义 User-Agent / 请求覆盖只由 Claude 表单维护，其他应用不动这两个字段
+    if (appId === "claude") {
+      const trimmedUserAgent = customUserAgent.trim();
+      if (trimmedUserAgent) {
+        nextMeta.customUserAgent = trimmedUserAgent;
+      } else {
+        delete nextMeta.customUserAgent;
+      }
+
+      const headersRaw = parseJsonObjectOverride(localProxyHeadersOverride);
+      const bodyRaw = parseJsonObjectOverride(localProxyBodyOverride);
+      const headers: Record<string, string> = {};
+      for (const [key, value] of Object.entries(headersRaw ?? {})) {
+        if (typeof value === "string") headers[key] = value;
+      }
+
+      if (Object.keys(headers).length > 0 || bodyRaw) {
+        nextMeta.localProxyRequestOverrides = {
+          ...(Object.keys(headers).length > 0 ? { headers } : {}),
+          ...(bodyRaw ? { body: bodyRaw } : {}),
+        };
+      } else {
+        delete nextMeta.localProxyRequestOverrides;
+      }
+
+      // 勾选框里选好的模型集合：作为「实际请求模型」下拉框的候选持久化
+      if (availableModels.length > 0) {
+        nextMeta.availableModels = availableModels;
+      } else {
+        delete nextMeta.availableModels;
+      }
+    }
+
     payload.meta = nextMeta;
 
     await onSubmit(payload);
@@ -1788,6 +1866,20 @@ function ProviderFormFull({
               onApiKeyFieldChange={handleApiKeyFieldChange}
               isFullUrl={localIsFullUrl}
               onFullUrlChange={setLocalIsFullUrl}
+              defaultFableModel={defaultFableModel}
+              subagentModel={subagentModel}
+              defaultHaikuModelName={defaultHaikuModelName}
+              defaultSonnetModelName={defaultSonnetModelName}
+              defaultOpusModelName={defaultOpusModelName}
+              defaultFableModelName={defaultFableModelName}
+              customUserAgent={customUserAgent}
+              onCustomUserAgentChange={setCustomUserAgent}
+              localProxyHeadersOverride={localProxyHeadersOverride}
+              onLocalProxyHeadersOverrideChange={setLocalProxyHeadersOverride}
+              localProxyBodyOverride={localProxyBodyOverride}
+              onLocalProxyBodyOverrideChange={setLocalProxyBodyOverride}
+              availableModels={availableModels}
+              onAvailableModelsChange={setAvailableModels}
             />
           )}
 

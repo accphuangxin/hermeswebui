@@ -25,12 +25,18 @@ const PROXY_TOKEN_PLACEHOLDER: &str = "PROXY_MANAGED";
 ///
 /// 原因：接管模式切换供应商时不会写回 Live 配置，如果保留这些字段，
 /// Claude Code 会继续以旧模型名发起请求，导致新供应商不支持时失败。
-const CLAUDE_MODEL_OVERRIDE_ENV_KEYS: [&str; 6] = [
+const CLAUDE_MODEL_OVERRIDE_ENV_KEYS: [&str; 12] = [
     "ANTHROPIC_MODEL",
     "ANTHROPIC_REASONING_MODEL", // legacy: 已废弃，但旧配置可能残留
     "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME",
     "ANTHROPIC_DEFAULT_SONNET_MODEL",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL_NAME",
     "ANTHROPIC_DEFAULT_OPUS_MODEL",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL_NAME",
+    "ANTHROPIC_DEFAULT_FABLE_MODEL",
+    "ANTHROPIC_DEFAULT_FABLE_MODEL_NAME",
+    "CLAUDE_CODE_SUBAGENT_MODEL",
     // Legacy key (已废弃)：历史版本使用该字段区分 small/fast 模型
     "ANTHROPIC_SMALL_FAST_MODEL",
 ];
@@ -1114,7 +1120,7 @@ impl ProxyService {
         }
     }
 
-    async fn restore_live_config_for_app_with_fallback(
+    pub(crate) async fn restore_live_config_for_app_with_fallback(
         &self,
         app_type: &AppType,
     ) -> Result<(), String> {
@@ -1254,11 +1260,9 @@ impl ProxyService {
             || rest.starts_with("::")
     }
 
-    fn cleanup_claude_takeover_placeholders_in_live(&self) -> Result<(), String> {
-        let mut config = self.read_claude_live()?;
-
+    fn strip_claude_takeover_placeholders(config: &mut Value) {
         let Some(env) = config.get_mut("env").and_then(|v| v.as_object_mut()) else {
-            return Ok(());
+            return;
         };
 
         for key in [
@@ -1280,14 +1284,16 @@ impl ProxyService {
         {
             env.remove("ANTHROPIC_BASE_URL");
         }
+    }
 
+    fn cleanup_claude_takeover_placeholders_in_live(&self) -> Result<(), String> {
+        let mut config = self.read_claude_live()?;
+        Self::strip_claude_takeover_placeholders(&mut config);
         self.write_claude_live(&config)?;
         Ok(())
     }
 
-    fn cleanup_codex_takeover_placeholders_in_live(&self) -> Result<(), String> {
-        let mut config = self.read_codex_live()?;
-
+    fn strip_codex_takeover_placeholders(config: &mut Value) {
         if let Some(auth) = config.get_mut("auth").and_then(|v| v.as_object_mut()) {
             if auth.get("OPENAI_API_KEY").and_then(|v| v.as_str()) == Some(PROXY_TOKEN_PLACEHOLDER)
             {
@@ -1299,7 +1305,11 @@ impl ProxyService {
             let updated = Self::remove_local_toml_base_url(cfg_str);
             config["config"] = json!(updated);
         }
+    }
 
+    fn cleanup_codex_takeover_placeholders_in_live(&self) -> Result<(), String> {
+        let mut config = self.read_codex_live()?;
+        Self::strip_codex_takeover_placeholders(&mut config);
         self.write_codex_live(&config)?;
         Ok(())
     }
@@ -1309,11 +1319,9 @@ impl ProxyService {
         crate::codex_config::remove_codex_toml_base_url_if(toml_str, Self::is_local_proxy_url)
     }
 
-    fn cleanup_gemini_takeover_placeholders_in_live(&self) -> Result<(), String> {
-        let mut config = self.read_gemini_live()?;
-
+    fn strip_gemini_takeover_placeholders(config: &mut Value) {
         let Some(env) = config.get_mut("env").and_then(|v| v.as_object_mut()) else {
-            return Ok(());
+            return;
         };
 
         if env.get("GEMINI_API_KEY").and_then(|v| v.as_str()) == Some(PROXY_TOKEN_PLACEHOLDER) {
@@ -1328,7 +1336,11 @@ impl ProxyService {
         {
             env.remove("GOOGLE_GEMINI_BASE_URL");
         }
+    }
 
+    fn cleanup_gemini_takeover_placeholders_in_live(&self) -> Result<(), String> {
+        let mut config = self.read_gemini_live()?;
+        Self::strip_gemini_takeover_placeholders(&mut config);
         self.write_gemini_live(&config)?;
         Ok(())
     }
@@ -1361,6 +1373,106 @@ impl ProxyService {
 
         log::info!("已从异常退出中恢复 Live 配置");
         Ok(())
+    }
+
+    /// 启动时的恢复流程：只恢复“不再接管”的应用。
+    ///
+    /// 接管仍启用（`proxy_config.enabled = true`）时，Live 中的代理占位符是正常状态，
+    /// 启动流程随后会自动恢复接管；此时**不得重写 Live 文件**，否则会用数据库里的
+    /// 供应商快照覆盖用户当前的配置（历史 bug：每次启动都改 `~/.claude/settings.json`）。
+    /// 仅当备份缺失时，按当前 Live 去除代理字段后补建恢复点（只写数据库）。
+    pub async fn recover_from_crash_for_startup(&self) -> Result<(), String> {
+        let mut errors = Vec::new();
+
+        for app_type in [AppType::Claude, AppType::Codex, AppType::Gemini] {
+            let app_type_str = app_type.as_str();
+            let enabled = self
+                .db
+                .get_proxy_config_for_app(app_type_str)
+                .await
+                .map(|config| config.enabled)
+                .unwrap_or(false);
+            let taken_over = self.detect_takeover_in_live_config_for_app(&app_type);
+
+            if enabled {
+                if taken_over {
+                    if let Err(e) = self.ensure_live_backup_for_takeover(&app_type).await {
+                        errors.push(e);
+                    }
+                } else if let Err(e) = self.db.delete_live_backup(app_type_str).await {
+                    // Live 是干净的（例如上次正常退出），旧备份已过期，交由启动接管重建
+                    errors.push(format!("清理 {app_type_str} 过期备份失败: {e}"));
+                }
+                continue;
+            }
+
+            let has_backup = matches!(self.db.get_live_backup(app_type_str).await, Ok(Some(_)));
+            if taken_over || has_backup {
+                if let Err(e) = self
+                    .restore_live_config_for_app_with_fallback(&app_type)
+                    .await
+                {
+                    errors.push(e);
+                    continue;
+                }
+                if let Err(e) = self.db.delete_live_backup(app_type_str).await {
+                    errors.push(format!("删除 {app_type_str} Live 备份失败: {e}"));
+                }
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors.join("；"))
+        }
+    }
+
+    /// 为仍处于接管状态的应用补建恢复点。
+    ///
+    /// 只写数据库备份，不改动 Live 文件：备份内容为当前 Live 去除代理占位符后的版本，
+    /// 保证之后关闭代理/退出应用时能恢复出用户原本的配置。
+    async fn ensure_live_backup_for_takeover(&self, app_type: &AppType) -> Result<(), String> {
+        let app_type_str = app_type.as_str();
+        let existing = self
+            .db
+            .get_live_backup(app_type_str)
+            .await
+            .map_err(|e| format!("获取 {app_type_str} Live 备份失败: {e}"))?;
+        if existing.is_some() {
+            return Ok(());
+        }
+
+        let mut config = self.read_live_config_for_app(app_type)?;
+        Self::strip_takeover_placeholders_for_app(app_type, &mut config);
+        let config_json = serde_json::to_string(&config)
+            .map_err(|e| format!("序列化 {app_type_str} 配置失败: {e}"))?;
+        self.db
+            .save_live_backup(app_type_str, &config_json)
+            .await
+            .map_err(|e| format!("保存 {app_type_str} Live 备份失败: {e}"))?;
+        log::info!(
+            "{app_type_str} 接管仍在启用，已按当前 Live（去除代理字段）补建恢复点，未改动 Live 文件"
+        );
+        Ok(())
+    }
+
+    fn read_live_config_for_app(&self, app_type: &AppType) -> Result<Value, String> {
+        match app_type {
+            AppType::Claude => self.read_claude_live(),
+            AppType::Codex => self.read_codex_live(),
+            AppType::Gemini => self.read_gemini_live(),
+            _ => Err("该应用不支持代理功能".to_string()),
+        }
+    }
+
+    fn strip_takeover_placeholders_for_app(app_type: &AppType, config: &mut Value) {
+        match app_type {
+            AppType::Claude => Self::strip_claude_takeover_placeholders(config),
+            AppType::Codex => Self::strip_codex_takeover_placeholders(config),
+            AppType::Gemini => Self::strip_gemini_takeover_placeholders(config),
+            _ => {}
+        }
     }
 
     /// 检测 Live 配置是否处于"被接管"的残留状态
@@ -2489,6 +2601,70 @@ model = "gpt-5.1-codex"
         assert_eq!(
             service.read_claude_live().expect("read live"),
             provider_b.settings_config
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn startup_recovery_does_not_rewrite_live_when_takeover_still_enabled() {
+        let _home = TempHome::new();
+        crate::settings::reload_settings().expect("reload settings");
+
+        let db = Arc::new(Database::memory().expect("init db"));
+        let service = ProxyService::new(db.clone());
+
+        // 用户当前的 Live：接管字段 + 用户自己的配置
+        let live = json!({
+            "enabledPlugins": { "swift-lsp@claude-plugins-official": true },
+            "env": {
+                "ANTHROPIC_BASE_URL": "http://127.0.0.1:15721",
+                "ANTHROPIC_AUTH_TOKEN": "PROXY_MANAGED",
+                "ANTHROPIC_DEFAULT_SONNET_MODEL_NAME": "deepseek/deepseek-flash"
+            }
+        });
+        service.write_claude_live(&live).expect("seed live");
+
+        let mut config = db
+            .get_proxy_config_for_app("claude")
+            .await
+            .expect("get proxy config");
+        config.enabled = true;
+        db.update_proxy_config_for_app(config)
+            .await
+            .expect("save proxy config");
+
+        service
+            .recover_from_crash_for_startup()
+            .await
+            .expect("startup recovery");
+
+        // Live 文件必须保持原样
+        assert_eq!(service.read_claude_live().expect("read live"), live);
+
+        // 恢复点按当前 Live 去代理字段补建
+        let backup = db
+            .get_live_backup("claude")
+            .await
+            .expect("get live backup")
+            .expect("backup should be created");
+        let stored: Value = serde_json::from_str(&backup.original_config).expect("parse backup");
+        let env = stored
+            .get("env")
+            .and_then(|v| v.as_object())
+            .expect("backup env");
+        assert!(!env.contains_key("ANTHROPIC_AUTH_TOKEN"));
+        assert!(!env.contains_key("ANTHROPIC_BASE_URL"));
+        assert_eq!(
+            env.get("ANTHROPIC_DEFAULT_SONNET_MODEL_NAME")
+                .and_then(|v| v.as_str()),
+            Some("deepseek/deepseek-flash")
+        );
+        assert_eq!(
+            stored
+                .get("enabledPlugins")
+                .and_then(|v| v.as_object())
+                .map(|v| v.len()),
+            Some(1)
         );
     }
 
