@@ -1,6 +1,13 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, BarChart2, Sparkles, RefreshCw, X, Settings } from "lucide-react";
+import {
+  ChevronDown,
+  BarChart2,
+  Sparkles,
+  RefreshCw,
+  X,
+  Settings,
+} from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import Markdown from "react-markdown";
@@ -52,8 +59,15 @@ function getFirstDayOfMonth(year: number, month: number) {
 function normalizeSummary(summary: string): string {
   const trimmed = summary.trim();
   // strip markdown code fences, then try JSON parse
-  const stripped = trimmed.replace(/^```[a-z]*\n?/i, "").replace(/\n?```$/, "").trim();
-  const candidate = stripped.startsWith("{") ? stripped : trimmed.startsWith("{") ? trimmed : null;
+  const stripped = trimmed
+    .replace(/^```[a-z]*\n?/i, "")
+    .replace(/\n?```$/, "")
+    .trim();
+  const candidate = stripped.startsWith("{")
+    ? stripped
+    : trimmed.startsWith("{")
+      ? trimmed
+      : null;
   if (candidate) {
     try {
       const parsed = JSON.parse(candidate);
@@ -63,7 +77,13 @@ function normalizeSummary(summary: string): string {
   return trimmed;
 }
 
-export function SummaryCalendarPage({ agentId, templateOpen: templateOpenProp, onTemplateOpenChange, viewYear: viewYearProp, viewMonth: viewMonthProp }: SummaryCalendarPageProps) {
+export function SummaryCalendarPage({
+  agentId,
+  templateOpen: templateOpenProp,
+  onTemplateOpenChange,
+  viewYear: viewYearProp,
+  viewMonth: viewMonthProp,
+}: SummaryCalendarPageProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const now = new Date();
@@ -71,18 +91,25 @@ export function SummaryCalendarPage({ agentId, templateOpen: templateOpenProp, o
   const [viewMonthInternal, setViewMonthInternal] = useState(now.getMonth());
   const viewYear = viewYearProp ?? viewYearInternal;
   const viewMonth = viewMonthProp ?? viewMonthInternal;
-  void setViewYearInternal; void setViewMonthInternal;
+  void setViewYearInternal;
+  void setViewMonthInternal;
   // selected date for daily report
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   // selected single session for right panel
-  const [selectedSession, setSelectedSession] = useState<ChatSession | null>(null);
+  const [selectedSession, setSelectedSession] = useState<ChatSession | null>(
+    null,
+  );
   const [reportLoading, setReportLoading] = useState<string | null>(null);
-  const [reportContent, setReportContent] = useState<Record<string, string>>({});
+  const [reportContent, setReportContent] = useState<Record<string, string>>(
+    {},
+  );
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryCollapsed, setSummaryCollapsed] = useState(false);
   const [reportCollapsed, setReportCollapsed] = useState(false);
   const [summaryConfirming, setSummaryConfirming] = useState(false);
-  const summaryConfirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const summaryConfirmTimer = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const [reportConfirming, setReportConfirming] = useState(false);
   const reportConfirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -98,7 +125,10 @@ export function SummaryCalendarPage({ agentId, templateOpen: templateOpenProp, o
       void handleGenerateReport(selectedDate);
     } else {
       setReportConfirming(true);
-      reportConfirmTimer.current = setTimeout(() => setReportConfirming(false), 3000);
+      reportConfirmTimer.current = setTimeout(
+        () => setReportConfirming(false),
+        3000,
+      );
     }
   };
 
@@ -108,12 +138,16 @@ export function SummaryCalendarPage({ agentId, templateOpen: templateOpenProp, o
       return;
     }
     if (summaryConfirming) {
-      if (summaryConfirmTimer.current) clearTimeout(summaryConfirmTimer.current);
+      if (summaryConfirmTimer.current)
+        clearTimeout(summaryConfirmTimer.current);
       setSummaryConfirming(false);
       void handleGenerateSummary();
     } else {
       setSummaryConfirming(true);
-      summaryConfirmTimer.current = setTimeout(() => setSummaryConfirming(false), 3000);
+      summaryConfirmTimer.current = setTimeout(
+        () => setSummaryConfirming(false),
+        3000,
+      );
     }
   };
 
@@ -130,10 +164,13 @@ export function SummaryCalendarPage({ agentId, templateOpen: templateOpenProp, o
 
   useEffect(() => {
     if (templateOpen) {
-      chatApi.getSummaryTemplate().then(t => {
-        setTemplateSummary(t.summary);
-        setTemplateDailyReport(t.dailyReport);
-      }).catch(() => {});
+      chatApi
+        .getSummaryTemplate()
+        .then((t) => {
+          setTemplateSummary(t.summary);
+          setTemplateDailyReport(t.dailyReport);
+        })
+        .catch(() => {});
     }
   }, [templateOpen]);
 
@@ -144,7 +181,9 @@ export function SummaryCalendarPage({ agentId, templateOpen: templateOpenProp, o
       toast.success("模板已保存");
       setTemplateOpen(false);
     } catch (err) {
-      toast.error("保存失败: " + (err instanceof Error ? err.message : String(err)));
+      toast.error(
+        "保存失败: " + (err instanceof Error ? err.message : String(err)),
+      );
     } finally {
       setTemplateSaving(false);
     }
@@ -181,9 +220,13 @@ export function SummaryCalendarPage({ agentId, templateOpen: templateOpenProp, o
     setSelectedSession(s);
     setSelectedDate(dateStr);
     if (!reportContent[dateStr]) {
-      chatApi.getDailyReport(dateStr, agentId).then(report => {
-        if (report) setReportContent(prev => ({ ...prev, [dateStr]: report }));
-      }).catch(() => {});
+      chatApi
+        .getDailyReport(dateStr, agentId)
+        .then((report) => {
+          if (report)
+            setReportContent((prev) => ({ ...prev, [dateStr]: report }));
+        })
+        .catch(() => {});
     }
   };
 
@@ -191,10 +234,19 @@ export function SummaryCalendarPage({ agentId, templateOpen: templateOpenProp, o
     setReportLoading(dateStr);
     try {
       const d = new Date(dateStr + "T00:00:00");
-      const report = await chatApi.generateDailyReport(dateStr, d.getTime(), d.getTime() + 86400000 - 1, agentId);
-      setReportContent(prev => ({ ...prev, [dateStr]: report }));
+      const report = await chatApi.generateDailyReport(
+        dateStr,
+        d.getTime(),
+        d.getTime() + 86400000 - 1,
+        agentId,
+      );
+      setReportContent((prev) => ({ ...prev, [dateStr]: report }));
     } catch (err) {
-      toast.error(t("sessionManager.generateFailed", { error: err instanceof Error ? err.message : String(err) }));
+      toast.error(
+        t("sessionManager.generateFailed", {
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
     } finally {
       setReportLoading(null);
     }
@@ -210,15 +262,32 @@ export function SummaryCalendarPage({ agentId, templateOpen: templateOpenProp, o
         toast.error("该会话没有可分析的消息内容");
         return;
       }
-      const content = formatSessionAsMarkdown(selectedSession.title ?? null, selectedSession.model ?? null, filtered);
-      const filePath = await chatApi.saveSummaryTempFile(selectedSession.id, content);
+      const content = formatSessionAsMarkdown(
+        selectedSession.title ?? null,
+        selectedSession.model ?? null,
+        filtered,
+      );
+      const filePath = await chatApi.saveSummaryTempFile(
+        selectedSession.id,
+        content,
+      );
 
-      const updated = await chatApi.generateSessionSummary(selectedSession.id, filePath, agentId);
+      const updated = await chatApi.generateSessionSummary(
+        selectedSession.id,
+        filePath,
+        agentId,
+      );
       setSelectedSession(updated);
-      void queryClient.invalidateQueries({ queryKey: chatKeys.sessions(agentId) });
+      void queryClient.invalidateQueries({
+        queryKey: chatKeys.sessions(agentId),
+      });
       toast.success("摘要已生成");
     } catch (err) {
-      toast.error(t("sessionManager.generateFailed", { error: err instanceof Error ? err.message : String(err) }));
+      toast.error(
+        t("sessionManager.generateFailed", {
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
     } finally {
       setSummaryLoading(false);
     }
@@ -234,15 +303,21 @@ export function SummaryCalendarPage({ agentId, templateOpen: templateOpenProp, o
       <div className="flex flex-col flex-1 min-w-0 p-4">
         {/* Weekday labels */}
         <div className="grid grid-cols-7 mb-1 shrink-0">
-          {WEEKDAYS.map(d => (
-            <div key={d} className="text-center text-[11px] text-foreground/60 pb-1 font-semibold">
+          {WEEKDAYS.map((d) => (
+            <div
+              key={d}
+              className="text-center text-[11px] text-foreground/60 pb-1 font-semibold"
+            >
               {d}
             </div>
           ))}
         </div>
 
         {/* Calendar grid */}
-        <div className="grid grid-cols-7 flex-1" style={{ gridAutoRows: "1fr" }}>
+        <div
+          className="grid grid-cols-7 flex-1"
+          style={{ gridAutoRows: "1fr" }}
+        >
           {Array.from({ length: firstDayAdj }).map((_, i) => (
             <div key={`empty-${i}`} className="border border-transparent" />
           ))}
@@ -265,35 +340,42 @@ export function SummaryCalendarPage({ agentId, templateOpen: templateOpenProp, o
                 key={dateStr}
                 className={cn(
                   "relative flex flex-col rounded-lg border p-1.5 overflow-hidden shadow-sm",
-                  isWeekend && !isDateSelected && !isToday && "bg-rose-50/60 dark:bg-rose-950/20",
+                  isWeekend &&
+                    !isDateSelected &&
+                    !isToday &&
+                    "bg-rose-50/60 dark:bg-rose-950/20",
                   isDateSelected
                     ? "border-blue-400/80 bg-primary/5 shadow-md"
                     : hasSessions
-                    ? "border-gray-400/80 dark:border-gray-500"
-                    : "border-gray-300/80 dark:border-gray-600",
-                  isToday && !isDateSelected && "border-amber-400/70 bg-amber-50/80 dark:bg-amber-950/30",
+                      ? "border-gray-400/80 dark:border-gray-500"
+                      : "border-gray-300/80 dark:border-gray-600",
+                  isToday &&
+                    !isDateSelected &&
+                    "border-amber-400/70 bg-amber-50/80 dark:bg-amber-950/30",
                 )}
               >
                 {/* Date number */}
-                <span className={cn(
-                  "text-xs font-semibold mb-1 shrink-0",
-                  isDateSelected
-                    ? "text-primary"
-                    : isToday
-                    ? "text-amber-500 dark:text-amber-400"
-                    : isWeekend
-                    ? "text-rose-500 dark:text-rose-400"
-                    : hasSessions
-                    ? "text-foreground"
-                    : "text-foreground/35",
-                )}>
+                <span
+                  className={cn(
+                    "text-xs font-semibold mb-1 shrink-0",
+                    isDateSelected
+                      ? "text-primary"
+                      : isToday
+                        ? "text-amber-500 dark:text-amber-400"
+                        : isWeekend
+                          ? "text-rose-500 dark:text-rose-400"
+                          : hasSessions
+                            ? "text-foreground"
+                            : "text-foreground/35",
+                  )}
+                >
                   {day}
                 </span>
 
                 {/* Session title list */}
                 {hasSessions && (
                   <div className="flex flex-col gap-0.5 overflow-hidden">
-                    {visibleSessions.map(s => (
+                    {visibleSessions.map((s) => (
                       <button
                         key={s.id}
                         onClick={() => handleSelectSession(s, dateStr)}
@@ -335,7 +417,10 @@ export function SummaryCalendarPage({ agentId, templateOpen: templateOpenProp, o
             </button>
             <button
               type="button"
-              onClick={() => { setSelectedSession(null); setSelectedDate(null); }}
+              onClick={() => {
+                setSelectedSession(null);
+                setSelectedDate(null);
+              }}
               className="p-1 rounded hover:bg-muted text-muted-foreground"
             >
               <X className="w-4 h-4" />
@@ -348,29 +433,45 @@ export function SummaryCalendarPage({ agentId, templateOpen: templateOpenProp, o
                 <div className="px-3 py-2.5 border-b bg-muted/40">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
-                      <p className="text-xs text-muted-foreground shrink-0">{selectedDate}</p>
+                      <p className="text-xs text-muted-foreground shrink-0">
+                        {selectedDate}
+                      </p>
                       <Button
                         variant="ghost"
                         size="sm"
                         className={cn(
                           "h-6 gap-1 text-xs px-2",
-                          summaryConfirming && "text-orange-500 hover:text-orange-600"
+                          summaryConfirming &&
+                            "text-orange-500 hover:text-orange-600",
                         )}
                         disabled={summaryLoading}
                         onClick={handleSummaryButtonClick}
                       >
+                        {summaryLoading ? (
+                          <RefreshCw className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-3 h-3" />
+                        )}
                         {summaryLoading
-                          ? <RefreshCw className="w-3 h-3 animate-spin" />
-                          : <Sparkles className="w-3 h-3" />}
-                        {summaryLoading ? "生成中..." : summaryConfirming ? "确认重新生成?" : selectedSession.summary ? "重新生成" : "生成摘要"}
+                          ? "生成中..."
+                          : summaryConfirming
+                            ? "确认重新生成?"
+                            : selectedSession.summary
+                              ? "重新生成"
+                              : "生成摘要"}
                       </Button>
                     </div>
                     <button
                       type="button"
-                      onClick={() => setSummaryCollapsed(v => !v)}
+                      onClick={() => setSummaryCollapsed((v) => !v)}
                       className="p-1 rounded hover:bg-muted/60 text-muted-foreground shrink-0"
                     >
-                      <ChevronDown className={cn("w-4 h-4 transition-transform", summaryCollapsed && "-rotate-90")} />
+                      <ChevronDown
+                        className={cn(
+                          "w-4 h-4 transition-transform",
+                          summaryCollapsed && "-rotate-90",
+                        )}
+                      />
                     </button>
                   </div>
                   <h3 className="text-sm font-semibold text-foreground leading-snug mt-0.5">
@@ -381,8 +482,11 @@ export function SummaryCalendarPage({ agentId, templateOpen: templateOpenProp, o
                   <div className="px-3 py-2.5">
                     {parseTags(selectedSession.tags).length > 0 && (
                       <div className="flex flex-wrap gap-1 mb-2">
-                        {parseTags(selectedSession.tags).map(tag => (
-                          <span key={tag} className="px-2 py-0.5 rounded-full bg-muted text-xs text-foreground/70 font-medium">
+                        {parseTags(selectedSession.tags).map((tag) => (
+                          <span
+                            key={tag}
+                            className="px-2 py-0.5 rounded-full bg-muted text-xs text-foreground/70 font-medium"
+                          >
                             {tag}
                           </span>
                         ))}
@@ -390,7 +494,9 @@ export function SummaryCalendarPage({ agentId, templateOpen: templateOpenProp, o
                     )}
                     {selectedSession.summary ? (
                       <div className="text-sm text-foreground/85 leading-relaxed prose prose-sm dark:prose-invert max-w-none">
-                        <Markdown remarkPlugins={[remarkGfm]}>{normalizeSummary(selectedSession.summary)}</Markdown>
+                        <Markdown remarkPlugins={[remarkGfm]}>
+                          {normalizeSummary(selectedSession.summary)}
+                        </Markdown>
                       </div>
                     ) : (
                       <p className="text-sm text-muted-foreground">
@@ -413,34 +519,50 @@ export function SummaryCalendarPage({ agentId, templateOpen: templateOpenProp, o
                       size="sm"
                       className={cn(
                         "h-6 gap-1 text-xs px-2",
-                        reportConfirming && "text-orange-500 hover:text-orange-600"
+                        reportConfirming &&
+                          "text-orange-500 hover:text-orange-600",
                       )}
                       disabled={reportLoading === selectedDate}
                       onClick={handleReportButtonClick}
                     >
+                      {reportLoading === selectedDate ? (
+                        <RefreshCw className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <BarChart2 className="w-3 h-3" />
+                      )}
                       {reportLoading === selectedDate
-                        ? <RefreshCw className="w-3 h-3 animate-spin" />
-                        : <BarChart2 className="w-3 h-3" />}
-                      {reportLoading === selectedDate ? "生成中..." : reportConfirming ? "确认重新生成?" : reportContent[selectedDate!] ? "重新生成" : "生成日报"}
+                        ? "生成中..."
+                        : reportConfirming
+                          ? "确认重新生成?"
+                          : reportContent[selectedDate!]
+                            ? "重新生成"
+                            : "生成日报"}
                     </Button>
                   </div>
                   <button
                     type="button"
-                    onClick={() => setReportCollapsed(v => !v)}
+                    onClick={() => setReportCollapsed((v) => !v)}
                     className="p-1 rounded hover:bg-muted/60 text-muted-foreground"
                   >
-                    <ChevronDown className={cn("w-4 h-4 transition-transform", reportCollapsed && "-rotate-90")} />
+                    <ChevronDown
+                      className={cn(
+                        "w-4 h-4 transition-transform",
+                        reportCollapsed && "-rotate-90",
+                      )}
+                    />
                   </button>
                 </div>
                 {!reportCollapsed && (
                   <div className="px-3 py-2.5">
                     {reportContent[selectedDate!] ? (
-                      <div className="prose prose-sm dark:prose-invert max-w-none
+                      <div
+                        className="prose prose-sm dark:prose-invert max-w-none
                         prose-headings:font-semibold prose-headings:text-foreground
                         prose-h1:text-sm prose-h2:text-sm prose-h3:text-xs
                         prose-p:text-sm prose-p:text-foreground/85 prose-p:leading-relaxed
                         prose-li:text-sm prose-li:text-foreground/85
-                        prose-strong:text-foreground">
+                        prose-strong:text-foreground"
+                      >
                         <Markdown remarkPlugins={[remarkGfm]}>
                           {reportContent[selectedDate!]}
                         </Markdown>
@@ -472,13 +594,15 @@ export function SummaryCalendarPage({ agentId, templateOpen: templateOpenProp, o
                 <p className="text-sm font-medium">会话摘要 Prompt 模板</p>
                 <p className="text-xs text-muted-foreground mt-1">
                   可用变量：
-                  <code className="bg-background border rounded px-1.5 py-0.5 font-mono text-[11px] mx-1">{"{conversation}"}</code>
+                  <code className="bg-background border rounded px-1.5 py-0.5 font-mono text-[11px] mx-1">
+                    {"{conversation}"}
+                  </code>
                   对话内容正文
                 </p>
               </div>
               <textarea
                 value={templateSummary}
-                onChange={e => setTemplateSummary(e.target.value)}
+                onChange={(e) => setTemplateSummary(e.target.value)}
                 spellCheck={false}
                 className="flex-1 w-full bg-background px-4 py-3 text-sm font-mono resize-none focus:outline-none leading-relaxed"
               />
@@ -490,15 +614,19 @@ export function SummaryCalendarPage({ agentId, templateOpen: templateOpenProp, o
                 <p className="text-sm font-medium">每日报告 Prompt 模板</p>
                 <p className="text-xs text-muted-foreground mt-1">
                   可用变量：
-                  <code className="bg-background border rounded px-1.5 py-0.5 font-mono text-[11px] mx-1">{"{count}"}</code>
+                  <code className="bg-background border rounded px-1.5 py-0.5 font-mono text-[11px] mx-1">
+                    {"{count}"}
+                  </code>
                   会话数量
-                  <code className="bg-background border rounded px-1.5 py-0.5 font-mono text-[11px] mx-1">{"{session_list}"}</code>
+                  <code className="bg-background border rounded px-1.5 py-0.5 font-mono text-[11px] mx-1">
+                    {"{session_list}"}
+                  </code>
                   摘要列表
                 </p>
               </div>
               <textarea
                 value={templateDailyReport}
-                onChange={e => setTemplateDailyReport(e.target.value)}
+                onChange={(e) => setTemplateDailyReport(e.target.value)}
                 spellCheck={false}
                 className="flex-1 w-full bg-background px-4 py-3 text-sm font-mono resize-none focus:outline-none leading-relaxed"
               />
@@ -506,11 +634,21 @@ export function SummaryCalendarPage({ agentId, templateOpen: templateOpenProp, o
           </div>
 
           <DialogFooter className="px-6 py-4 border-t bg-muted/20 gap-2">
-            <Button variant="outline" size="sm" onClick={() => setTemplateOpen(false)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setTemplateOpen(false)}
+            >
               取消
             </Button>
-            <Button size="sm" disabled={templateSaving} onClick={() => void handleSaveTemplate()}>
-              {templateSaving && <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1.5" />}
+            <Button
+              size="sm"
+              disabled={templateSaving}
+              onClick={() => void handleSaveTemplate()}
+            >
+              {templateSaving && (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1.5" />
+              )}
               保存
             </Button>
           </DialogFooter>

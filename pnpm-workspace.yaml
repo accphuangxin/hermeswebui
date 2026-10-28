@@ -1,9 +1,11 @@
 packages: []
 
+# 依赖的 postinstall 脚本白名单（pnpm 11+ 用 allowBuilds，取代了旧版 onlyBuiltDependencies）
 allowBuilds:
-  core-js: set this to true or false
-  esbuild: set this to true or false
-  msw: set this to true or false
-
-onlyBuiltDependencies:
-  - '@tailwindcss/oxide'
+  # 原生模块，需要执行构建脚本
+  '@tailwindcss/oxide': true
+  # postinstall 用于校验/链接平台二进制
+  esbuild: true
+  # 以下两个的 postinstall 只打印提示信息，无需执行
+  core-js: false
+  msw: false

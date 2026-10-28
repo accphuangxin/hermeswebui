@@ -8,7 +8,11 @@ fn log_chat_request_error(msg: &str) {
     let log_dir = crate::panic_hook::get_log_dir();
     if std::fs::create_dir_all(&log_dir).is_ok() {
         let path = log_dir.join("chat-request.log");
-        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+        {
             let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
             let _ = writeln!(f, "[{now}] {msg}");
         }
@@ -461,6 +465,8 @@ pub(crate) fn build_api_client(
 
 /// Build a client for SSE streaming — only limits connection establishment,
 /// no overall timeout so long-running agent runs are never cut off mid-stream.
+/// TCP keepalive is enabled so the OS detects dead connections (e.g. service
+/// crash / flash-disconnect) within ~90 s rather than hanging indefinitely.
 pub(crate) fn build_stream_client() -> Result<(reqwest::Client, String, String), String> {
     let cfg = read_api_server_config();
     let base_url = format!("http://{}:{}", cfg.host, cfg.port);
@@ -470,7 +476,8 @@ pub(crate) fn build_stream_client() -> Result<(reqwest::Client, String, String),
         format!("Bearer {}", cfg.key)
     };
     let client = reqwest::Client::builder()
-        .connect_timeout(Duration::from_secs(10)) // only limit connection setup
+        .connect_timeout(Duration::from_secs(10))
+        .tcp_keepalive(Duration::from_secs(30)) // probe every 30 s
         .no_proxy()
         .build()
         .map_err(|e| {
@@ -568,7 +575,12 @@ async fn fetch_remote_models(
                                     .get("supports_vision")
                                     .and_then(|v| v.as_bool())
                                     .unwrap_or(false);
-                                (model_id.clone(), provider_name.clone(), context_length, supports_vision)
+                                (
+                                    model_id.clone(),
+                                    provider_name.clone(),
+                                    context_length,
+                                    supports_vision,
+                                )
                             })
                             .collect::<Vec<_>>(),
                         None => vec![],
@@ -646,6 +658,14 @@ pub fn switchHermesModel(modelId: String, providerId: String) -> Result<String, 
 // ============================================================================
 
 #[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArtifactFile {
+    pub path: String,
+    pub filename: String,
+    pub size_bytes: i64,
+}
+
+#[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum RunStreamEvent {
     Delta {
@@ -672,6 +692,7 @@ pub enum RunStreamEvent {
         input_tokens: i64,
         output_tokens: i64,
         model: String,
+        artifacts: Vec<ArtifactFile>,
     },
     Failed {
         error: String,
@@ -1070,7 +1091,11 @@ async fn agent_lifecycle_action(agent_id: &str, action: &str) -> Result<(), Stri
     // start/restart 时检查响应体：HTTP 200 但 agent 未能启动会带 startError
     if action == "start" || action == "restart" {
         let body: serde_json::Value = resp.json().await.unwrap_or_default();
-        if let Some(err_msg) = body.get("startError").and_then(|v| v.as_str()).filter(|s| !s.is_empty()) {
+        if let Some(err_msg) = body
+            .get("startError")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+        {
             return Err(err_msg.to_string());
         }
     }
@@ -1144,6 +1169,172 @@ pub async fn updateHermesAgent(
     resp.json::<HermesAgent>()
         .await
         .map_err(|e| format!("deserialize failed: {e}"))
+}
+
+// ── Agent MCP server configuration ──────────────────────────────────────────
+// Talks to hermes_agent_manager's ControlServer (:8640), same host resolution as
+// the other agent commands. Path segments are percent-encoded so agent ids and
+// (user-supplied) server names can't break the URL.
+
+/// Percent-encode one URL path segment, keeping RFC 3986 unreserved chars.
+fn encode_path_segment(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(b as char)
+            }
+            _ => out.push_str(&format!("%{b:02X}")),
+        }
+    }
+    out
+}
+
+async fn control_mcp_request(
+    method: reqwest::Method,
+    path: &str,
+    body: Option<serde_json::Value>,
+) -> Result<serde_json::Value, String> {
+    let client = reqwest::Client::builder()
+        // A connectivity probe spawns the server, handshakes and lists tools.
+        .timeout(Duration::from_secs(60))
+        .no_proxy()
+        .build()
+        .map_err(|e| format!("failed to build client: {e}"))?;
+    let host = read_api_server_config().host;
+    let url = format!("http://{host}:8640{path}");
+    let mut req = client.request(method, url);
+    if let Some(b) = body {
+        req = req.json(&b);
+    }
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| format!("request failed: {e}"))?;
+    let status = resp.status();
+    let text = resp.text().await.unwrap_or_default();
+    if !status.is_success() {
+        return Err(format!("HTTP {status}: {text}"));
+    }
+    if text.is_empty() {
+        return Ok(serde_json::json!({}));
+    }
+    serde_json::from_str(&text).map_err(|e| format!("parse failed: {e}"))
+}
+
+#[tauri::command]
+pub async fn getAgentMcpServers(agent_id: String) -> Result<serde_json::Value, String> {
+    control_mcp_request(
+        reqwest::Method::GET,
+        &format!("/v1/agents/{}/mcp", encode_path_segment(&agent_id)),
+        None,
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn addAgentMcpServer(
+    agent_id: String,
+    server: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    control_mcp_request(
+        reqwest::Method::POST,
+        &format!("/v1/agents/{}/mcp", encode_path_segment(&agent_id)),
+        Some(server),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn replaceAgentMcpServers(
+    agent_id: String,
+    servers: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    control_mcp_request(
+        reqwest::Method::PUT,
+        &format!("/v1/agents/{}/mcp", encode_path_segment(&agent_id)),
+        Some(serde_json::json!({ "servers": servers })),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn deleteAgentMcpServer(
+    agent_id: String,
+    name: String,
+) -> Result<serde_json::Value, String> {
+    control_mcp_request(
+        reqwest::Method::DELETE,
+        &format!(
+            "/v1/agents/{}/mcp/{}",
+            encode_path_segment(&agent_id),
+            encode_path_segment(&name)
+        ),
+        None,
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn testAgentMcpServer(
+    agent_id: String,
+    name: String,
+) -> Result<serde_json::Value, String> {
+    control_mcp_request(
+        reqwest::Method::POST,
+        &format!(
+            "/v1/agents/{}/mcp/{}/test",
+            encode_path_segment(&agent_id),
+            encode_path_segment(&name)
+        ),
+        None,
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn setAgentMcpServerEnabled(
+    agent_id: String,
+    name: String,
+    enabled: bool,
+) -> Result<serde_json::Value, String> {
+    control_mcp_request(
+        reqwest::Method::PUT,
+        &format!(
+            "/v1/agents/{}/mcp/{}/enabled",
+            encode_path_segment(&agent_id),
+            encode_path_segment(&name)
+        ),
+        Some(serde_json::json!({ "enabled": enabled })),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn setAgentMcpServerTools(
+    agent_id: String,
+    name: String,
+    include: Option<Vec<String>>,
+    exclude: Option<Vec<String>>,
+) -> Result<serde_json::Value, String> {
+    // Neither key present → empty body → backend clears the tool filter (register all).
+    let mut body = serde_json::Map::new();
+    if let Some(v) = include {
+        body.insert("include".into(), serde_json::json!(v));
+    }
+    if let Some(v) = exclude {
+        body.insert("exclude".into(), serde_json::json!(v));
+    }
+    control_mcp_request(
+        reqwest::Method::PUT,
+        &format!(
+            "/v1/agents/{}/mcp/{}/tools",
+            encode_path_segment(&agent_id),
+            encode_path_segment(&name)
+        ),
+        Some(serde_json::Value::Object(body)),
+    )
+    .await
 }
 
 #[derive(Serialize)]
@@ -1302,9 +1493,8 @@ pub async fn startChatRun(
             }
             b.to_string()
         };
-        let err_msg = format!(
-            "HTTP {status}: {text}\nURL: {url}\nKey: {key_display}\nBody: {body_preview}"
-        );
+        let err_msg =
+            format!("HTTP {status}: {text}\nURL: {url}\nKey: {key_display}\nBody: {body_preview}");
         log::error!("[v1/runs] {err_msg}");
         log_chat_request_error(&format!("[v1/runs] {err_msg}"));
         return Err(err_msg);
@@ -1407,11 +1597,10 @@ pub async fn startChatRun(
                         let tool = json["tool"].as_str().unwrap_or("").to_string();
                         let duration = json["duration"].as_f64().unwrap_or(0.0);
                         let error = json["error"].as_bool().unwrap_or(false);
-                        let result = json["result"].as_str().map(|s| s.to_string())
-                            .or_else(|| {
-                                // Some backends put result in "output"
-                                json["output"].as_str().map(|s| s.to_string())
-                            });
+                        let result = json["result"].as_str().map(|s| s.to_string()).or_else(|| {
+                            // Some backends put result in "output"
+                            json["output"].as_str().map(|s| s.to_string())
+                        });
                         let _ = on_event.send(RunStreamEvent::ToolCompleted {
                             tool,
                             duration,
@@ -1431,6 +1620,16 @@ pub async fn startChatRun(
                         let output_tokens = json["usage"]["output_tokens"].as_i64().unwrap_or(0);
                         let completed_model =
                             json["model"].as_str().unwrap_or(&log_model).to_string();
+                        let artifacts: Vec<ArtifactFile> = json["artifacts"]
+                            .as_array()
+                            .unwrap_or(&vec![])
+                            .iter()
+                            .map(|a| ArtifactFile {
+                                path: a["path"].as_str().unwrap_or("").to_string(),
+                                filename: a["filename"].as_str().unwrap_or("").to_string(),
+                                size_bytes: a["size"].as_i64().unwrap_or(0),
+                            })
+                            .collect();
 
                         // Notify frontend first — DB write must not delay the response
                         let _ = on_event.send(RunStreamEvent::Completed {
@@ -1440,6 +1639,7 @@ pub async fn startChatRun(
                             input_tokens,
                             output_tokens,
                             model: completed_model,
+                            artifacts,
                         });
                         if input_tokens > 0 || output_tokens > 0 {
                             let req_id = format!("hermes-{}", run_id_clone);
@@ -1484,6 +1684,7 @@ pub async fn startChatRun(
                             input_tokens: 0,
                             output_tokens: 0,
                             model: String::new(),
+                            artifacts: vec![],
                         });
                         return;
                     }
@@ -1501,6 +1702,7 @@ pub async fn startChatRun(
             input_tokens: 0,
             output_tokens: 0,
             model: String::new(),
+            artifacts: vec![],
         });
     });
 
@@ -1509,8 +1711,21 @@ pub async fn startChatRun(
 
 // GET /v1/runs/{run_id} — get run status
 #[tauri::command]
-pub async fn getChatRunStatus(runId: String) -> Result<serde_json::Value, String> {
-    let (client, base, auth_header) = build_api_client(10)?;
+pub async fn getChatRunStatus(
+    runId: String,
+    apiServerPort: Option<u16>,
+    apiServerKey: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let (client, mut base, mut auth_header) = build_api_client(10)?;
+    if let Some(port) = apiServerPort {
+        let cfg = read_api_server_config();
+        base = format!("http://{}:{}", cfg.host, port);
+    }
+    if let Some(key) = apiServerKey {
+        if !key.is_empty() {
+            auth_header = format!("Bearer {key}");
+        }
+    }
     let url = format!("{base}/v1/runs/{runId}");
 
     let mut req = client.get(&url);
@@ -1539,7 +1754,11 @@ pub async fn getChatRunStatus(runId: String) -> Result<serde_json::Value, String
 
 // POST /v1/runs/{run_id}/stop — stop run
 #[tauri::command]
-pub async fn stopChatRun(runId: String, apiServerPort: Option<u16>, apiServerKey: Option<String>) -> Result<bool, String> {
+pub async fn stopChatRun(
+    runId: String,
+    apiServerPort: Option<u16>,
+    apiServerKey: Option<String>,
+) -> Result<bool, String> {
     let (client, mut base, mut auth_header) = build_api_client(10)?;
     if let Some(port) = apiServerPort {
         let cfg = read_api_server_config();
@@ -1574,7 +1793,12 @@ pub async fn stopChatRun(runId: String, apiServerPort: Option<u16>, apiServerKey
     Ok(success)
 }
 
-async fn post_approval(run_id: &str, choice: &str, api_server_port: Option<u16>, api_server_key: Option<String>) -> Result<bool, String> {
+async fn post_approval(
+    run_id: &str,
+    choice: &str,
+    api_server_port: Option<u16>,
+    api_server_key: Option<String>,
+) -> Result<bool, String> {
     let (client, mut base, mut auth_header) = build_api_client(10)?;
     // 使用 agent 实际端口（如果提供）
     if let Some(port) = api_server_port {
@@ -1610,13 +1834,23 @@ async fn post_approval(run_id: &str, choice: &str, api_server_port: Option<u16>,
 
 // POST /v1/runs/{run_id}/approval — approve/deny
 #[tauri::command]
-pub async fn approveChatRun(runId: String, approve: bool, apiServerPort: Option<u16>, apiServerKey: Option<String>) -> Result<bool, String> {
+pub async fn approveChatRun(
+    runId: String,
+    approve: bool,
+    apiServerPort: Option<u16>,
+    apiServerKey: Option<String>,
+) -> Result<bool, String> {
     let choice = if approve { "once" } else { "deny" };
     post_approval(&runId, choice, apiServerPort, apiServerKey).await
 }
 
 #[tauri::command]
-pub async fn approveRunChoice(runId: String, choice: String, apiServerPort: Option<u16>, apiServerKey: Option<String>) -> Result<bool, String> {
+pub async fn approveRunChoice(
+    runId: String,
+    choice: String,
+    apiServerPort: Option<u16>,
+    apiServerKey: Option<String>,
+) -> Result<bool, String> {
     post_approval(&runId, &choice, apiServerPort, apiServerKey).await
 }
 
@@ -1660,7 +1894,11 @@ pub fn readChatFile(path: String) -> Result<ChatFileContent, String> {
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document".to_string(),
         ),
         "doc" => (extract_doc_legacy(&path)?, "application/msword".to_string()),
-        "xlsx" | "xls" => (
+        "xlsx" => (
+            extract_excel(&path)?,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".to_string(),
+        ),
+        "xls" => (
             extract_excel(&path)?,
             "application/vnd.ms-excel".to_string(),
         ),
@@ -1952,16 +2190,12 @@ pub fn read_local_html(path: String) -> Result<String, String> {
 /// Save a pasted image (base64) to a temp directory and return the file path.
 /// This lets the agent reference the image by path instead of receiving raw base64.
 #[tauri::command]
-pub fn saveTempImage(
-    base64_data: String,
-    filename: String,
-) -> Result<String, String> {
+pub fn saveTempImage(base64_data: String, filename: String) -> Result<String, String> {
     use std::io::Write;
 
     let home = dirs::home_dir().ok_or("cannot determine home dir")?;
     let temp_dir = home.join(".hermes-web").join("temp");
-    std::fs::create_dir_all(&temp_dir)
-        .map_err(|e| format!("failed to create temp dir: {e}"))?;
+    std::fs::create_dir_all(&temp_dir).map_err(|e| format!("failed to create temp dir: {e}"))?;
 
     // Decode base64 — strip data URL prefix if present
     let raw = if let Some(comma) = base64_data.find(',') {
@@ -1975,8 +2209,7 @@ pub fn saveTempImage(
         .map_err(|e| format!("base64 decode error: {e}"))?;
 
     let path = temp_dir.join(&filename);
-    let mut f = std::fs::File::create(&path)
-        .map_err(|e| format!("failed to create file: {e}"))?;
+    let mut f = std::fs::File::create(&path).map_err(|e| format!("failed to create file: {e}"))?;
     f.write_all(&bytes)
         .map_err(|e| format!("failed to write file: {e}"))?;
 
@@ -1988,8 +2221,7 @@ pub fn saveTempImage(
 pub fn saveSummaryTempFile(session_id: String, content: String) -> Result<String, String> {
     let home = dirs::home_dir().ok_or("cannot determine home dir")?;
     let temp_dir = home.join(".hermes-web").join("temp");
-    std::fs::create_dir_all(&temp_dir)
-        .map_err(|e| format!("failed to create temp dir: {e}"))?;
+    std::fs::create_dir_all(&temp_dir).map_err(|e| format!("failed to create temp dir: {e}"))?;
     let path = temp_dir.join(format!("summary_{session_id}.md"));
     std::fs::write(&path, content.as_bytes())
         .map_err(|e| format!("failed to write temp file: {e}"))?;
@@ -2015,7 +2247,11 @@ async fn call_chat_completions(prompt: &str) -> Result<String, String> {
     if !cfg.key.is_empty() {
         probe_req = probe_req.header("Authorization", format!("Bearer {}", cfg.key));
     }
-    let online = probe_req.send().await.map(|r| r.status().is_success()).unwrap_or(false);
+    let online = probe_req
+        .send()
+        .await
+        .map(|r| r.status().is_success())
+        .unwrap_or(false);
     if !online {
         return Err("Hermes proxy 未启动，请先在聊天页面启动 Agent".to_string());
     }
@@ -2131,10 +2367,16 @@ pub fn setSummaryTemplate(
     dailyReport: Option<String>,
 ) -> Result<(), String> {
     if let Some(t) = summary {
-        state.db.set_setting(SUMMARY_TEMPLATE_KEY, &t).map_err(|e| e.to_string())?;
+        state
+            .db
+            .set_setting(SUMMARY_TEMPLATE_KEY, &t)
+            .map_err(|e| e.to_string())?;
     }
     if let Some(t) = dailyReport {
-        state.db.set_setting(DAILY_REPORT_TEMPLATE_KEY, &t).map_err(|e| e.to_string())?;
+        state
+            .db
+            .set_setting(DAILY_REPORT_TEMPLATE_KEY, &t)
+            .map_err(|e| e.to_string())?;
     }
     Ok(())
 }
@@ -2146,8 +2388,8 @@ pub async fn generateSessionSummary(
     filePath: String,
     agentId: Option<String>,
 ) -> Result<ChatSession, String> {
-    let conversation = std::fs::read_to_string(&filePath)
-        .map_err(|e| format!("读取导出文件失败: {e}"))?;
+    let conversation =
+        std::fs::read_to_string(&filePath).map_err(|e| format!("读取导出文件失败: {e}"))?;
 
     // 删除临时文件，不阻塞主流程
     let _ = std::fs::remove_file(&filePath);
@@ -2216,15 +2458,15 @@ pub async fn generateSessionSummary(
         return Err(format!("AI 未返回有效摘要，原始内容: {raw}"));
     }
 
-    let tags_opt = if tags.is_empty() { None } else { Some(tags.as_str()) };
+    let tags_opt = if tags.is_empty() {
+        None
+    } else {
+        Some(tags.as_str())
+    };
 
     state
         .db
-        .update_session_ai_metadata(
-            &sessionId,
-            Some(summary.as_str()),
-            tags_opt,
-        )
+        .update_session_ai_metadata(&sessionId, Some(summary.as_str()), tags_opt)
         .map_err(|e| e.to_string())?;
 
     state
@@ -2256,10 +2498,7 @@ pub async fn generateDailyReport(
         .enumerate()
         .map(|(i, s)| {
             let title = s.title.as_deref().unwrap_or("无标题");
-            let summary = s
-                .summary
-                .as_deref()
-                .unwrap_or("（暂无摘要）");
+            let summary = s.summary.as_deref().unwrap_or("（暂无摘要）");
             let tags = s
                 .tags
                 .as_deref()
@@ -2305,4 +2544,83 @@ pub async fn getDailyReport(
         .db
         .get_daily_report(&dateStr, agentId.as_deref())
         .map_err(|e| e.to_string())
+}
+
+#[derive(serde::Serialize)]
+pub struct ArtifactUploadResult {
+    pub artifact_id: String,
+    pub filename: String,
+    pub download_path: String,
+}
+
+#[tauri::command]
+#[allow(non_snake_case)]
+pub async fn uploadArtifact(
+    apiServerPort: u16,
+    apiServerKey: String,
+    filePath: Option<String>,
+    base64Content: Option<String>,
+    filename: String,
+    mimeType: String,
+) -> Result<ArtifactUploadResult, String> {
+    let cfg = read_api_server_config();
+    let url = format!("http://{}:{}/v1/artifacts/upload", cfg.host, apiServerPort);
+
+    let file_bytes = if let Some(path) = filePath {
+        std::fs::read(&path).map_err(|e| format!("读取文件失败: {e}"))?
+    } else if let Some(b64) = base64Content {
+        use base64::Engine;
+        base64::engine::general_purpose::STANDARD
+            .decode(&b64)
+            .map_err(|e| format!("base64 解码失败: {e}"))?
+    } else {
+        return Err("filePath 或 base64Content 必须提供一个".to_string());
+    };
+
+    // HTTP/1.1 headers must be ASCII; percent-encode non-ASCII filename bytes
+    // so Chinese characters (e.g. "友禾比价.xlsx") are transmitted safely.
+    let encoded_filename: String = filename
+        .bytes()
+        .flat_map(|b| {
+            if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~') {
+                vec![b as char]
+            } else {
+                format!("%{:02X}", b).chars().collect::<Vec<_>>()
+            }
+        })
+        .collect();
+
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(&url)
+        .bearer_auth(&apiServerKey)
+        .header("Content-Type", mimeType)
+        .header("X-Artifact-Filename", &encoded_filename)
+        .body(file_bytes)
+        .send()
+        .await
+        .map_err(|e| format!("上传失败: {e}"))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        return Err(format!("上传失败 {status}: {body}"));
+    }
+
+    #[derive(serde::Deserialize)]
+    struct RespBody {
+        artifact_id: String,
+        filename: String,
+        download_path: String,
+    }
+    let body: RespBody = resp
+        .json()
+        .await
+        .map_err(|e| format!("解析响应失败: {e}"))?;
+
+    Ok(ArtifactUploadResult {
+        artifact_id: body.artifact_id,
+        filename: body.filename,
+        download_path: body.download_path,
+    })
 }

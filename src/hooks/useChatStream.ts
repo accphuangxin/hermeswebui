@@ -63,7 +63,12 @@ interface StreamOptions {
   apiServerKey?: string;
   onDelta: (text: string) => void;
   onToolStarted: (tool: string, preview: string) => void;
-  onToolCompleted: (tool: string, duration: number, error: boolean, result?: string) => void;
+  onToolCompleted: (
+    tool: string,
+    duration: number,
+    error: boolean,
+    result?: string,
+  ) => void;
   onApprovalRequired: (approval: ApprovalRequest) => void;
   onCompleted: (output: string, runSessionId: string, usage?: RunUsage) => void;
   onError: (error: string) => void;
@@ -95,7 +100,8 @@ export function useChatStream() {
     const remaining = MIN_WAITING_MS - elapsed;
     if (remaining > 0) {
       waitingTimerRef.current = setTimeout(
-        () => dispatch({ isStreaming: true, isWaiting: false, isStopping: false }),
+        () =>
+          dispatch({ isStreaming: true, isWaiting: false, isStopping: false }),
         remaining,
       );
     } else {

@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, Trash2, MessageSquare, Pencil, Sparkles, BarChart2, ChevronDown, Loader2 } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  MessageSquare,
+  Pencil,
+  Sparkles,
+  BarChart2,
+  ChevronDown,
+  Loader2,
+} from "lucide-react";
 import type { ChatSession } from "@/types";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -29,7 +38,10 @@ interface ChatSidebarProps {
   processingSessionIds?: Set<string>;
 }
 
-function getDateGroupLabel(ts: number, t: ReturnType<typeof useTranslation>["t"]): string {
+function getDateGroupLabel(
+  ts: number,
+  t: ReturnType<typeof useTranslation>["t"],
+): string {
   const now = new Date();
   const d = new Date(ts);
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -44,10 +56,20 @@ function getDateGroupLabel(ts: number, t: ReturnType<typeof useTranslation>["t"]
     return t("sessionManager.groupYesterday");
   }
   if (sessionDay.getTime() <= threeDaysAgo.getTime()) {
-    const label = threeDaysAgo.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" }).replace(/\//g, "/");
+    const label = threeDaysAgo
+      .toLocaleDateString("zh-CN", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      })
+      .replace(/\//g, "/");
     return `${label} 以前`;
   }
-  return d.toLocaleDateString(undefined, { year: "numeric", month: "2-digit", day: "2-digit" });
+  return d.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
 }
 
 export function ChatSidebar({
@@ -66,14 +88,21 @@ export function ChatSidebar({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; session: ChatSession } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    session: ChatSession;
+  } | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!contextMenu) return;
     const handle = (e: MouseEvent) => {
-      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
+      if (
+        contextMenuRef.current &&
+        !contextMenuRef.current.contains(e.target as Node)
+      ) {
         setContextMenu(null);
       }
     };
@@ -98,12 +127,16 @@ export function ChatSidebar({
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const threeDaysAgo = new Date(today.getTime() - 3 * 86400000);
-    const dateLabel = threeDaysAgo.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
+    const dateLabel = threeDaysAgo.toLocaleDateString("zh-CN", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
     return new Set([`${dateLabel} 以前`]);
   });
 
   const toggleGroup = useCallback((label: string) => {
-    setCollapsedGroups(prev => {
+    setCollapsedGroups((prev) => {
       const next = new Set(prev);
       if (next.has(label)) next.delete(label);
       else next.add(label);
@@ -172,7 +205,12 @@ export function ChatSidebar({
                   onClick={() => toggleGroup(item.label)}
                   className="w-full flex items-center gap-1 pt-2 pb-0.5 px-1 text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wide hover:text-muted-foreground transition-colors"
                 >
-                  <ChevronDown className={cn("w-3 h-3 transition-transform shrink-0", isCollapsed && "-rotate-90")} />
+                  <ChevronDown
+                    className={cn(
+                      "w-3 h-3 transition-transform shrink-0",
+                      isCollapsed && "-rotate-90",
+                    )}
+                  />
                   {item.label}
                 </button>
               );
@@ -181,7 +219,9 @@ export function ChatSidebar({
             let groupLabel = "";
             for (let i = idx - 1; i >= 0; i--) {
               if (groupedItems[i].type === "header") {
-                groupLabel = (groupedItems[i] as { type: "header"; label: string }).label;
+                groupLabel = (
+                  groupedItems[i] as { type: "header"; label: string }
+                ).label;
                 break;
               }
             }
@@ -192,7 +232,9 @@ export function ChatSidebar({
                 key={s.id}
                 onClick={() => !isLocked && onSelectSession(s.id)}
                 onDoubleClick={() => !isLocked && startRename(s)}
-                onMouseDown={(e) => { if (e.button === 2) e.preventDefault(); }}
+                onMouseDown={(e) => {
+                  if (e.button === 2) e.preventDefault();
+                }}
                 onContextMenu={(e) => {
                   e.preventDefault();
                   window.getSelection()?.removeAllRanges();
@@ -200,15 +242,25 @@ export function ChatSidebar({
                 }}
                 className={cn(
                   "group w-full flex flex-col rounded-md px-2 py-1.5 text-sm text-left hover:bg-muted transition-colors select-none",
-                  activeSessionId === s.id && "bg-primary/10 font-semibold text-primary",
-                  isLocked && s.id !== activeSessionId && "opacity-40 cursor-not-allowed",
+                  activeSessionId === s.id &&
+                    "bg-primary/10 font-semibold text-primary",
+                  isLocked &&
+                    s.id !== activeSessionId &&
+                    "opacity-40 cursor-not-allowed",
                 )}
               >
                 <div className="flex items-center gap-2 w-full">
                   {processingSessionIds?.has(s.id) ? (
                     <Loader2 className="w-3.5 h-3.5 flex-shrink-0 text-primary animate-spin" />
                   ) : (
-                    <MessageSquare className={cn("w-3.5 h-3.5 flex-shrink-0", activeSessionId === s.id ? "text-primary" : "text-muted-foreground")} />
+                    <MessageSquare
+                      className={cn(
+                        "w-3.5 h-3.5 flex-shrink-0",
+                        activeSessionId === s.id
+                          ? "text-primary"
+                          : "text-muted-foreground",
+                      )}
+                    />
                   )}
                   {editingId === s.id ? (
                     <input

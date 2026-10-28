@@ -31,13 +31,18 @@ export const agentProvidersApi = {
     if (data && typeof data === "object") {
       const obj = data as Record<string, unknown>;
       if (Array.isArray(obj.data)) return obj.data as AgentProvider[];
-      if (Array.isArray(obj.custom_providers)) return obj.custom_providers as AgentProvider[];
+      if (Array.isArray(obj.custom_providers))
+        return obj.custom_providers as AgentProvider[];
       if (Array.isArray(obj.providers)) return obj.providers as AgentProvider[];
     }
     return [];
   },
 
-  async upsert(port: number, key: string, input: UpsertProviderInput): Promise<void> {
+  async upsert(
+    port: number,
+    key: string,
+    input: UpsertProviderInput,
+  ): Promise<void> {
     await invoke("upsertAgentProvider", {
       apiServerPort: port,
       apiServerKey: key,
@@ -45,7 +50,12 @@ export const agentProvidersApi = {
     });
   },
 
-  async update(port: number, key: string, name: string, input: Partial<UpsertProviderInput>): Promise<void> {
+  async update(
+    port: number,
+    key: string,
+    name: string,
+    input: Partial<UpsertProviderInput>,
+  ): Promise<void> {
     await invoke("updateAgentProvider", {
       apiServerPort: port,
       apiServerKey: key,

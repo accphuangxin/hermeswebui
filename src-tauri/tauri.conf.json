@@ -10,23 +10,9 @@
     "beforeBuildCommand": "pnpm run build:renderer"
   },
   "app": {
-    "windows": [
-      {
-        "label": "main",
-        "title": "",
-        "titleBarStyle": "Overlay",
-        "width": 1000,
-        "height": 650,
-        "minWidth": 900,
-        "minHeight": 600,
-        "visible": false,
-        "resizable": true,
-        "fullscreen": false,
-        "center": true
-      }
-    ],
+    "windows": [],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' asset: https: http: data:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost https: http:",
+      "csp": "default-src 'self'; img-src 'self' asset: https: http: data:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost https: http:; frame-src 'self' https: http:",
       "assetProtocol": {
         "enable": true,
         "scope": ["$HOME/.hermes/**", "$HOME/hermes/**", "$APPDATA/.hermes/**"]

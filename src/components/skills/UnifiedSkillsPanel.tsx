@@ -654,15 +654,16 @@ function PublishDialog({ skill, onClose }: PublishDialogProps) {
       setPublishStatus(
         t("skills.clawhub.readingFiles", { defaultValue: "读取文件..." }),
       );
-      const rawFiles = await invoke<
-        Array<{
+      const rawFiles = await invoke<{
+        files: Array<{
           path: string;
           contentBase64: string;
           size: number;
           contentType: string;
           sha256: string;
-        }>
-      >("read_skill_files", { directory: skill.directory });
+        }>;
+        skipped: string[];
+      }>("read_skill_files", { directory: skill.directory });
 
       setPublishStatus(
         t("skills.clawhub.publishing", { defaultValue: "发布中..." }),
@@ -673,15 +674,28 @@ function PublishDialog({ skill, onClose }: PublishDialogProps) {
         displayName: skill.name,
         version,
         changelog: changelog || `Version ${version}`,
-        files: rawFiles.map((f) => ({
+        files: rawFiles.files.map((f) => ({
           path: f.path,
           contentBase64: f.contentBase64,
           contentType: f.contentType,
         })),
       });
+      const skipped = rawFiles.skipped;
       toast.success(
         t("skills.clawhub.publishSuccess", { defaultValue: "发布成功！" }),
-        { closeButton: true },
+        {
+          closeButton: true,
+          description:
+            skipped.length > 0
+              ? t("skills.clawhub.skippedFiles", {
+                  count: skipped.length,
+                  files:
+                    skipped.slice(0, 5).join("、") +
+                    (skipped.length > 5 ? " …" : ""),
+                  defaultValue: "已跳过 {{count}} 个非文本文件：{{files}}",
+                })
+              : undefined,
+        },
       );
       onClose();
     } catch (e) {
@@ -1117,7 +1131,10 @@ const UnifiedSkillsPanel = React.forwardRef<
             size="icon"
             className="h-6 w-6"
             title={t("skills.reload", { defaultValue: "重新加载" })}
-            onClick={async () => { await refetchSkills(); toast.success("刷新成功"); }}
+            onClick={async () => {
+              await refetchSkills();
+              toast.success("刷新成功");
+            }}
             disabled={isRefetchingSkills}
           >
             {isRefetchingSkills ? (

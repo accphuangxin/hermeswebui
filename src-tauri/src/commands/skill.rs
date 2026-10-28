@@ -401,10 +401,43 @@ pub struct SkillFileEntry {
     pub sha256: String,
 }
 
+/// 发布结果：可上传的文本文件 + 被跳过的非文本文件
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillFilesResult {
+    pub files: Vec<SkillFileEntry>,
+    pub skipped: Vec<String>,
+}
+
+/// ClawHub 允许发布的文本扩展名，需与 clawhub `TEXT_FILE_EXTENSIONS` 保持一致
+const PUBLISHABLE_TEXT_EXTENSIONS: &[&str] = &[
+    "md", "mdx", "txt", "json", "json5", "yaml", "yml", "toml", "js", "cjs", "mjs", "ts", "tsx",
+    "jsx", "py", "sh", "rb", "go", "rs", "swift", "kt", "java", "cs", "cpp", "c", "h", "hpp",
+    "sql", "csv", "ini", "cfg", "env", "xml", "html", "css", "scss", "sass", "svg",
+];
+
+/// 是否是 ClawHub 可接受的文本文件（对齐服务端 isTextFile + isMacJunkPath）
+fn is_publishable_skill_file(rel_path: &str) -> bool {
+    let lower = rel_path.to_lowercase();
+    let segments: Vec<&str> = lower.split('/').filter(|s| !s.is_empty()).collect();
+    if segments.contains(&"__macosx") {
+        return false;
+    }
+    let basename = segments.last().copied().unwrap_or("");
+    if basename == ".ds_store" || basename.starts_with("._") {
+        return false;
+    }
+    match basename.rsplit_once('.') {
+        Some((_, ext)) => PUBLISHABLE_TEXT_EXTENSIONS.contains(&ext),
+        None => false,
+    }
+}
+
 fn collect_skill_files(
     root: &std::path::Path,
     dir: &std::path::Path,
-    out: &mut Vec<SkillFileEntry>,
+    files: &mut Vec<SkillFileEntry>,
+    skipped: &mut Vec<String>,
 ) -> Result<(), String> {
     use base64::Engine;
     use sha2::{Digest, Sha256};
@@ -413,10 +446,16 @@ fn collect_skill_files(
         let entry = entry.map_err(|e| e.to_string())?;
         let path = entry.path();
         if path.is_dir() {
-            collect_skill_files(root, &path, out)?;
+            collect_skill_files(root, &path, files, skipped)?;
         } else {
             let rel = path.strip_prefix(root).map_err(|e| e.to_string())?;
             let rel_str = rel.to_string_lossy().replace('\\', "/");
+
+            if !is_publishable_skill_file(&rel_str) {
+                skipped.push(rel_str);
+                continue;
+            }
+
             let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
             let size = bytes.len() as u64;
             let sha256 = format!("{:x}", Sha256::digest(&bytes));
@@ -432,7 +471,7 @@ fn collect_skill_files(
             } else {
                 "application/octet-stream"
             };
-            out.push(SkillFileEntry {
+            files.push(SkillFileEntry {
                 path: rel_str,
                 content_base64,
                 size,
@@ -444,9 +483,9 @@ fn collect_skill_files(
     Ok(())
 }
 
-/// 读取指定 skill 目录下所有文件，用于发布到 ClawHub
+/// 读取指定 skill 目录下可用于发布到 ClawHub 的文件（非文本文件会被跳过并返回）
 #[tauri::command]
-pub fn read_skill_files(directory: String) -> Result<Vec<SkillFileEntry>, String> {
+pub fn read_skill_files(directory: String) -> Result<SkillFilesResult, String> {
     // 优先 SSOT，找不到再找 ~/.hermes/skills/
     let ssot_dir = SkillService::get_ssot_dir().map_err(|e| e.to_string())?;
     let skill_dir = ssot_dir.join(&directory);
@@ -466,7 +505,48 @@ pub fn read_skill_files(directory: String) -> Result<Vec<SkillFileEntry>, String
         }
     };
 
-    let mut entries = Vec::new();
-    collect_skill_files(&skill_dir, &skill_dir, &mut entries)?;
-    Ok(entries)
+    let mut files = Vec::new();
+    let mut skipped = Vec::new();
+    collect_skill_files(&skill_dir, &skill_dir, &mut files, &mut skipped)?;
+    skipped.sort();
+    Ok(SkillFilesResult { files, skipped })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_publishable_skill_file;
+
+    #[test]
+    fn accepts_text_extensions() {
+        assert!(is_publishable_skill_file("SKILL.md"));
+        assert!(is_publishable_skill_file("scripts/run.py"));
+        assert!(is_publishable_skill_file("references/notes.yaml"));
+        assert!(is_publishable_skill_file("assets/logo.svg"));
+        assert!(is_publishable_skill_file("UPPER/Main.PY"));
+    }
+
+    #[test]
+    fn rejects_binary_and_artifacts() {
+        assert!(!is_publishable_skill_file(
+            "__pycache__/pipeline.cpython-311.pyc"
+        ));
+        assert!(!is_publishable_skill_file("output/report.xlsx"));
+        assert!(!is_publishable_skill_file("logs/run.log"));
+        assert!(!is_publishable_skill_file("state.json.lock"));
+        assert!(!is_publishable_skill_file("assets/icon.png"));
+    }
+
+    #[test]
+    fn rejects_mac_junk() {
+        assert!(!is_publishable_skill_file(".DS_Store"));
+        assert!(!is_publishable_skill_file("nested/.DS_Store"));
+        assert!(!is_publishable_skill_file("._SKILL.md"));
+        assert!(!is_publishable_skill_file("__MACOSX/SKILL.md"));
+    }
+
+    #[test]
+    fn rejects_extensionless_files() {
+        assert!(!is_publishable_skill_file("scripts/run"));
+        assert!(!is_publishable_skill_file("Makefile"));
+    }
 }

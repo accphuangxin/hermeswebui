@@ -34,6 +34,7 @@ import { AppVisibilitySettings } from "@/components/settings/AppVisibilitySettin
 import { SkillStorageLocationSettings } from "@/components/settings/SkillStorageLocationSettings";
 import { SkillSyncMethodSettings } from "@/components/settings/SkillSyncMethodSettings";
 import { TerminalSettings } from "@/components/settings/TerminalSettings";
+import { VoiceInputSettings } from "@/components/settings/VoiceInputSettings";
 import { DirectorySettings } from "@/components/settings/DirectorySettings";
 import { ImportExportSection } from "@/components/settings/ImportExportSection";
 import { BackupListSection } from "@/components/settings/BackupListSection";
@@ -218,6 +219,10 @@ export function SettingsPage({
                       onChange={(lang) => handleAutoSave({ language: lang })}
                     />
                     <ThemeSettings />
+                    <VoiceInputSettings
+                      value={settings.voiceInput}
+                      onChange={(voiceInput) => handleAutoSave({ voiceInput })}
+                    />
                     <AppVisibilitySettings
                       settings={settings}
                       onChange={handleAutoSave}

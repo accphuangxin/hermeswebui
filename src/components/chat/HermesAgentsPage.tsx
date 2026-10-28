@@ -9,6 +9,8 @@ import {
   RotateCcw,
   Pencil,
   Database,
+  Server,
+  Loader2,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -29,8 +31,25 @@ import {
 import type { HermesAgent } from "@/lib/api/agents";
 import type { UpdateAgentInput } from "@/lib/api/agents";
 import { toast } from "sonner";
-import { useAgentProviders, useUpsertProvider, useUpdateProvider, useDeleteProvider } from "@/hooks/useAgentProviders";
-import type { AgentProvider, AgentProviderModel } from "@/lib/api/agentProviders";
+import { AgentMcpPanel } from "./AgentMcpPanel";
+import { AgentModelPickerDialog } from "./AgentModelPickerDialog";
+import {
+  useAgentProviders,
+  useUpsertProvider,
+  useUpdateProvider,
+  useDeleteProvider,
+} from "@/hooks/useAgentProviders";
+import type {
+  AgentProvider,
+  AgentProviderModel,
+} from "@/lib/api/agentProviders";
+import {
+  testAgentProviderModel,
+  type AgentModelTestResult,
+} from "@/lib/api/agent-model-test";
+
+const MCP_BTN_CLASS =
+  "flex items-center gap-1 text-[10px] rounded px-1.5 py-0.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors";
 
 interface HermesAgentsPageProps {
   selectedAgentId: string;
@@ -61,6 +80,7 @@ export function HermesAgentsPage({
   const [editAgent, setEditAgent] = useState<HermesAgent | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AgentItem | null>(null);
   const [providerAgent, setProviderAgent] = useState<AgentItem | null>(null);
+  const [mcpAgent, setMcpAgent] = useState<AgentItem | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -109,6 +129,7 @@ export function HermesAgentsPage({
     setEditAgent(null);
     setShowCreate(false);
     setProviderAgent(null);
+    setMcpAgent(null);
     setContextMenu(null);
   };
 
@@ -162,6 +183,14 @@ export function HermesAgentsPage({
     }
   };
 
+  const handleMcpRestart = (item: AgentItem) => {
+    restartMutation.mutate(item.rawId, {
+      onSuccess: () =>
+        toast.success(`${item.name} — ${t("hermes.agents.restartSuccess")}`),
+      onError: (err) => toast.error(String(err)),
+    });
+  };
+
   const handleEdit = (item: AgentItem, e: React.MouseEvent) => {
     e.stopPropagation();
     const raw = agents.find((a) => a.name === item.name) ?? null;
@@ -169,6 +198,7 @@ export function HermesAgentsPage({
     setDetailAgent(raw);
     setShowCreate(false);
     setProviderAgent(null);
+    setMcpAgent(null);
     setContextMenu(null);
   };
 
@@ -185,7 +215,9 @@ export function HermesAgentsPage({
       onClick={() => setContextMenu(null)}
     >
       <div className="flex-1 min-h-0 overflow-hidden px-4 pt-2 pb-4 flex flex-col gap-3">
-        <div className={`w-full overflow-y-auto overflow-x-hidden ${detailAgent || showCreate || editAgent || providerAgent ? "shrink-0 max-h-[300px]" : "flex-1"}`}>
+        <div
+          className={`w-full overflow-y-auto overflow-x-hidden ${detailAgent || showCreate || editAgent || providerAgent || mcpAgent ? "shrink-0 max-h-[300px]" : "flex-1"}`}
+        >
           {isLoading ? (
             <EmptyState pulse>
               {t("common.loading", { defaultValue: "加载中..." })}
@@ -233,11 +265,22 @@ export function HermesAgentsPage({
                   onManageProviders={(e) => {
                     e.stopPropagation();
                     setProviderAgent(item);
+                    setMcpAgent(null);
                     setDetailAgent(null);
                     setEditAgent(null);
                     setShowCreate(false);
                     setContextMenu(null);
                   }}
+                  onManageMcp={(e) => {
+                    e.stopPropagation();
+                    setMcpAgent(item);
+                    setProviderAgent(null);
+                    setDetailAgent(null);
+                    setEditAgent(null);
+                    setShowCreate(false);
+                    setContextMenu(null);
+                  }}
+                  mcpLabel={t("hermes.mcp.cardButton", { defaultValue: "MCP" })}
                   isStartPending={isStartPending(item)}
                   isStopPending={isStopPending(item)}
                   isRestartPending={isRestartPending(item)}
@@ -254,6 +297,7 @@ export function HermesAgentsPage({
                   setEditAgent(null);
                   setDetailAgent(null);
                   setProviderAgent(null);
+                  setMcpAgent(null);
                 }}
                 active={showCreate}
               />
@@ -290,17 +334,32 @@ export function HermesAgentsPage({
           </div>
         )}
 
-        {detailAgent && !showCreate && !editAgent && !providerAgent && (
-          <div className="flex-1 min-h-0">
-            <AgentDetailPanel agent={detailAgent} />
-          </div>
-        )}
+        {detailAgent &&
+          !showCreate &&
+          !editAgent &&
+          !providerAgent &&
+          !mcpAgent && (
+            <div className="flex-1 min-h-0">
+              <AgentDetailPanel agent={detailAgent} />
+            </div>
+          )}
 
-        {providerAgent && !showCreate && !editAgent && (
+        {providerAgent && !showCreate && !editAgent && !mcpAgent && (
           <div className="flex-1 min-h-0">
             <ProviderManagerPanel
               agent={providerAgent}
               onClose={() => setProviderAgent(null)}
+            />
+          </div>
+        )}
+
+        {mcpAgent && !showCreate && !editAgent && !providerAgent && (
+          <div className="flex-1 min-h-0">
+            <AgentMcpPanel
+              agentId={mcpAgent.rawId}
+              agentName={mcpAgent.name}
+              onClose={() => setMcpAgent(null)}
+              onRestart={() => handleMcpRestart(mcpAgent)}
             />
           </div>
         )}
@@ -465,6 +524,7 @@ function AgentCard({
   onEdit,
   onDelete,
   onManageProviders,
+  onManageMcp,
   isStartPending,
   isStopPending,
   isRestartPending,
@@ -473,6 +533,7 @@ function AgentCard({
   tRestart,
   tEdit,
   tDelete,
+  mcpLabel,
 }: {
   item: AgentItem;
   isSelected: boolean;
@@ -484,6 +545,7 @@ function AgentCard({
   onEdit: (e: React.MouseEvent) => void;
   onDelete: (e: React.MouseEvent) => void;
   onManageProviders: (e: React.MouseEvent) => void;
+  onManageMcp: (e: React.MouseEvent) => void;
   isStartPending: boolean;
   isStopPending: boolean;
   isRestartPending: boolean;
@@ -492,6 +554,7 @@ function AgentCard({
   tRestart: string;
   tEdit: string;
   tDelete: string;
+  mcpLabel: string;
 }) {
   const isRunning = item.status === "running";
   const isStopped = item.status === "stopped";
@@ -527,13 +590,17 @@ function AgentCard({
       )}
       {/* Model tag — clickable if provider management is available */}
       <div
-        className="mt-auto pt-1"
+        className="mt-auto pt-1 flex items-center gap-1"
         onClick={(e) => e.stopPropagation()}
       >
         {item.model && item.port && item.key ? (
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); onSelect(); if (item.status === "running") onManageProviders(e); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect();
+              if (item.status === "running") onManageProviders(e);
+            }}
             title={item.status === "running" ? "管理模型" : "切换到此智能体"}
             className={cn(
               "flex items-center gap-1 text-[10px] font-mono rounded px-1.5 py-0.5 transition-colors",
@@ -548,13 +615,29 @@ function AgentCard({
         ) : item.model ? (
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); onSelect(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect();
+            }}
             title="切换到此智能体"
             className="flex items-center gap-1 text-[10px] text-muted-foreground/50 hover:text-muted-foreground font-mono truncate px-1.5 py-0.5 rounded hover:bg-muted cursor-pointer transition-colors"
           >
             {item.model}
           </button>
         ) : null}
+        <button
+          type="button"
+          title={mcpLabel}
+          className={MCP_BTN_CLASS}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect();
+            onManageMcp(e);
+          }}
+        >
+          <Server className="w-2.5 h-2.5 shrink-0" />
+          {mcpLabel}
+        </button>
       </div>
 
       {/* Action buttons — right-aligned */}
@@ -747,9 +830,12 @@ function CreateAgentForm({
                 placeholder="my-secret-key-16chars+"
                 className="h-9 text-sm"
               />
-              {apiServerKey.trim().length > 0 && apiServerKey.trim().length < 16 && (
-                <p className="text-xs text-destructive">API KEY 最少需要 16 位字符</p>
-              )}
+              {apiServerKey.trim().length > 0 &&
+                apiServerKey.trim().length < 16 && (
+                  <p className="text-xs text-destructive">
+                    API KEY 最少需要 16 位字符
+                  </p>
+                )}
             </div>
           </div>
 
@@ -764,7 +850,9 @@ function CreateAgentForm({
                 onChange={(e) => setIsClone(e.target.checked)}
                 className="w-4 h-4"
               />
-              <span className="text-xs text-muted-foreground">复制默认 Agent 的配置</span>
+              <span className="text-xs text-muted-foreground">
+                复制默认 Agent 的配置
+              </span>
             </label>
           </div>
 
@@ -803,7 +891,9 @@ function CreateAgentForm({
           size="sm"
           className="flex-1 h-9"
           onClick={handleSubmit}
-          disabled={isPending || !name.trim() || apiServerKey.trim().length < 16}
+          disabled={
+            isPending || !name.trim() || apiServerKey.trim().length < 16
+          }
         >
           {isPending
             ? t("common.creating", { defaultValue: "创建中..." })
@@ -835,13 +925,15 @@ function EditAgentForm({
   const [apiServerKey, setApiServerKey] = useState(agent.apiServerKey ?? "");
   const [baseUrl, setBaseUrl] = useState(agent.baseUrl ?? "");
   const [envExpanded, setEnvExpanded] = useState(false);
-  const [envEntries, setEnvEntries] = useState<{ key: string; value: string }[]>(
-    Object.entries(agent.env ?? {}).map(([k, v]) => ({ key: k, value: v }))
-  );
+  const [envEntries, setEnvEntries] = useState<
+    { key: string; value: string }[]
+  >(Object.entries(agent.env ?? {}).map(([k, v]) => ({ key: k, value: v })));
 
   // Model select mode: "select" when agent has port+key, else "manual"
   const hasServer = !!(agent.apiServerPort && agent.apiServerKey);
-  const [modelMode, setModelMode] = useState<"select" | "manual">(hasServer ? "select" : "manual");
+  const [modelMode, setModelMode] = useState<"select" | "manual">(
+    hasServer ? "select" : "manual",
+  );
   const [modelExpanded, setModelExpanded] = useState(false);
   const { data: providers = [] } = useAgentProviders(
     modelMode === "select" ? agent.apiServerPort : undefined,
@@ -849,12 +941,20 @@ function EditAgentForm({
   );
   // Flatten all provider models into selectable options
   const modelOptions = providers.flatMap((p) =>
-    Object.keys(p.models ?? {}).map((m) => ({ provider: p.name, model: m, baseUrl: p.base_url }))
+    Object.keys(p.models ?? {}).map((m) => ({
+      provider: p.name,
+      model: m,
+      baseUrl: p.base_url,
+    })),
   );
   // If provider has no models key but has a default model, add it
   providers.forEach((p) => {
     if (!p.models || Object.keys(p.models).length === 0) {
-      modelOptions.push({ provider: p.name, model: p.model, baseUrl: p.base_url });
+      modelOptions.push({
+        provider: p.name,
+        model: p.model,
+        baseUrl: p.base_url,
+      });
     }
   });
 
@@ -907,7 +1007,12 @@ function EditAgentForm({
         <p className="text-sm font-semibold">
           {t("hermes.agents.editTitle", { name: agent.name })}
         </p>
-        <Button variant="ghost" size="icon" className="h-6 w-6 -mr-1" onClick={onClose}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 -mr-1"
+          onClick={onClose}
+        >
           <X className="w-3.5 h-3.5" />
         </Button>
       </div>
@@ -917,8 +1022,15 @@ function EditAgentForm({
         {/* Left: settings */}
         <div className="w-2/5 border-r overflow-y-auto p-4 space-y-4">
           <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
-            <div className="text-xs text-muted-foreground uppercase tracking-wide">DESCRIPTION</div>
-            <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder={agent.description ?? "描述"} className="h-9 text-sm" />
+            <div className="text-xs text-muted-foreground uppercase tracking-wide">
+              DESCRIPTION
+            </div>
+            <Input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder={agent.description ?? "描述"}
+              className="h-9 text-sm"
+            />
           </div>
 
           {/* Default Model */}
@@ -931,12 +1043,21 @@ function EditAgentForm({
                 <span>{modelExpanded ? "▾" : "▸"}</span>
                 <span>DEFAULT MODEL</span>
                 {!modelExpanded && model && (
-                  <span className="font-mono text-foreground/70 normal-case ml-1">{model}{provider ? ` (${provider})` : ""}</span>
+                  <span className="font-mono text-foreground/70 normal-case ml-1">
+                    {model}
+                    {provider ? ` (${provider})` : ""}
+                  </span>
                 )}
               </div>
               {modelExpanded && hasServer && (
-                <button type="button" className="text-[10px] text-primary hover:opacity-80"
-                  onClick={(e) => { e.stopPropagation(); setModelMode((m) => m === "select" ? "manual" : "select"); }}>
+                <button
+                  type="button"
+                  className="text-[10px] text-primary hover:opacity-80"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setModelMode((m) => (m === "select" ? "manual" : "select"));
+                  }}
+                >
                   {modelMode === "select" ? "手动填写" : "从列表选择"}
                 </button>
               )}
@@ -944,17 +1065,34 @@ function EditAgentForm({
             {modelExpanded && modelMode === "select" ? (
               <div className="border rounded-md overflow-hidden">
                 {providers.length === 0 ? (
-                  <p className="text-xs text-muted-foreground p-2 animate-pulse">加载中...</p>
+                  <p className="text-xs text-muted-foreground p-2 animate-pulse">
+                    加载中...
+                  </p>
                 ) : (
                   <div className="max-h-40 overflow-y-auto">
                     {modelOptions.map((opt, i) => {
-                      const isSelected = opt.model === model && opt.provider === provider;
+                      const isSelected =
+                        opt.model === model && opt.provider === provider;
                       return (
-                        <button key={i} type="button"
-                          className={cn("w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-muted/60 transition-colors", isSelected && "bg-primary/10 text-primary")}
-                          onClick={() => { setModel(opt.model); setProvider(opt.provider); setBaseUrl(opt.baseUrl ?? ""); }}>
-                          <span className="font-mono font-medium truncate">{opt.model}</span>
-                          <span className="text-muted-foreground/60 shrink-0">{opt.provider}</span>
+                        <button
+                          key={i}
+                          type="button"
+                          className={cn(
+                            "w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-muted/60 transition-colors",
+                            isSelected && "bg-primary/10 text-primary",
+                          )}
+                          onClick={() => {
+                            setModel(opt.model);
+                            setProvider(opt.provider);
+                            setBaseUrl(opt.baseUrl ?? "");
+                          }}
+                        >
+                          <span className="font-mono font-medium truncate">
+                            {opt.model}
+                          </span>
+                          <span className="text-muted-foreground/60 shrink-0">
+                            {opt.provider}
+                          </span>
                         </button>
                       );
                     })}
@@ -964,14 +1102,25 @@ function EditAgentForm({
                   <div className="border-t px-3 py-1.5 text-[10px] text-muted-foreground bg-muted/20 space-y-1">
                     <div className="flex gap-2">
                       <span>已选：</span>
-                      <span className="font-mono font-medium text-foreground">{model}</span>
-                      {provider && <span className="text-muted-foreground/60">({provider})</span>}
+                      <span className="font-mono font-medium text-foreground">
+                        {model}
+                      </span>
+                      {provider && (
+                        <span className="text-muted-foreground/60">
+                          ({provider})
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="shrink-0 uppercase tracking-wide">Base URL</span>
-                      <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)}
+                      <span className="shrink-0 uppercase tracking-wide">
+                        Base URL
+                      </span>
+                      <input
+                        value={baseUrl}
+                        onChange={(e) => setBaseUrl(e.target.value)}
                         placeholder="可选，留空使用 provider 默认值"
-                        className="flex-1 bg-background border border-input rounded px-2 py-0.5 text-[10px] font-mono outline-none focus:ring-1 focus:ring-ring" />
+                        className="flex-1 bg-background border border-input rounded px-2 py-0.5 text-[10px] font-mono outline-none focus:ring-1 focus:ring-ring"
+                      />
                     </div>
                   </div>
                 )}
@@ -980,32 +1129,66 @@ function EditAgentForm({
               <div className="space-y-2">
                 <div className="grid grid-cols-[80px_1fr] gap-3 items-center">
                   <div className="text-xs text-muted-foreground">MODEL</div>
-                  <Input value={model} onChange={(e) => setModel(e.target.value)} placeholder={agent.model ?? "qwen3_6"} className="h-8 text-sm" />
+                  <Input
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                    placeholder={agent.model ?? "qwen3_6"}
+                    className="h-8 text-sm"
+                  />
                 </div>
                 <div className="grid grid-cols-[80px_1fr] gap-3 items-center">
                   <div className="text-xs text-muted-foreground">PROVIDER</div>
-                  <Input value={provider} onChange={(e) => setProvider(e.target.value)} placeholder={agent.provider ?? "custom"} className="h-8 text-sm" />
+                  <Input
+                    value={provider}
+                    onChange={(e) => setProvider(e.target.value)}
+                    placeholder={agent.provider ?? "custom"}
+                    className="h-8 text-sm"
+                  />
                 </div>
                 <div className="grid grid-cols-[80px_1fr] gap-3 items-center">
                   <div className="text-xs text-muted-foreground">BASE URL</div>
-                  <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="可选" className="h-8 text-sm" />
+                  <Input
+                    value={baseUrl}
+                    onChange={(e) => setBaseUrl(e.target.value)}
+                    placeholder="可选"
+                    className="h-8 text-sm"
+                  />
                 </div>
               </div>
             ) : null}
           </div>
 
           <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
-            <div className="text-xs text-muted-foreground uppercase tracking-wide">API PORT</div>
-            <Input value={apiServerPort} onChange={(e) => setApiServerPort(e.target.value)} placeholder={agent.apiServerPort ? String(agent.apiServerPort) : "8701"} className="h-9 text-sm" />
+            <div className="text-xs text-muted-foreground uppercase tracking-wide">
+              API PORT
+            </div>
+            <Input
+              value={apiServerPort}
+              onChange={(e) => setApiServerPort(e.target.value)}
+              placeholder={
+                agent.apiServerPort ? String(agent.apiServerPort) : "8701"
+              }
+              className="h-9 text-sm"
+            />
           </div>
 
           <div className="grid grid-cols-[100px_1fr] gap-3 items-start">
-            <div className="text-xs text-muted-foreground uppercase tracking-wide pt-2.5">API KEY</div>
+            <div className="text-xs text-muted-foreground uppercase tracking-wide pt-2.5">
+              API KEY
+            </div>
             <div className="space-y-1">
-              <Input value={apiServerKey} onChange={(e) => setApiServerKey(e.target.value)} placeholder="my-secret-key-16chars+" className="h-9 text-sm" />
-              {apiServerKey.trim().length > 0 && apiServerKey.trim().length < 16 && (
-                <p className="text-xs text-destructive">API KEY 最少需要 16 位字符</p>
-              )}
+              <Input
+                value={apiServerKey}
+                onChange={(e) => setApiServerKey(e.target.value)}
+                placeholder="my-secret-key-16chars+"
+                className="h-9 text-sm"
+              />
+              {apiServerKey.trim().length > 0 &&
+                apiServerKey.trim().length < 16 && (
+                  <p className="text-xs text-destructive">
+                    API KEY 最少需要 16 位字符
+                  </p>
+                )}
             </div>
           </div>
 
@@ -1019,7 +1202,9 @@ function EditAgentForm({
                 <span>{envExpanded ? "▾" : "▸"}</span>
                 <span>ENV VARS</span>
                 {!envExpanded && envEntries.length > 0 && (
-                  <span className="normal-case text-foreground/60 ml-1">{envEntries.length} 个变量</span>
+                  <span className="normal-case text-foreground/60 ml-1">
+                    {envEntries.length} 个变量
+                  </span>
                 )}
               </div>
               {envExpanded && (
@@ -1038,7 +1223,9 @@ function EditAgentForm({
             {envExpanded && (
               <div className="space-y-1.5">
                 {envEntries.length === 0 && (
-                  <p className="text-xs text-muted-foreground py-1">暂无环境变量</p>
+                  <p className="text-xs text-muted-foreground py-1">
+                    暂无环境变量
+                  </p>
                 )}
                 {envEntries.map((entry, i) => (
                   <div key={i} className="flex gap-1.5 items-center">
@@ -1046,7 +1233,9 @@ function EditAgentForm({
                       value={entry.key}
                       onChange={(e) =>
                         setEnvEntries((prev) =>
-                          prev.map((item, idx) => idx === i ? { ...item, key: e.target.value } : item)
+                          prev.map((item, idx) =>
+                            idx === i ? { ...item, key: e.target.value } : item,
+                          ),
                         )
                       }
                       placeholder="KEY"
@@ -1056,7 +1245,11 @@ function EditAgentForm({
                       value={entry.value}
                       onChange={(e) =>
                         setEnvEntries((prev) =>
-                          prev.map((item, idx) => idx === i ? { ...item, value: e.target.value } : item)
+                          prev.map((item, idx) =>
+                            idx === i
+                              ? { ...item, value: e.target.value }
+                              : item,
+                          ),
                         )
                       }
                       placeholder="VALUE"
@@ -1065,7 +1258,11 @@ function EditAgentForm({
                     <button
                       type="button"
                       className="text-muted-foreground hover:text-destructive shrink-0"
-                      onClick={() => setEnvEntries((prev) => prev.filter((_, idx) => idx !== i))}
+                      onClick={() =>
+                        setEnvEntries((prev) =>
+                          prev.filter((_, idx) => idx !== i),
+                        )
+                      }
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -1075,13 +1272,19 @@ function EditAgentForm({
             )}
           </div>
 
-          {error && <p className="text-xs text-destructive break-all font-mono">{String(error)}</p>}
+          {error && (
+            <p className="text-xs text-destructive break-all font-mono">
+              {String(error)}
+            </p>
+          )}
         </div>
 
         {/* Right: soul */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <div className="px-1 py-2 shrink-0">
-            <span className="text-xs text-muted-foreground uppercase tracking-wide px-3">SOUL</span>
+            <span className="text-xs text-muted-foreground uppercase tracking-wide px-3">
+              SOUL
+            </span>
           </div>
           <textarea
             value={soul}
@@ -1094,11 +1297,27 @@ function EditAgentForm({
 
       {/* Footer buttons */}
       <div className="flex gap-2 px-4 py-3 border-t bg-muted/30 shrink-0">
-        <Button variant="outline" size="sm" className="flex-1 h-9" onClick={onClose} disabled={isPending}>
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-1 h-9"
+          onClick={onClose}
+          disabled={isPending}
+        >
           {t("common.cancel", { defaultValue: "取消" })}
         </Button>
-        <Button size="sm" className="flex-1 h-9" onClick={handleSubmit} disabled={isPending || (apiServerKey.trim().length > 0 && apiServerKey.trim().length < 16)}>
-          {isPending ? t("common.saving", { defaultValue: "保存中..." }) : t("common.save", { defaultValue: "保存" })}
+        <Button
+          size="sm"
+          className="flex-1 h-9"
+          onClick={handleSubmit}
+          disabled={
+            isPending ||
+            (apiServerKey.trim().length > 0 && apiServerKey.trim().length < 16)
+          }
+        >
+          {isPending
+            ? t("common.saving", { defaultValue: "保存中..." })
+            : t("common.save", { defaultValue: "保存" })}
         </Button>
       </div>
     </div>
@@ -1116,6 +1335,68 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+/** 新增模型行的默认值：1M 上下文，默认勾选视觉 */
+function newModelRow(): {
+  id: string;
+  context_length: string;
+  supports_vision: boolean;
+} {
+  return { id: "", context_length: "1000000", supports_vision: true };
+}
+
+/** 单个模型行的测试状态，按模型 ID 索引 */
+type ModelTestState =
+  | { kind: "testing" }
+  | { kind: "done"; result: AgentModelTestResult }
+  | { kind: "failed"; message: string };
+
+/** 模型测试结果的一行提示：成功显示绿色耗时，失败显示错误原因 */
+function ModelTestResultLine({
+  state,
+}: {
+  state: Exclude<ModelTestState, { kind: "testing" }>;
+}) {
+  const { t } = useTranslation();
+
+  if (state.kind === "failed") {
+    return (
+      <p className="pl-1 text-[10px] text-destructive break-all">
+        {t("hermes.agents.modelTest.failed", {
+          defaultValue: "测试失败：{{message}}",
+          message: state.message,
+        })}
+      </p>
+    );
+  }
+
+  const { ok, latencyMs, httpStatus, message } = state.result;
+  if (ok) {
+    return (
+      <p className="pl-1 text-[10px] text-emerald-500">
+        {t("hermes.agents.modelTest.success", {
+          defaultValue: "可用 · {{latency}}ms",
+          latency: latencyMs,
+        })}
+      </p>
+    );
+  }
+
+  return (
+    <p className="pl-1 text-[10px] text-destructive break-all">
+      {httpStatus
+        ? t("hermes.agents.modelTest.errorWithStatus", {
+            defaultValue: "不可用（HTTP {{status}}）：{{message}}",
+            status: httpStatus,
+            message,
+          })
+        : t("hermes.agents.modelTest.error", {
+            defaultValue: "不可用：{{message}}",
+            message,
+          })}
+    </p>
+  );
+}
+
 function ProviderManagerPanel({
   agent,
   onClose,
@@ -1126,7 +1407,12 @@ function ProviderManagerPanel({
   const { t } = useTranslation();
   const port = agent.port;
   const key = agent.key;
-  const { data: providers = [], isLoading, error, refetch } = useAgentProviders(port, key);
+  const {
+    data: providers = [],
+    isLoading,
+    error,
+    refetch,
+  } = useAgentProviders(port, key);
   const upsertMutation = useUpsertProvider(port, key);
   const updateMutation = useUpdateProvider(port, key);
   const deleteMutation = useDeleteProvider(port, key);
@@ -1138,14 +1424,80 @@ function ProviderManagerPanel({
   const [formApiKey, setFormApiKey] = useState("");
   const [formModel, setFormModel] = useState("");
   // models rows: array of {id, context_length, supports_vision}
-  const [modelRows, setModelRows] = useState<{ id: string; context_length: string; supports_vision: boolean }[]>([
-    { id: "", context_length: "100000", supports_vision: false },
-  ]);
+  const [modelRows, setModelRows] = useState<
+    { id: string; context_length: string; supports_vision: boolean }[]
+  >([newModelRow()]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  // 每行模型的测试状态，键为模型 ID（trim 后）；模型 ID 改动会清空对应结果
+  const [modelTests, setModelTests] = useState<Record<string, ModelTestState>>(
+    {},
+  );
 
   const resetForm = () => {
-    setFormName(""); setFormBaseUrl(""); setFormApiKey(""); setFormModel("");
-    setModelRows([{ id: "", context_length: "100000", supports_vision: false }]);
+    setFormName("");
+    setFormBaseUrl("");
+    setFormApiKey("");
+    setFormModel("");
+    setModelRows([newModelRow()]);
+    setModelTests({});
     setEditingName(null);
+  };
+
+  // 从模型选择弹窗批量追加；跳过已存在项与空白行。
+  const handleAddModels = (ids: string[]) => {
+    const added = ids.map((id) => id.trim()).filter(Boolean);
+    if (added.length === 0) return;
+    setModelRows((rows) => {
+      const existing = new Set(rows.map((r) => r.id.trim()));
+      const fresh = added.filter((id) => !existing.has(id));
+      if (fresh.length === 0) return rows;
+      return [
+        ...rows.filter((r) => r.id.trim()),
+        ...fresh.map((id) => ({ ...newModelRow(), id })),
+      ];
+    });
+    // 默认模型留空时，用第一个新增的模型补上
+    setFormModel((current) => current.trim() || added[0]);
+  };
+
+  // 测试单个模型：用表单当前的 Base URL / API Key 发一次最小请求
+  const handleTestModel = async (modelId: string) => {
+    const id = modelId.trim();
+    if (!id) return;
+    if (!formBaseUrl.trim() || !formApiKey.trim()) {
+      toast.error(
+        t("hermes.agents.modelTest.needConfig", {
+          defaultValue: "请先填写 Base URL 和 API Key",
+        }),
+      );
+      return;
+    }
+    setModelTests((prev) => ({ ...prev, [id]: { kind: "testing" } }));
+    try {
+      const result = await testAgentProviderModel(
+        formBaseUrl.trim(),
+        formApiKey.trim(),
+        id,
+      );
+      setModelTests((prev) => ({ ...prev, [id]: { kind: "done", result } }));
+    } catch (e) {
+      setModelTests((prev) => ({
+        ...prev,
+        [id]: { kind: "failed", message: String(e) },
+      }));
+    }
+  };
+
+  // 模型 ID 改动后，旧的测试结果不再对应当前输入，直接丢弃
+  const clearModelTest = (modelId: string) => {
+    const id = modelId.trim();
+    if (!id) return;
+    setModelTests((prev) => {
+      if (!(id in prev)) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
   };
 
   const loadProvider = (p: AgentProvider) => {
@@ -1159,37 +1511,53 @@ function ProviderManagerPanel({
       context_length: String(m.context_length),
       supports_vision: m.supports_vision,
     }));
-    setModelRows(rows.length > 0 ? rows : [{ id: "", context_length: "100000", supports_vision: false }]);
+    setModelRows(rows.length > 0 ? rows : [newModelRow()]);
+    setModelTests({});
   };
 
   const handleSubmit = () => {
-    if (!formName.trim() || !formBaseUrl.trim() || !formApiKey.trim() || !formModel.trim()) return;
+    if (
+      !formName.trim() ||
+      !formBaseUrl.trim() ||
+      !formApiKey.trim() ||
+      !formModel.trim()
+    )
+      return;
     const models: Record<string, AgentProviderModel> = {};
     for (const row of modelRows) {
       if (row.id.trim()) {
         models[row.id.trim()] = {
-          context_length: Number(row.context_length) || 100000,
+          context_length: Number(row.context_length) || 1000000,
           supports_vision: row.supports_vision,
         };
       }
     }
-    const input = { name: formName.trim(), base_url: formBaseUrl.trim(), api_key: formApiKey.trim(), model: formModel.trim(), models };
+    const input = {
+      name: formName.trim(),
+      base_url: formBaseUrl.trim(),
+      api_key: formApiKey.trim(),
+      model: formModel.trim(),
+      models,
+    };
     if (editingName) {
       updateMutation.mutate(
         { name: editingName, input },
         {
-          onSuccess: () => { toast.success(`Provider "${formName}" 已更新`); resetForm(); },
+          onSuccess: () => {
+            toast.success(`Provider "${formName}" 已更新`);
+            resetForm();
+          },
           onError: (e) => toast.error("更新失败", { description: String(e) }),
         },
       );
     } else {
-      upsertMutation.mutate(
-        input,
-        {
-          onSuccess: () => { toast.success(`Provider "${formName}" 已创建`); resetForm(); },
-          onError: (e) => toast.error("创建失败", { description: String(e) }),
+      upsertMutation.mutate(input, {
+        onSuccess: () => {
+          toast.success(`Provider "${formName}" 已创建`);
+          resetForm();
         },
-      );
+        onError: (e) => toast.error("创建失败", { description: String(e) }),
+      });
     }
   };
 
@@ -1198,8 +1566,14 @@ function ProviderManagerPanel({
   const confirmDelete = () => {
     if (!deleteTarget) return;
     deleteMutation.mutate(deleteTarget, {
-      onSuccess: () => { toast.success(`Provider "${deleteTarget}" 已删除`); setDeleteTarget(null); },
-      onError: (e) => { toast.error("删除失败", { description: String(e) }); setDeleteTarget(null); },
+      onSuccess: () => {
+        toast.success(`Provider "${deleteTarget}" 已删除`);
+        setDeleteTarget(null);
+      },
+      onError: (e) => {
+        toast.error("删除失败", { description: String(e) });
+        setDeleteTarget(null);
+      },
     });
   };
 
@@ -1211,7 +1585,12 @@ function ProviderManagerPanel({
           <Database className="w-4 h-4 text-muted-foreground" />
           <span className="text-sm font-semibold">模型管理 — {agent.name}</span>
         </div>
-        <Button variant="ghost" size="icon" className="h-6 w-6 -mr-1" onClick={onClose}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 -mr-1"
+          onClick={onClose}
+        >
           <X className="w-3.5 h-3.5" />
         </Button>
       </div>
@@ -1222,13 +1601,27 @@ function ProviderManagerPanel({
           <div className="bg-card rounded-xl border shadow-lg p-6 w-72 space-y-4">
             <p className="text-sm font-semibold">确认删除</p>
             <p className="text-sm text-muted-foreground">
-              确定要删除 Provider <span className="font-mono font-medium text-foreground">"{deleteTarget}"</span> 吗？此操作不可撤销。
+              确定要删除 Provider{" "}
+              <span className="font-mono font-medium text-foreground">
+                "{deleteTarget}"
+              </span>{" "}
+              吗？此操作不可撤销。
             </p>
             <div className="flex gap-2 justify-end">
-              <Button variant="outline" size="sm" onClick={() => setDeleteTarget(null)} disabled={deleteMutation.isPending}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleteMutation.isPending}
+              >
                 取消
               </Button>
-              <Button variant="destructive" size="sm" onClick={confirmDelete} disabled={deleteMutation.isPending}>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={confirmDelete}
+                disabled={deleteMutation.isPending}
+              >
                 {deleteMutation.isPending ? "删除中..." : "确认删除"}
               </Button>
             </div>
@@ -1236,12 +1629,23 @@ function ProviderManagerPanel({
         </div>
       )}
 
+      <AgentModelPickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        baseUrl={formBaseUrl}
+        apiKey={formApiKey}
+        existingIds={modelRows.map((r) => r.id)}
+        onConfirm={handleAddModels}
+      />
+
       {/* Left-right layout: provider list | form */}
       <div className="flex-1 min-h-0 flex gap-4 p-4 overflow-hidden">
         {/* Left: Provider list */}
         <div className="w-2/5 rounded-lg border bg-muted/20 overflow-y-auto p-3 space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Provider 列表</span>
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Provider 列表
+            </span>
             <button
               className="text-[10px] text-primary hover:opacity-80"
               onClick={resetForm}
@@ -1250,14 +1654,25 @@ function ProviderManagerPanel({
             </button>
           </div>
           {isLoading ? (
-            <p className="text-xs text-muted-foreground animate-pulse">加载中...</p>
+            <p className="text-xs text-muted-foreground animate-pulse">
+              加载中...
+            </p>
           ) : error ? (
             <div className="flex items-center gap-2">
               <p className="text-xs text-destructive">{String(error)}</p>
-              <Button variant="outline" size="sm" className="h-6 text-xs" onClick={() => void refetch()}>重试</Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-6 text-xs"
+                onClick={() => void refetch()}
+              >
+                重试
+              </Button>
             </div>
           ) : providers.length === 0 ? (
-            <p className="text-xs text-muted-foreground">暂无 Provider，点击右侧填写表单添加</p>
+            <p className="text-xs text-muted-foreground">
+              暂无 Provider，点击右侧填写表单添加
+            </p>
           ) : (
             <div className="space-y-1">
               {providers.map((p) => (
@@ -1268,14 +1683,23 @@ function ProviderManagerPanel({
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-semibold font-mono truncate">{p.name}</span>
-                      <span className="text-[10px] text-muted-foreground/60 font-mono truncate">{p.model}</span>
+                      <span className="text-xs font-semibold font-mono truncate">
+                        {p.name}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground/60 font-mono truncate">
+                        {p.model}
+                      </span>
                     </div>
-                    <p className="text-[10px] text-muted-foreground truncate">{p.base_url}</p>
+                    <p className="text-[10px] text-muted-foreground truncate">
+                      {p.base_url}
+                    </p>
                   </div>
                   <button
                     className="shrink-0 ml-1.5 px-1 py-0.5 rounded text-[10px] hover:bg-destructive/10 transition-colors text-destructive"
-                    onClick={(e) => { e.stopPropagation(); handleDelete(p.name); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(p.name);
+                    }}
                     disabled={deleteMutation.isPending}
                   >
                     删除
@@ -1288,89 +1712,234 @@ function ProviderManagerPanel({
 
         {/* Right: Form */}
         <div className="flex-1 rounded-lg border bg-muted/20 flex flex-col overflow-hidden">
-        <div className="flex-1 overflow-y-auto p-3 space-y-3">
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-            {formName ? `编辑 — ${formName}` : "新建 Provider"}
-          </span>
+          <div className="flex-1 overflow-y-auto p-3 space-y-3">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              {formName ? `编辑 — ${formName}` : "新建 Provider"}
+            </span>
 
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <label className="text-[10px] text-muted-foreground uppercase tracking-wide">名称 *</label>
-              <Input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="CloudCI" className="h-7 text-xs" />
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                  名称 *
+                </label>
+                <Input
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
+                  placeholder="CloudCI"
+                  className="h-7 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                  默认模型 *
+                </label>
+                <Input
+                  value={formModel}
+                  onChange={(e) => setFormModel(e.target.value)}
+                  placeholder="qwen3_6"
+                  className="h-7 text-xs"
+                />
+              </div>
+              <div className="space-y-1 col-span-2">
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                  Base URL *
+                </label>
+                <Input
+                  value={formBaseUrl}
+                  onChange={(e) => {
+                    setFormBaseUrl(e.target.value);
+                    // Base URL 变了，之前的测试结果不再可信
+                    setModelTests({});
+                  }}
+                  placeholder="http://token.cloudci.com/v1"
+                  className="h-7 text-xs"
+                />
+              </div>
+              <div className="space-y-1 col-span-2">
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                  API Key *
+                </label>
+                <Input
+                  value={formApiKey}
+                  onChange={(e) => {
+                    setFormApiKey(e.target.value);
+                    // API Key 变了，之前的测试结果不再可信
+                    setModelTests({});
+                  }}
+                  placeholder="sk-xxx"
+                  className="h-7 text-xs"
+                />
+              </div>
             </div>
-            <div className="space-y-1">
-              <label className="text-[10px] text-muted-foreground uppercase tracking-wide">默认模型 *</label>
-              <Input value={formModel} onChange={(e) => setFormModel(e.target.value)} placeholder="qwen3_6" className="h-7 text-xs" />
-            </div>
-            <div className="space-y-1 col-span-2">
-              <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Base URL *</label>
-              <Input value={formBaseUrl} onChange={(e) => setFormBaseUrl(e.target.value)} placeholder="http://token.cloudci.com/v1" className="h-7 text-xs" />
-            </div>
-            <div className="space-y-1 col-span-2">
-              <label className="text-[10px] text-muted-foreground uppercase tracking-wide">API Key *</label>
-              <Input value={formApiKey} onChange={(e) => setFormApiKey(e.target.value)} placeholder="sk-xxx" className="h-7 text-xs" />
-            </div>
-          </div>
 
-          {/* Model rows */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-[10px] text-muted-foreground uppercase tracking-wide">模型列表</label>
-              <button
-                className="text-[10px] text-primary hover:opacity-80"
-                onClick={() => setModelRows((r) => [...r, { id: "", context_length: "100000", supports_vision: false }])}
-              >
-                + 添加模型
-              </button>
-            </div>
-            <div className="space-y-1.5">
-              {modelRows.map((row, idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  <Input
-                    value={row.id}
-                    onChange={(e) => setModelRows((rows) => rows.map((r, i) => i === idx ? { ...r, id: e.target.value } : r))}
-                    placeholder="model_id"
-                    className="h-7 text-xs flex-1"
-                  />
-                  <Input
-                    value={row.context_length}
-                    onChange={(e) => setModelRows((rows) => rows.map((r, i) => i === idx ? { ...r, context_length: e.target.value } : r))}
-                    placeholder="100000"
-                    className="h-7 text-xs w-24"
-                  />
-                  <label className="flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={row.supports_vision}
-                      onChange={(e) => setModelRows((rows) => rows.map((r, i) => i === idx ? { ...r, supports_vision: e.target.checked } : r))}
-                    />
-                    视觉
-                  </label>
-                  {modelRows.length > 1 && (
-                    <button
-                      className="text-destructive/60 hover:text-destructive text-xs"
-                      onClick={() => setModelRows((rows) => rows.filter((_, i) => i !== idx))}
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  )}
+            {/* Model rows */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                  模型列表
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="rounded px-1.5 py-0.5 text-[10px] text-primary transition-colors hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
+                    onClick={() => setPickerOpen(true)}
+                    disabled={!formBaseUrl.trim() || !formApiKey.trim()}
+                    title={
+                      formBaseUrl.trim() && formApiKey.trim()
+                        ? undefined
+                        : t("hermes.agents.modelPicker.needConfig", {
+                            defaultValue: "请先填写 Base URL 和 API Key",
+                          })
+                    }
+                  >
+                    {t("hermes.agents.modelPicker.fetch", {
+                      defaultValue: "获取可用模型",
+                    })}
+                  </button>
+                  <span className="text-muted-foreground/40 text-[10px]">
+                    |
+                  </span>
+                  <button
+                    type="button"
+                    className="text-[10px] text-primary hover:opacity-80"
+                    onClick={() => setModelRows((r) => [...r, newModelRow()])}
+                  >
+                    + 添加模型
+                  </button>
                 </div>
-              ))}
+              </div>
+              <div className="space-y-1.5">
+                {modelRows.map((row, idx) => {
+                  const testState = modelTests[row.id.trim()];
+                  const testing = testState?.kind === "testing";
+                  return (
+                    <div key={idx} className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={row.id}
+                          onChange={(e) => {
+                            const next = e.target.value;
+                            clearModelTest(row.id);
+                            setModelRows((rows) =>
+                              rows.map((r, i) =>
+                                i === idx ? { ...r, id: next } : r,
+                              ),
+                            );
+                          }}
+                          placeholder="model_id"
+                          className="h-7 text-xs flex-1"
+                        />
+                        <Input
+                          value={row.context_length}
+                          onChange={(e) =>
+                            setModelRows((rows) =>
+                              rows.map((r, i) =>
+                                i === idx
+                                  ? { ...r, context_length: e.target.value }
+                                  : r,
+                              ),
+                            )
+                          }
+                          placeholder="1000000"
+                          className="h-7 text-xs w-24"
+                        />
+                        <label className="flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={row.supports_vision}
+                            onChange={(e) =>
+                              setModelRows((rows) =>
+                                rows.map((r, i) =>
+                                  i === idx
+                                    ? {
+                                        ...r,
+                                        supports_vision: e.target.checked,
+                                      }
+                                    : r,
+                                ),
+                              )
+                            }
+                          />
+                          视觉
+                        </label>
+                        <button
+                          type="button"
+                          className="rounded px-1.5 py-0.5 text-[10px] text-primary transition-colors hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
+                          onClick={() => void handleTestModel(row.id)}
+                          disabled={
+                            testing ||
+                            !row.id.trim() ||
+                            !formBaseUrl.trim() ||
+                            !formApiKey.trim()
+                          }
+                          title={
+                            formBaseUrl.trim() && formApiKey.trim()
+                              ? t("hermes.agents.modelTest.action", {
+                                  defaultValue: "测试",
+                                })
+                              : t("hermes.agents.modelTest.needConfig", {
+                                  defaultValue: "请先填写 Base URL 和 API Key",
+                                })
+                          }
+                        >
+                          {testing ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            t("hermes.agents.modelTest.action", {
+                              defaultValue: "测试",
+                            })
+                          )}
+                        </button>
+                        {modelRows.length > 1 && (
+                          <button
+                            className="text-destructive/60 hover:text-destructive text-xs"
+                            onClick={() => {
+                              clearModelTest(row.id);
+                              setModelRows((rows) =>
+                                rows.filter((_, i) => i !== idx),
+                              );
+                            }}
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                      {testState && testState.kind !== "testing" && (
+                        <ModelTestResultLine state={testState} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
-
-        </div>
           <div className="flex justify-end gap-2 px-3 py-2.5 border-t shrink-0">
-            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={resetForm}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={resetForm}
+            >
               {t("common.cancel", { defaultValue: "清空" })}
             </Button>
             <Button
               size="sm"
               className="h-7 text-xs"
               onClick={handleSubmit}
-              disabled={(upsertMutation.isPending || updateMutation.isPending) || !formName.trim() || !formBaseUrl.trim() || !formApiKey.trim() || !formModel.trim()}
+              disabled={
+                upsertMutation.isPending ||
+                updateMutation.isPending ||
+                !formName.trim() ||
+                !formBaseUrl.trim() ||
+                !formApiKey.trim() ||
+                !formModel.trim()
+              }
             >
-              {(upsertMutation.isPending || updateMutation.isPending) ? "保存中..." : editingName ? t("common.save", { defaultValue: "更新" }) : t("common.save", { defaultValue: "创建" })}
+              {upsertMutation.isPending || updateMutation.isPending
+                ? "保存中..."
+                : editingName
+                  ? t("common.save", { defaultValue: "更新" })
+                  : t("common.save", { defaultValue: "创建" })}
             </Button>
           </div>
         </div>

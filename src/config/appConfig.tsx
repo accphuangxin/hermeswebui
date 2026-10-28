@@ -37,6 +37,11 @@ export const SKILLS_APP_IDS: AppId[] = [
 /** App IDs shown in MCP panels (excludes OpenClaw) */
 export const MCP_APP_IDS: AppId[] = [...SKILLS_APP_IDS];
 
+/** 业务处理 · 智能采购：嵌入的外部页面地址 */
+export const SMART_PURCHASE = {
+  url: "http://150.158.84.94/smartpurchase/",
+};
+
 export const APP_ICON_MAP: Record<AppId, AppConfig> = {
   claude: {
     label: "Claude",

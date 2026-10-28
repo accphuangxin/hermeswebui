@@ -91,27 +91,67 @@ export const chatApi = {
     return await invoke("getHermesChatStatus");
   },
 
-  async getModels(_agentId?: string | null, apiServerPort?: number | null, apiServerKey?: string | null): Promise<HermesChatModel[]> {
+  async getModels(
+    _agentId?: string | null,
+    apiServerPort?: number | null,
+    apiServerKey?: string | null,
+  ): Promise<HermesChatModel[]> {
     return await invoke("getHermesChatModels", {
       apiServerPort: apiServerPort ?? null,
       apiServerKey: apiServerKey ?? null,
     });
   },
 
-  async stopRun(runId: string, apiServerPort?: number | null, apiServerKey?: string | null): Promise<boolean> {
-    return await invoke("stopChatRun", { runId, apiServerPort: apiServerPort ?? null, apiServerKey: apiServerKey ?? null });
+  async stopRun(
+    runId: string,
+    apiServerPort?: number | null,
+    apiServerKey?: string | null,
+  ): Promise<boolean> {
+    return await invoke("stopChatRun", {
+      runId,
+      apiServerPort: apiServerPort ?? null,
+      apiServerKey: apiServerKey ?? null,
+    });
   },
 
-  async approveRun(runId: string, approve: boolean, apiServerPort?: number | null, apiServerKey?: string | null): Promise<boolean> {
-    return await invoke("approveChatRun", { runId, approve, apiServerPort: apiServerPort ?? null, apiServerKey: apiServerKey ?? null });
+  async approveRun(
+    runId: string,
+    approve: boolean,
+    apiServerPort?: number | null,
+    apiServerKey?: string | null,
+  ): Promise<boolean> {
+    return await invoke("approveChatRun", {
+      runId,
+      approve,
+      apiServerPort: apiServerPort ?? null,
+      apiServerKey: apiServerKey ?? null,
+    });
   },
 
-  async approveRunChoice(runId: string, choice: "once" | "session" | "always" | "deny", apiServerPort?: number | null, apiServerKey?: string | null): Promise<boolean> {
-    return await invoke("approveRunChoice", { runId, choice, apiServerPort: apiServerPort ?? null, apiServerKey: apiServerKey ?? null });
+  async approveRunChoice(
+    runId: string,
+    choice: "once" | "session" | "always" | "deny",
+    apiServerPort?: number | null,
+    apiServerKey?: string | null,
+  ): Promise<boolean> {
+    return await invoke("approveRunChoice", {
+      runId,
+      choice,
+      apiServerPort: apiServerPort ?? null,
+      apiServerKey: apiServerKey ?? null,
+    });
   },
 
-  async getRunStatus(runId: string): Promise<Record<string, unknown>> {
-    return await invoke("getChatRunStatus", { runId });
+  async getRunStatus(
+    runId: string,
+    apiServerPort?: number | null,
+    apiServerKey?: string | null,
+  ): Promise<Record<string, unknown>> {
+    return await invoke("getChatRunStatus", {
+      runId,
+      apiServerPort: apiServerPort ?? null,
+      apiServerKey: apiServerKey ?? null,
+    });
   },
 
   async readFile(path: string): Promise<{
@@ -123,11 +163,31 @@ export const chatApi = {
     return await invoke("readChatFile", { path });
   },
 
+  async uploadArtifact(
+    apiServerPort: number,
+    apiServerKey: string,
+    filename: string,
+    mimeType: string,
+    options: { filePath: string } | { base64Content: string },
+  ): Promise<{ artifact_id: string; filename: string; download_path: string }> {
+    return await invoke("uploadArtifact", {
+      apiServerPort,
+      apiServerKey,
+      filePath: "filePath" in options ? options.filePath : null,
+      base64Content: "base64Content" in options ? options.base64Content : null,
+      filename,
+      mimeType,
+    });
+  },
+
   async saveTempImage(base64Data: string, filename: string): Promise<string> {
     return await invoke("saveTempImage", { base64Data: base64Data, filename });
   },
 
-  async saveSummaryTempFile(sessionId: string, content: string): Promise<string> {
+  async saveSummaryTempFile(
+    sessionId: string,
+    content: string,
+  ): Promise<string> {
     return await invoke("saveSummaryTempFile", { sessionId, content });
   },
 
@@ -167,7 +227,10 @@ export const chatApi = {
     });
   },
 
-  async getSummaryTemplate(): Promise<{ summary: string; dailyReport: string }> {
+  async getSummaryTemplate(): Promise<{
+    summary: string;
+    dailyReport: string;
+  }> {
     return await invoke("getSummaryTemplate");
   },
 

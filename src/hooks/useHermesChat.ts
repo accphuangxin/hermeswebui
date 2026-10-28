@@ -28,7 +28,11 @@ export function useChatStatus(enabled: boolean) {
   });
 }
 
-export function useChatModels(agentId?: string | null, apiServerPort?: number | null, apiServerKey?: string | null) {
+export function useChatModels(
+  agentId?: string | null,
+  apiServerPort?: number | null,
+  apiServerKey?: string | null,
+) {
   return useQuery({
     queryKey: [...chatKeys.models, agentId ?? null],
     queryFn: () => chatApi.getModels(agentId, apiServerPort, apiServerKey),

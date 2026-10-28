@@ -525,7 +525,9 @@ impl Database {
                         Self::set_user_version(conn, 16)?;
                     }
                     16 => {
-                        log::info!("迁移数据库从 v16 到 v17（chat_sessions 新增 summary 和 tags 列）");
+                        log::info!(
+                            "迁移数据库从 v16 到 v17（chat_sessions 新增 summary 和 tags 列）"
+                        );
                         Self::migrate_v16_to_v17(conn)?;
                         Self::set_user_version(conn, 17)?;
                     }

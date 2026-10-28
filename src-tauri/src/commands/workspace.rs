@@ -362,8 +362,14 @@ pub async fn open_file_path(_handle: AppHandle, path: String) -> Result<(), Stri
     #[cfg(target_os = "macos")]
     {
         let mut cmd = std::process::Command::new("open");
-        if exists { cmd.args(["-R", &target]); } else { cmd.arg(&target); }
-        let out = cmd.output().map_err(|e| format!("Failed to launch open: {e}"))?;
+        if exists {
+            cmd.args(["-R", &target]);
+        } else {
+            cmd.arg(&target);
+        }
+        let out = cmd
+            .output()
+            .map_err(|e| format!("Failed to launch open: {e}"))?;
         if !out.status.success() {
             let stderr = String::from_utf8_lossy(&out.stderr);
             return Err(format!("open failed: {stderr}"));
@@ -372,8 +378,13 @@ pub async fn open_file_path(_handle: AppHandle, path: String) -> Result<(), Stri
     #[cfg(target_os = "windows")]
     {
         let mut cmd = std::process::Command::new("explorer");
-        if exists { cmd.args(["/select,", &target]); } else { cmd.arg(&target); }
-        cmd.spawn().map_err(|e| format!("Failed to open in Explorer: {e}"))?;
+        if exists {
+            cmd.args(["/select,", &target]);
+        } else {
+            cmd.arg(&target);
+        }
+        cmd.spawn()
+            .map_err(|e| format!("Failed to open in Explorer: {e}"))?;
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {

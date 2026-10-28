@@ -676,7 +676,10 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                               variant="ghost"
                               size="icon"
                               className="size-7"
-                              onClick={async () => { await refetch(); toast.success("刷新成功"); }}
+                              onClick={async () => {
+                                await refetch();
+                                toast.success("刷新成功");
+                              }}
                             >
                               <RefreshCw className="size-3.5" />
                             </Button>

@@ -1,11 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { agentProvidersApi, type UpsertProviderInput } from "@/lib/api/agentProviders";
+import {
+  agentProvidersApi,
+  type UpsertProviderInput,
+} from "@/lib/api/agentProviders";
 
 function providerKeys(port: number, key: string) {
   return ["agentProviders", port, key] as const;
 }
 
-export function useAgentProviders(port: number | undefined, key: string | undefined) {
+export function useAgentProviders(
+  port: number | undefined,
+  key: string | undefined,
+) {
   return useQuery({
     queryKey: ["agentProviders", port, key],
     queryFn: () => agentProvidersApi.list(port!, key!),
@@ -14,38 +20,59 @@ export function useAgentProviders(port: number | undefined, key: string | undefi
   });
 }
 
-export function useUpsertProvider(port: number | undefined, key: string | undefined) {
+export function useUpsertProvider(
+  port: number | undefined,
+  key: string | undefined,
+) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: UpsertProviderInput) => agentProvidersApi.upsert(port!, key!, input),
+    mutationFn: (input: UpsertProviderInput) =>
+      agentProvidersApi.upsert(port!, key!, input),
     onSuccess: () => {
       if (port && key) {
-        void queryClient.invalidateQueries({ queryKey: providerKeys(port, key) });
+        void queryClient.invalidateQueries({
+          queryKey: providerKeys(port, key),
+        });
       }
     },
   });
 }
 
-export function useUpdateProvider(port: number | undefined, key: string | undefined) {
+export function useUpdateProvider(
+  port: number | undefined,
+  key: string | undefined,
+) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ name, input }: { name: string; input: Partial<UpsertProviderInput> }) =>
-      agentProvidersApi.update(port!, key!, name, input),
+    mutationFn: ({
+      name,
+      input,
+    }: {
+      name: string;
+      input: Partial<UpsertProviderInput>;
+    }) => agentProvidersApi.update(port!, key!, name, input),
     onSuccess: () => {
       if (port && key) {
-        void queryClient.invalidateQueries({ queryKey: providerKeys(port, key) });
+        void queryClient.invalidateQueries({
+          queryKey: providerKeys(port, key),
+        });
       }
     },
   });
 }
 
-export function useDeleteProvider(port: number | undefined, key: string | undefined) {
+export function useDeleteProvider(
+  port: number | undefined,
+  key: string | undefined,
+) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (name: string) => agentProvidersApi.delete(port!, key!, name),
     onSuccess: () => {
       if (port && key) {
-        void queryClient.invalidateQueries({ queryKey: providerKeys(port, key) });
+        void queryClient.invalidateQueries({
+          queryKey: providerKeys(port, key),
+        });
       }
     },
   });

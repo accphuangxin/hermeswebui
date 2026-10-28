@@ -28,11 +28,8 @@ import {
   Cpu,
   LayoutDashboard,
   MessageSquare,
-  Sparkles,
-  Users,
   RefreshCw,
   ChevronDown,
-  BookOpen,
 } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Provider, VisibleApps } from "@/types";
@@ -63,6 +60,8 @@ import {
   DRAG_REGION_STYLE,
 } from "@/lib/platform";
 import { AppSwitcher } from "@/components/AppSwitcher";
+import { HeaderNav, type HeaderNavView } from "@/components/layout/HeaderNav";
+import { ProcurementPage } from "@/components/procurement/ProcurementPage";
 import { ProviderList } from "@/components/providers/ProviderList";
 import { AddProviderDialog } from "@/components/providers/AddProviderDialog";
 import { EditProviderDialog } from "@/components/providers/EditProviderDialog";
@@ -131,7 +130,8 @@ type View =
   | "hermesAgents"
   | "hermesKanban"
   | "hermesSummary"
-  | "hermesKnowledge";
+  | "hermesKnowledge"
+  | "procurement";
 
 interface WebDavSyncStatusUpdatedPayload {
   source?: string;
@@ -178,6 +178,7 @@ const VALID_VIEWS: View[] = [
   "hermesMemory",
   "hermesChat",
   "hermesKnowledge",
+  "procurement",
 ];
 
 const getInitialView = (): View => {
@@ -199,13 +200,15 @@ function App() {
     mainScrollRef.current?.scrollTo({ top: 0 });
     unifiedSkillsPanelRef.current?.scrollToTop();
   }, [currentView]);
-  const [navExpanded, setNavExpanded] = useState(true);
   const [settingsDefaultTab, setSettingsDefaultTab] = useState("general");
   const [settingsKey, setSettingsKey] = useState(0);
   const openSettings = useCallback((tab = "general") => {
     setSettingsDefaultTab(tab);
     setSettingsKey((k) => k + 1);
     setCurrentView("settings");
+  }, []);
+  const handleHeaderNav = useCallback((view: HeaderNavView) => {
+    setCurrentView(view);
   }, []);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isWindowMaximized, setIsWindowMaximized] = useState(false);
@@ -228,23 +231,52 @@ function App() {
   const [summaryViewYear, setSummaryViewYear] = useState(now.getFullYear());
   const [summaryViewMonth, setSummaryViewMonth] = useState(now.getMonth());
   const summaryPrevMonth = () => {
-    setSummaryViewMonth(m => { if (m === 0) { setSummaryViewYear(y => y - 1); return 11; } return m - 1; });
+    setSummaryViewMonth((m) => {
+      if (m === 0) {
+        setSummaryViewYear((y) => y - 1);
+        return 11;
+      }
+      return m - 1;
+    });
   };
   const summaryNextMonth = () => {
-    setSummaryViewMonth(m => { if (m === 11) { setSummaryViewYear(y => y + 1); return 0; } return m + 1; });
+    setSummaryViewMonth((m) => {
+      if (m === 11) {
+        setSummaryViewYear((y) => y + 1);
+        return 0;
+      }
+      return m + 1;
+    });
   };
   const summaryGoToToday = () => {
     setSummaryViewYear(now.getFullYear());
     setSummaryViewMonth(now.getMonth());
   };
-  const SUMMARY_MONTH_NAMES = ["一月","二月","三月","四月","五月","六月","七月","八月","九月","十月","十一月","十二月"];
+  const SUMMARY_MONTH_NAMES = [
+    "一月",
+    "二月",
+    "三月",
+    "四月",
+    "五月",
+    "六月",
+    "七月",
+    "八月",
+    "九月",
+    "十月",
+    "十一月",
+    "十二月",
+  ];
   const [hermesSelectedAgentPort, setHermesSelectedAgentPort] = useState<
     number | null
   >(null);
   const [hermesSelectedAgentKey, setHermesSelectedAgentKey] = useState<
     string | null
   >(null);
-  const { data: hermesChatModels = [] } = useChatModels(hermesSelectedAgentId, hermesSelectedAgentPort, hermesSelectedAgentKey);
+  const { data: hermesChatModels = [] } = useChatModels(
+    hermesSelectedAgentId,
+    hermesSelectedAgentPort,
+    hermesSelectedAgentKey,
+  );
   const prevApiHostRef = useRef<string>("");
 
   // Auto-activate the default agent's port/key once agents load
@@ -253,7 +285,9 @@ function App() {
     if (defaultAgentActivatedRef.current) return;
     if (hermesAgents.length === 0) return;
     defaultAgentActivatedRef.current = true;
-    const defaultAgent = hermesAgents.find((a) => a.isDefault || a.name === "default") ?? hermesAgents[0];
+    const defaultAgent =
+      hermesAgents.find((a) => a.isDefault || a.name === "default") ??
+      hermesAgents[0];
     if (!defaultAgent) return;
     const port = defaultAgent.actualPort ?? defaultAgent.apiServerPort ?? null;
     const key = defaultAgent.apiServerKey ?? null;
@@ -976,6 +1010,8 @@ function App() {
           );
         case "hermesMemory":
           return <HermesMemoryPanel />;
+        case "procurement":
+          return <ProcurementPage />;
         case "mcp":
           return (
             <UnifiedMcpPanel
@@ -1103,6 +1139,7 @@ function App() {
               selectedAgentId={hermesSelectedAgentId}
               selectedAgentPort={hermesSelectedAgentPort}
               selectedAgentKey={hermesSelectedAgentKey}
+              onOpenSettings={() => openSettings("general")}
               onSelectAgent={(id, port, key) => {
                 setHermesSelectedAgentId(id);
                 setHermesSelectedAgentPort(port ?? null);
@@ -1417,7 +1454,9 @@ function App() {
                   size="icon"
                   className="h-7 w-7 text-muted-foreground hover:text-foreground"
                   onClick={async () => {
-                    await queryClient.invalidateQueries({ queryKey: ["kanban"] });
+                    await queryClient.invalidateQueries({
+                      queryKey: ["kanban"],
+                    });
                     toast.success("刷新成功");
                   }}
                 >
@@ -1439,19 +1478,33 @@ function App() {
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7"
-                  onClick={() => queryClient.invalidateQueries({ queryKey: chatKeys.sessions(hermesSelectedAgentId) })}
+                  onClick={() =>
+                    queryClient.invalidateQueries({
+                      queryKey: chatKeys.sessions(hermesSelectedAgentId),
+                    })
+                  }
                   title="刷新"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
                 </Button>
                 <div className="flex-1" />
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={summaryPrevMonth}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={summaryPrevMonth}
+                >
                   <ChevronLeft className="w-4 h-4" />
                 </Button>
                 <span className="text-sm font-semibold min-w-[100px] text-center">
                   {summaryViewYear} 年 {SUMMARY_MONTH_NAMES[summaryViewMonth]}
                 </span>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={summaryNextMonth}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={summaryNextMonth}
+                >
                   <ChevronRight className="w-4 h-4" />
                 </Button>
                 <Button
@@ -1482,7 +1535,9 @@ function App() {
                   size="icon"
                   className="h-8 w-8 shrink-0"
                   onClick={async () => {
-                    await queryClient.invalidateQueries({ queryKey: ["hermesAgents"] });
+                    await queryClient.invalidateQueries({
+                      queryKey: ["hermesAgents"],
+                    });
                     toast.success("刷新成功");
                   }}
                 >
@@ -1491,78 +1546,16 @@ function App() {
               </div>
             ) : currentView === "hermesChat" ? (
               <div className="flex items-center gap-2">
-                <div
-                  className="relative inline-flex items-center shrink-0 cursor-pointer group px-1"
-                  onClick={() => setNavExpanded((v) => !v)}
-                  title={navExpanded ? "收起菜单" : "展开菜单"}
-                >
-                  <img
-                    src={hermesBrandLogo}
-                    alt="Hermes"
-                    className="h-12 w-auto object-contain"
-                  />
-                  <span className="ml-1 flex items-center justify-center w-5 h-5 rounded-full border border-border bg-muted group-hover:bg-muted/80 transition-colors shrink-0">
-                    <ChevronDown
-                      className={cn(
-                        "w-3 h-3 text-muted-foreground transition-transform duration-200 group-hover:text-foreground",
-                        navExpanded && "rotate-180"
-                      )}
-                    />
-                  </span>
-                </div>
-                {navExpanded && (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setCurrentView("hermesAgents")}
-                      className="hover:bg-black/5 dark:hover:bg-white/5 shrink-0 gap-1.5 text-xs"
-                    >
-                      <Users className="w-3.5 h-3.5" />
-                      {t("hermes.agents.button", { defaultValue: "智能体" })}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setCurrentView("skills")}
-                      className="hover:bg-black/5 dark:hover:bg-white/5 shrink-0 gap-1.5 text-xs"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      {t("skills.title", { defaultValue: "技能" })}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setCurrentView("hermesKanban")}
-                      className="hover:bg-black/5 dark:hover:bg-white/5 shrink-0 gap-1.5 text-xs"
-                    >
-                      <LayoutDashboard className="w-3.5 h-3.5" />
-                      {t("kanban.title", { defaultValue: "看板" })}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setCurrentView("hermesSummary")}
-                      className="hover:bg-black/5 dark:hover:bg-white/5 shrink-0 gap-1.5 text-xs"
-                    >
-                      <BarChart2 className="w-3.5 h-3.5" />
-                      对话总结
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setCurrentView("hermesKnowledge")}
-                      className="hover:bg-black/5 dark:hover:bg-white/5 shrink-0 gap-1.5 text-xs"
-                    >
-                      <BookOpen className="w-3.5 h-3.5" />
-                      {t("knowledge.title", { defaultValue: "知识库" })}
-                    </Button>
-                    <UpdateBadge
-                      onClick={() => openSettings("general")}
-                      showLabel
-                    />
-                  </>
-                )}
+                <img
+                  src={hermesBrandLogo}
+                  alt="Hermes"
+                  className="h-12 w-auto object-contain"
+                />
+                <HeaderNav
+                  currentView={currentView}
+                  onNavigate={handleHeaderNav}
+                  onOpenSettings={() => openSettings("general")}
+                />
               </div>
             ) : currentView !== "providers" ? (
               <div className="flex items-center gap-2">
@@ -1592,6 +1585,8 @@ function App() {
                   {currentView === "openclawAgents" &&
                     t("openclaw.agents.title")}
                   {currentView === "hermesMemory" && t("hermes.memory.title")}
+                  {currentView === "procurement" &&
+                    t("procurement.title", { defaultValue: "智能采购" })}
                 </h1>
                 {currentView === "skills" && (
                   <div className="flex items-center gap-2 ml-4 px-4 py-1.5 rounded-full border border-input bg-card/50 relative">
@@ -1862,7 +1857,8 @@ function App() {
                               (a) => a.name === val,
                             );
                             const id = val === "__default__" ? "default" : val;
-                            const port = agent?.actualPort ?? agent?.apiServerPort;
+                            const port =
+                              agent?.actualPort ?? agent?.apiServerPort;
                             const key = agent?.apiServerKey;
                             setHermesSelectedAgentId(id);
                             setHermesSelectedAgentPort(port ?? null);

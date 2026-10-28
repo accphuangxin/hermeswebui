@@ -155,11 +155,15 @@ async function siteSearch(
   };
   const skills: ClawHubSkill[] = (data.results ?? []).map((r) => {
     const installs =
-      typeof r.downloads === "number" ? r.downloads :
-      typeof r.installs === "number" ? r.installs :
-      typeof r.installsCurrent === "number" ? r.installsCurrent :
-      typeof r.installsAllTime === "number" ? r.installsAllTime :
-      undefined;
+      typeof r.downloads === "number"
+        ? r.downloads
+        : typeof r.installs === "number"
+          ? r.installs
+          : typeof r.installsCurrent === "number"
+            ? r.installsCurrent
+            : typeof r.installsAllTime === "number"
+              ? r.installsAllTime
+              : undefined;
     return {
       _id: r.slug,
       slug: r.slug,

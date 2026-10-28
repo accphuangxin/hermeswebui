@@ -10,12 +10,23 @@ interface ChatMarkdownPreviewProps {
   onExport?: () => void;
 }
 
-export function ChatMarkdownPreview({ markdownContent, onClose, onExport }: ChatMarkdownPreviewProps) {
+export function ChatMarkdownPreview({
+  markdownContent,
+  onClose,
+  onExport,
+}: ChatMarkdownPreviewProps) {
   return (
     <div className="flex flex-col h-full">
       <div className="h-10 px-3 border-b flex items-center justify-between shrink-0 bg-muted/30">
-        <span className="text-xs font-medium text-muted-foreground">Markdown 预览</span>
-        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose}>
+        <span className="text-xs font-medium text-muted-foreground">
+          Markdown 预览
+        </span>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6"
+          onClick={onClose}
+        >
           <X className="w-3.5 h-3.5" />
         </Button>
       </div>

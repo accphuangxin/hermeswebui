@@ -17,6 +17,7 @@ mod init_status;
 mod lightweight;
 #[cfg(target_os = "linux")]
 mod linux_fix;
+mod main_window;
 mod mcp;
 mod openclaw_config;
 mod opencode_config;
@@ -287,6 +288,10 @@ pub fn run() {
             // 预先刷新 Store 覆盖配置，确保后续路径读取正确（日志/数据库等）
             app_store::refresh_app_config_dir_override(app.handle());
             panic_hook::init_app_config_dir(crate::config::get_app_config_dir());
+
+            // 主窗口用代码创建以挂载下载处理器（见 main_window 模块），
+            // 必须在 setup 内其他窗口逻辑之前完成。
+            crate::main_window::create_main_window(app.handle())?;
 
             // 注册 Updater 插件（桌面端）
             #[cfg(desktop)]
@@ -913,10 +918,10 @@ pub fn run() {
 
                 if has_backups || live_taken_over {
                     log::warn!("检测到上次异常退出（存在接管残留），正在恢复 Live 配置...");
-                    if let Err(e) = state.proxy_service.recover_from_crash().await {
+                    if let Err(e) = state.proxy_service.recover_from_crash_for_startup().await {
                         log::error!("恢复 Live 配置失败: {e}");
                     } else {
-                        log::info!("Live 配置已恢复");
+                        log::info!("Live 配置恢复完成（仍启用接管的配置保持不变）");
                     }
                 }
 
@@ -1068,6 +1073,7 @@ pub fn run() {
             commands::pick_directory,
             commands::open_external,
             commands::get_init_error,
+            commands::save_download_file,
             commands::get_migration_result,
             commands::get_skills_migration_result,
             commands::get_app_config_path,
@@ -1132,6 +1138,11 @@ pub fn run() {
             commands::get_current_prompt_file_content,
             // model list fetch (OpenAI-compatible /v1/models)
             commands::fetch_models_for_config,
+            // voice input (OpenAI-compatible /v1/audio/transcriptions)
+            commands::transcribe_audio,
+            commands::validate_voice_input_config,
+            // model availability test (OpenAI-compatible /chat/completions)
+            commands::test_agent_provider_model,
             // ours: endpoint speed test + custom endpoint management
             commands::test_api_endpoints,
             commands::get_custom_endpoints,
@@ -1328,6 +1339,13 @@ pub fn run() {
             commands::stopHermesAgent,
             commands::restartHermesAgent,
             commands::updateHermesAgent,
+            commands::getAgentMcpServers,
+            commands::addAgentMcpServer,
+            commands::replaceAgentMcpServers,
+            commands::deleteAgentMcpServer,
+            commands::testAgentMcpServer,
+            commands::setAgentMcpServerEnabled,
+            commands::setAgentMcpServerTools,
             commands::listAgentProviders,
             commands::upsertAgentProvider,
             commands::updateAgentProvider,
@@ -1338,6 +1356,7 @@ pub fn run() {
             commands::generateSessionSummary,
             commands::generateDailyReport,
             commands::getDailyReport,
+            commands::uploadArtifact,
             commands::getSummaryTemplate,
             commands::setSummaryTemplate,
             commands::approveChatRun,

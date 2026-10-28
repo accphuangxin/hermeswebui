@@ -15,12 +15,18 @@ import {
   Trash2,
   RotateCcw,
   FolderOpen,
+  Share2,
+  FileText,
+  FileSpreadsheet,
+  FileCode,
+  File,
 } from "lucide-react";
 import type {
   ChatMessage as ChatMessageType,
   ChatToolCall,
   ChatFileRef,
 } from "@/types";
+import type { ArtifactFile } from "@/hooks/useSessionStreams";
 import { ToolCallBlock } from "./ToolCallBlock";
 import { cn } from "@/lib/utils";
 
@@ -35,7 +41,10 @@ function repairCompressedTable(content: string): string {
 
     // Join all lines of the paragraph into one string, replacing newlines with spaces.
     // Before joining, strip leading/trailing pipes per line to avoid creating false "||".
-    const paraLines = para.split("\n").map((l) => l.trim()).filter(Boolean);
+    const paraLines = para
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
 
     // Detect the column count from the first line that contains "||" (it has the header)
     const firstDoublePipeLine = paraLines.find((l) => l.includes("||"));
@@ -43,7 +52,10 @@ function repairCompressedTable(content: string): string {
 
     // Count columns in header: split the portion before first "||" by "|"
     const headerPart = firstDoublePipeLine.split("||")[0];
-    const colCount = headerPart.split("|").map((c) => c.trim()).filter(Boolean).length;
+    const colCount = headerPart
+      .split("|")
+      .map((c) => c.trim())
+      .filter(Boolean).length;
     if (colCount < 2) return para;
 
     // Flatten the whole paragraph into one pipe stream, removing line breaks
@@ -56,7 +68,8 @@ function repairCompressedTable(content: string): string {
 
     // Now split by "||" to get row fragments, then split each by "|" for cells
     // But first, we need to reconstruct from the flat stream using colCount
-    const allCells = flat.split(/\s*\|\|\s*|\s*\|\s*/)
+    const allCells = flat
+      .split(/\s*\|\|\s*|\s*\|\s*/)
       .map((c) => c.trim())
       .filter(Boolean);
 
@@ -70,8 +83,8 @@ function repairCompressedTable(content: string): string {
     if (rows.length < 2) return para;
 
     const header = `| ${rows[0].join(" | ")} |`;
-    const sep    = `| ${Array(colCount).fill("---").join(" | ")} |`;
-    const data   = rows.slice(1).map((r) => `| ${r.join(" | ")} |`);
+    const sep = `| ${Array(colCount).fill("---").join(" | ")} |`;
+    const data = rows.slice(1).map((r) => `| ${r.join(" | ")} |`);
     return [header, sep, ...data].join("\n");
   });
   return processed.join("\n\n");
@@ -81,22 +94,50 @@ function repairCompressedTable(content: string): string {
 
 function preprocessMediaLinks(content: string): string {
   let result = repairCompressedTable(content);
+
+  // Protect existing markdown links and inline code from re-processing.
+  // Each regex pass below also protects its output so later passes don't
+  // re-match inside newly created links (which would produce nested/broken markdown).
+  const protected_: string[] = [];
+  const protect = (match: string) => {
+    protected_.push(match);
+    return `\x00P${protected_.length - 1}\x00`;
+  };
+
+  // Protect existing markdown links [text](url) and inline code `code`
+  result = result.replace(/\[[^\]]*\]\([^)]+\)/g, protect);
+  result = result.replace(/`[^`]+`/g, protect);
+
+  // MEDIA: images
   result = result.replace(
     /(?<!\()(MEDIA:[^\s"'<>]+\.(?:png|jpg|jpeg|gif|webp|svg|bmp))/gi,
-    (_, p) => `![](${p})`,
+    (_, p) => protect(`![](${p})`),
   );
+  // MEDIA: HTML files
   result = result.replace(/(?<!\()(MEDIA:[^\s"'<>]+\.html?)/gi, (_, p) => {
     const name = p.split("/").pop() ?? "HTML";
-    return `[${name}](${p})`;
+    return protect(`[${name}](${p})`);
   });
-  // Convert bare absolute file paths to clickable links
+  // Convert bare absolute file paths (with extension) to clickable links
   result = result.replace(
-    /(?<!\()(?<!\[)(\/(?:[^\s，。、；：！？\[\]()（）]+)\/[^\s，。、；：！？\[\]()（）]+\.\w+)/g,
+    /(?<!\()(?<!\[)(\/(?:[^\s，。、；：！？\[\]()（）\x00]+)\/[^\s，。、；：！？\[\]()（）\x00]+\.\w+)/g,
     (_, p) => {
       const name = p.split("/").pop() ?? p;
-      return `[${name}](${p})`;
+      return protect(`[${name}](${p})`);
     },
   );
+  // Convert bare absolute directory paths (ending with /) to clickable links
+  result = result.replace(
+    /(?<!\()(?<!\[)((?:\/[^\s，。、；：！？\[\]()（）\x00/]+){2,}\/)/g,
+    (_, p) => {
+      const parts = p.replace(/\/$/, "").split("/");
+      const name = parts[parts.length - 1] ? `${parts[parts.length - 1]}/` : p;
+      return protect(`[${name}](${p})`);
+    },
+  );
+
+  // Restore all protected content
+  result = result.replace(/\x00P(\d+)\x00/g, (_, i) => protected_[Number(i)]);
   return result;
 }
 
@@ -107,11 +148,22 @@ async function getCachedHomeDir(): Promise<string> {
   return _cachedHomeDir;
 }
 
-const HOME_SUBDIRS = ["Documents", "Downloads", "Desktop", "Pictures", "Movies", "Music", "Library"];
+const HOME_SUBDIRS = [
+  "Documents",
+  "Downloads",
+  "Desktop",
+  "Pictures",
+  "Movies",
+  "Music",
+  "Library",
+];
 
 function needsHomeExpansion(path: string): boolean {
   if (path.startsWith("~/")) return true;
-  return HOME_SUBDIRS.some((d) => path.startsWith(`/${d}/`) || path === `/${d}`);
+  if (/^\/\.[a-zA-Z]/.test(path)) return true; // hidden home dirs: /.hermes, /.config, /.claude, etc.
+  return HOME_SUBDIRS.some(
+    (d) => path.startsWith(`/${d}/`) || path === `/${d}`,
+  );
 }
 
 function expandHomePath(path: string, home: string): string {
@@ -132,11 +184,24 @@ function extractLocalPath(src: string): string {
   return src;
 }
 
-function FilePathButton({ path: rawPath, label }: { path: string; label: string }) {
-  const [path, setPath] = useState(() => rawPath.includes("%") ? decodeURIComponent(rawPath) : rawPath);
+function FilePathButton({
+  path: rawPath,
+  label,
+}: {
+  path: string;
+  label: string;
+}) {
+  const [path, setPath] = useState(() =>
+    rawPath.includes("%") ? decodeURIComponent(rawPath) : rawPath,
+  );
   useEffect(() => {
-    const decoded = rawPath.includes("%") ? decodeURIComponent(rawPath) : rawPath;
-    if (!needsHomeExpansion(decoded)) { setPath(decoded); return; }
+    const decoded = rawPath.includes("%")
+      ? decodeURIComponent(rawPath)
+      : rawPath;
+    if (!needsHomeExpansion(decoded)) {
+      setPath(decoded);
+      return;
+    }
     getCachedHomeDir().then((home) => setPath(expandHomePath(decoded, home)));
   }, [rawPath]);
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
@@ -165,53 +230,77 @@ function FilePathButton({ path: rawPath, label }: { path: string; label: string 
         className="text-primary underline underline-offset-2 hover:opacity-80 font-mono text-xs cursor-pointer"
         onClick={(e) => {
           e.stopPropagation();
-          if (open) { setPos(null); return; }
+          if (open) {
+            setPos(null);
+            return;
+          }
           setPos({ x: e.clientX, y: e.clientY + 6 });
         }}
       >
         {label}
       </button>
-      {open && createPortal(
-        <div
-          ref={menuRef}
-          className="fixed z-[9999] flex rounded-md border bg-popover shadow-lg"
-          style={{ left: pos.x, top: pos.y, whiteSpace: "nowrap" }}
-        >
-          <button
-            type="button"
-            className="flex items-center gap-1.5 px-3 py-2 text-xs hover:bg-muted transition-colors"
-            onClick={() => {
-              invoke("open_file_path", { path })
-                .then(() => setPos(null))
-                .catch((e) => { toast.error(`浏览失败: ${String(e)}`); setPos(null); });
-            }}
+      {open &&
+        createPortal(
+          <div
+            ref={menuRef}
+            className="fixed z-[9999] flex rounded-md border bg-popover shadow-lg"
+            style={{ left: pos.x, top: pos.y, whiteSpace: "nowrap" }}
           >
-            <FolderOpen className="w-3 h-3" />
-            浏览
-          </button>
-          <span className="w-px bg-border" />
-          <button
-            type="button"
-            className="flex items-center gap-1.5 px-3 py-2 text-xs hover:bg-muted transition-colors"
-            onClick={async () => {
-              await navigator.clipboard.writeText(path);
-              setCopied(true);
-              setTimeout(() => { setCopied(false); setPos(null); }, 1500);
-            }}
-          >
-            {copied ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
-            复制路径
-          </button>
-        </div>,
-        document.body
-      )}
+            <button
+              type="button"
+              className="flex items-center gap-1.5 px-3 py-2 text-xs hover:bg-muted transition-colors"
+              onClick={() => {
+                invoke("open_file_path", { path })
+                  .then(() => setPos(null))
+                  .catch((e) => {
+                    toast.error(`浏览失败: ${String(e)}`);
+                    setPos(null);
+                  });
+              }}
+            >
+              <FolderOpen className="w-3 h-3" />
+              浏览
+            </button>
+            <span className="w-px bg-border" />
+            <button
+              type="button"
+              className="flex items-center gap-1.5 px-3 py-2 text-xs hover:bg-muted transition-colors"
+              onClick={async () => {
+                await navigator.clipboard.writeText(path);
+                setCopied(true);
+                setTimeout(() => {
+                  setCopied(false);
+                  setPos(null);
+                }, 1500);
+              }}
+            >
+              {copied ? (
+                <Check className="w-3 h-3 text-green-500" />
+              ) : (
+                <Copy className="w-3 h-3" />
+              )}
+              复制路径
+            </button>
+          </div>,
+          document.body,
+        )}
     </>
   );
 }
 
-function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+function ImageLightbox({
+  src,
+  alt,
+  onClose,
+}: {
+  src: string;
+  alt: string;
+  onClose: () => void;
+}) {
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [onClose]);
@@ -227,11 +316,19 @@ function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClos
         onClick={(e) => e.stopPropagation()}
       />
     </div>,
-    document.body
+    document.body,
   );
 }
 
-function LocalImage({ src, alt, className }: { src: string; alt: string; className?: string }) {
+function LocalImage({
+  src,
+  alt,
+  className,
+}: {
+  src: string;
+  alt: string;
+  className?: string;
+}) {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -268,7 +365,13 @@ function LocalImage({ src, alt, className }: { src: string; alt: string; classNa
         className={className ?? "max-w-full rounded-lg my-1 cursor-zoom-in"}
         onClick={() => setLightbox(true)}
       />
-      {lightbox && <ImageLightbox src={dataUrl} alt={alt} onClose={() => setLightbox(false)} />}
+      {lightbox && (
+        <ImageLightbox
+          src={dataUrl}
+          alt={alt}
+          onClose={() => setLightbox(false)}
+        />
+      )}
     </>
   );
 }
@@ -357,7 +460,13 @@ function MarkdownPre({ children }: { children?: React.ReactNode }) {
   );
 }
 
-function MarkdownCode({ children, className }: { children?: React.ReactNode; className?: string }) {
+function MarkdownCode({
+  children,
+  className,
+}: {
+  children?: React.ReactNode;
+  className?: string;
+}) {
   if (!className) {
     const text = String(children);
     // Match both [label](path) and ~[label](path) inside inline code
@@ -365,13 +474,22 @@ function MarkdownCode({ children, className }: { children?: React.ReactNode; cla
     if (mdLink) {
       const [, label, href] = mdLink;
       const localPath = extractLocalPath(href);
-      if (needsHomeExpansion(localPath) || href.startsWith("/") || href.startsWith("file://")) {
+      if (
+        needsHomeExpansion(localPath) ||
+        href.startsWith("/") ||
+        href.startsWith("file://")
+      ) {
         return <FilePathButton path={localPath} label={label} />;
       }
     }
-    if (/^~?\/(?:[^\s]+\/)+[^\s]+\.\w+$/.test(text)) {
+    // file with extension: ~/foo/bar.ext  OR directory ending with /: ~/foo/bar/
+    if (
+      /^~?\/(?:[^\s]+\/)+[^\s]+\.\w+$/.test(text) ||
+      /^~?\/(?:[^\s]+\/){2,}$/.test(text)
+    ) {
       const localPath = text.startsWith("~") ? text.slice(1) : text;
-      return <FilePathButton path={localPath} label={localPath.split("/").pop() ?? localPath} />;
+      const label = localPath.replace(/\/$/, "").split("/").pop() ?? localPath;
+      return <FilePathButton path={localPath} label={label} />;
     }
   }
   return className ? (
@@ -383,16 +501,50 @@ function MarkdownCode({ children, className }: { children?: React.ReactNode; cla
   );
 }
 
-function MarkdownA({ href, children }: { href?: string; children?: React.ReactNode }) {
+function MarkdownA({
+  href,
+  children,
+}: {
+  href?: string;
+  children?: React.ReactNode;
+}) {
   if (href && /MEDIA:[^\s"'<>]+\.html?$/i.test(href)) {
     return <LocalHtml path={extractLocalPath(href)} />;
   }
-  if (href && (href.startsWith("/") || href.startsWith("file://") || href.startsWith("~/") || needsHomeExpansion(href))) {
+  if (
+    href &&
+    (href.startsWith("/") ||
+      href.startsWith("file://") ||
+      href.startsWith("~/") ||
+      needsHomeExpansion(href))
+  ) {
     const localPath = extractLocalPath(href);
     return <FilePathButton path={localPath} label={String(children)} />;
   }
+  const openInBrowser = (e: React.MouseEvent) => {
+    const raw = href ?? "";
+    // 非 web 链接（mailto:/tel: 等）与站内锚点保持默认行为
+    if (
+      !raw ||
+      /^(mailto|tel|sms):/i.test(raw) ||
+      raw.startsWith("#") ||
+      raw.startsWith("/")
+    ) {
+      return;
+    }
+    e.preventDefault();
+    invoke("open_external", { url: raw }).catch((err) => {
+      toast.error(`打开链接失败: ${String(err)}`);
+    });
+  };
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline">
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={openInBrowser}
+      className="text-primary underline cursor-pointer"
+    >
       {children}
     </a>
   );
@@ -403,7 +555,9 @@ function MarkdownImg({ src, alt }: { src?: string; alt?: string }) {
   if (isLocalPath(src)) {
     return <LocalImage src={src} alt={alt ?? ""} />;
   }
-  return <img src={src} alt={alt ?? ""} className="max-w-full rounded-lg my-1" />;
+  return (
+    <img src={src} alt={alt ?? ""} className="max-w-full rounded-lg my-1" />
+  );
 }
 
 function MarkdownTable({ children }: { children?: React.ReactNode }) {
@@ -414,10 +568,18 @@ function MarkdownTable({ children }: { children?: React.ReactNode }) {
   );
 }
 function MarkdownTh({ children }: { children?: React.ReactNode }) {
-  return <th className="border border-border bg-muted px-2 py-1 text-left font-semibold whitespace-nowrap">{children}</th>;
+  return (
+    <th className="border border-border bg-muted px-2 py-1 text-left font-semibold whitespace-nowrap">
+      {children}
+    </th>
+  );
 }
 function MarkdownTd({ children }: { children?: React.ReactNode }) {
-  return <td className="border border-border px-2 py-1 whitespace-nowrap">{children}</td>;
+  return (
+    <td className="border border-border px-2 py-1 whitespace-nowrap">
+      {children}
+    </td>
+  );
 }
 
 const markdownComponents = {
@@ -435,11 +597,61 @@ interface ContextMenuState {
   y: number;
 }
 
+// ─── Output file card ─────────────────────────────────────────────────────────
+function fileIcon(filename: string) {
+  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+  if (["xlsx", "xls", "csv"].includes(ext))
+    return <FileSpreadsheet className="w-5 h-5 text-green-600 flex-shrink-0" />;
+  if (["md", "txt", "log"].includes(ext))
+    return <FileText className="w-5 h-5 text-blue-500 flex-shrink-0" />;
+  if (
+    ["json", "yaml", "yml", "toml", "html", "js", "ts", "py", "rs"].includes(
+      ext,
+    )
+  )
+    return <FileCode className="w-5 h-5 text-purple-500 flex-shrink-0" />;
+  return <File className="w-5 h-5 text-gray-400 flex-shrink-0" />;
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function OutputFileCard({ file }: { file: ArtifactFile }) {
+  const handleOpen = async () => {
+    try {
+      await invoke("open_file_path", { path: file.path });
+    } catch {
+      toast.error(`无法打开文件: ${file.filename}`);
+    }
+  };
+  return (
+    <button
+      onClick={handleOpen}
+      className="flex items-center gap-2 bg-background border border-border rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors text-left w-full"
+    >
+      {fileIcon(file.filename)}
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium truncate">{file.filename}</div>
+        {file.sizeBytes > 0 && (
+          <div className="text-xs text-muted-foreground">
+            {formatFileSize(file.sizeBytes)}
+          </div>
+        )}
+      </div>
+      <Share2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+    </button>
+  );
+}
+
 interface ChatMessageProps {
   message: ChatMessageType;
   toolResults?: Map<string, string>;
   onDelete?: (messageId: string) => void;
   onResend?: (content: string) => void;
+  outputFiles?: ArtifactFile[];
 }
 
 export const ChatMessageBubble = memo(function ChatMessageBubble({
@@ -447,12 +659,17 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
   toolResults,
   onDelete,
   onResend,
+  outputFiles,
 }: ChatMessageProps) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const [selectionMenu, setSelectionMenu] = useState<{ x: number; y: number; text: string } | null>(null);
+  const [selectionMenu, setSelectionMenu] = useState<{
+    x: number;
+    y: number;
+    text: string;
+  } | null>(null);
   const selectionMenuRef = useRef<HTMLDivElement>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
 
@@ -621,7 +838,9 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
                 >
                   <Paperclip className="w-3 h-3 flex-shrink-0" />
                   <span className="truncate max-w-[120px]">{f.filename}</span>
-                  <span className="opacity-60">({formatSize(f.sizeBytes)})</span>
+                  <span className="opacity-60">
+                    ({formatSize(f.sizeBytes)})
+                  </span>
                 </div>
               );
             })}
@@ -694,6 +913,13 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
                 toolCall={tc}
                 result={toolResults?.get(tc.id) ?? null}
               />
+            ))}
+          </div>
+        )}
+        {isAssistant && outputFiles && outputFiles.length > 0 && (
+          <div className="max-w-[85%] grid grid-cols-2 gap-2 mt-2">
+            {outputFiles.map((f, i) => (
+              <OutputFileCard key={i} file={f} />
             ))}
           </div>
         )}

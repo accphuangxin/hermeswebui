@@ -1,5 +1,15 @@
 import { useState } from "react";
-import { Loader2, Check, X, ChevronDown, ChevronRight, Terminal, FileText, Globe, Wrench } from "lucide-react";
+import {
+  Loader2,
+  Check,
+  X,
+  ChevronDown,
+  ChevronRight,
+  Terminal,
+  FileText,
+  Globe,
+  Wrench,
+} from "lucide-react";
 import type { ToolActivity } from "@/hooks/useChatStream";
 import { cn } from "@/lib/utils";
 
@@ -25,7 +35,10 @@ function getToolIcon(tool: string) {
   return <Wrench className="w-3 h-3" />;
 }
 
-export function ToolActivityBlock({ activity, isLast }: ToolActivityBlockProps) {
+export function ToolActivityBlock({
+  activity,
+  isLast,
+}: ToolActivityBlockProps) {
   const [expanded, setExpanded] = useState(false);
   const hasResult = !!activity.result;
   const isRunning = activity.status === "running";
@@ -33,16 +46,21 @@ export function ToolActivityBlock({ activity, isLast }: ToolActivityBlockProps) 
   return (
     <div className="flex gap-2">
       {/* Vertical axis */}
-      <div className="flex flex-col items-center pt-1 shrink-0" style={{ width: 20 }}>
+      <div
+        className="flex flex-col items-center pt-1 shrink-0"
+        style={{ width: 20 }}
+      >
         {/* Dot */}
-        <div className={cn(
-          "w-4 h-4 rounded-full flex items-center justify-center shrink-0 border",
-          isRunning
-            ? "border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20"
-            : activity.status === "error"
-              ? "border-red-400 bg-red-50 dark:bg-red-900/20"
-              : "border-green-400 bg-green-50 dark:bg-green-900/20",
-        )}>
+        <div
+          className={cn(
+            "w-4 h-4 rounded-full flex items-center justify-center shrink-0 border",
+            isRunning
+              ? "border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20"
+              : activity.status === "error"
+                ? "border-red-400 bg-red-50 dark:bg-red-900/20"
+                : "border-green-400 bg-green-50 dark:bg-green-900/20",
+          )}
+        >
           {isRunning ? (
             <Loader2 className="w-2.5 h-2.5 text-yellow-500 animate-spin" />
           ) : activity.status === "error" ? (
@@ -53,7 +71,10 @@ export function ToolActivityBlock({ activity, isLast }: ToolActivityBlockProps) 
         </div>
         {/* Connecting line */}
         {!isLast && (
-          <div className="w-px flex-1 bg-border mt-1" style={{ minHeight: 8 }} />
+          <div
+            className="w-px flex-1 bg-border mt-1"
+            style={{ minHeight: 8 }}
+          />
         )}
       </div>
 
@@ -70,7 +91,9 @@ export function ToolActivityBlock({ activity, isLast }: ToolActivityBlockProps) 
           onClick={() => hasResult && setExpanded((v) => !v)}
           disabled={!hasResult}
         >
-          <span className="text-muted-foreground">{getToolIcon(activity.tool)}</span>
+          <span className="text-muted-foreground">
+            {getToolIcon(activity.tool)}
+          </span>
           <span className="font-medium text-foreground">{activity.tool}</span>
           {activity.preview && (
             <span className="text-muted-foreground/70 truncate max-w-[280px] font-mono">
@@ -81,11 +104,12 @@ export function ToolActivityBlock({ activity, isLast }: ToolActivityBlockProps) 
             {activity.duration !== undefined && (
               <span>{activity.duration.toFixed(1)}s</span>
             )}
-            {hasResult && (
-              expanded
-                ? <ChevronDown className="w-3 h-3" />
-                : <ChevronRight className="w-3 h-3" />
-            )}
+            {hasResult &&
+              (expanded ? (
+                <ChevronDown className="w-3 h-3" />
+              ) : (
+                <ChevronRight className="w-3 h-3" />
+              ))}
           </span>
         </button>
 
