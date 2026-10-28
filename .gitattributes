@@ -1,0 +1,5 @@
+# PowerShell 脚本保留 CRLF，便于在 Windows 上直接运行
+*.ps1 text eol=crlf
+*.psm1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
