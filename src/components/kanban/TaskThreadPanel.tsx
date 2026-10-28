@@ -77,11 +77,20 @@ export function TaskThreadPanel({
     for (const msg of messages) {
       const role = msg.role === "user" ? "👤 用户" : "🤖 AI";
       const time = new Date(msg.timestamp * 1000).toLocaleString("zh-CN");
-      lines.push(`## ${role} · ${msg.task_title} · ${time}`, "", msg.content, "", "---", "");
+      lines.push(
+        `## ${role} · ${msg.task_title} · ${time}`,
+        "",
+        msg.content,
+        "",
+        "---",
+        "",
+      );
     }
 
     const filename = `${task.title}.md`;
-    const blob = new Blob([lines.join("\n")], { type: "text/markdown;charset=utf-8" });
+    const blob = new Blob([lines.join("\n")], {
+      type: "text/markdown;charset=utf-8",
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -106,7 +115,12 @@ export function TaskThreadPanel({
           )}
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" onClick={handleExport} disabled={messages.length === 0}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleExport}
+            disabled={messages.length === 0}
+          >
             <Download className="h-4 w-4 mr-1" />
             导出
           </Button>
@@ -131,29 +145,45 @@ export function TaskThreadPanel({
             {messages.map((msg, i) => {
               const isUser = msg.role === "user";
               return (
-                <div key={i} className={cn("flex gap-4", isUser ? "flex-row-reverse" : "flex-row")}>
+                <div
+                  key={i}
+                  className={cn(
+                    "flex gap-4",
+                    isUser ? "flex-row-reverse" : "flex-row",
+                  )}
+                >
                   {/* Avatar */}
                   <div
                     className={cn(
                       "w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 mt-1",
-                      isUser ? "bg-green-500 text-white" : "bg-blue-500 text-white",
+                      isUser
+                        ? "bg-green-500 text-white"
+                        : "bg-blue-500 text-white",
                     )}
                   >
                     {isUser ? "U" : "AI"}
                   </div>
 
-                  <div className={cn("flex-1 min-w-0 space-y-1", isUser && "flex flex-col items-end")}>
+                  <div
+                    className={cn(
+                      "flex-1 min-w-0 space-y-1",
+                      isUser && "flex flex-col items-end",
+                    )}
+                  >
                     {/* Task name + time */}
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span className="font-medium">{msg.task_title}</span>
                       <span className="flex items-center gap-1">
                         <Clock className="h-3 w-3" />
-                        {new Date(msg.timestamp * 1000).toLocaleString("zh-CN", {
-                          month: "2-digit",
-                          day: "2-digit",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                        {new Date(msg.timestamp * 1000).toLocaleString(
+                          "zh-CN",
+                          {
+                            month: "2-digit",
+                            day: "2-digit",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          },
+                        )}
                       </span>
                     </div>
 

@@ -1,7 +1,15 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { FilePlus, FolderPlus, RefreshCw, FileText, Folder, FolderInput, FileInput } from "lucide-react";
+import {
+  FilePlus,
+  FolderPlus,
+  RefreshCw,
+  FileText,
+  Folder,
+  FolderInput,
+  FileInput,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -90,7 +98,8 @@ export function KnowledgeTree({
       const result = await knowledgeApi.importFiles(dest);
       if (!result) return;
       handleRefresh(dest);
-      if (result.imported > 0) toast.success(t("knowledge.importSuccess", { count: result.imported }));
+      if (result.imported > 0)
+        toast.success(t("knowledge.importSuccess", { count: result.imported }));
       if (result.errors.length > 0) toast.error(result.errors[0]);
     } catch (e) {
       toast.error(t("knowledge.importFailed") + ": " + String(e));
@@ -103,7 +112,8 @@ export function KnowledgeTree({
       const result = await knowledgeApi.importFolder(dest);
       if (!result) return;
       handleRefresh(dest);
-      if (result.imported > 0) toast.success(t("knowledge.importSuccess", { count: result.imported }));
+      if (result.imported > 0)
+        toast.success(t("knowledge.importSuccess", { count: result.imported }));
       if (result.errors.length > 0) toast.error(result.errors[0]);
     } catch (e) {
       toast.error(t("knowledge.importFailed") + ": " + String(e));
@@ -141,8 +151,14 @@ export function KnowledgeTree({
   };
 
   const handleNewKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") { e.preventDefault(); void commitNew(); }
-    if (e.key === "Escape") { e.preventDefault(); setInlineNew(null); }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      void commitNew();
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setInlineNew(null);
+    }
   };
 
   return (
@@ -206,9 +222,11 @@ export function KnowledgeTree({
           {inlineNew && (
             <div className="flex items-center gap-1 py-0.5 pr-1 pl-2 bg-accent/30 rounded">
               <span className="w-3.5 shrink-0" />
-              {inlineNew.type === "file"
-                ? <FileText className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
-                : <Folder className="w-3.5 h-3.5 shrink-0 text-yellow-500" />}
+              {inlineNew.type === "file" ? (
+                <FileText className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+              ) : (
+                <Folder className="w-3.5 h-3.5 shrink-0 text-yellow-500" />
+              )}
               <input
                 ref={newInputRef}
                 className="flex-1 min-w-0 bg-background border border-ring rounded px-1 py-0 text-sm outline-none"

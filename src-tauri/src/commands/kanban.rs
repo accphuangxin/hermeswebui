@@ -418,20 +418,14 @@ pub async fn unblockKanbanTask(
 
 /// GET /v1/boards/{board}/tasks/{task_id}/events
 #[tauri::command]
-pub async fn getTaskEvents(
-    boardSlug: String,
-    taskId: String,
-) -> Result<serde_json::Value, String> {
+pub async fn getTaskEvents(boardSlug: String, taskId: String) -> Result<serde_json::Value, String> {
     let path = format!("/v1/boards/{}/tasks/{}/events?limit=50", boardSlug, taskId);
     kanban_get(&path).await
 }
 
 /// GET /v1/boards/{board}/tasks/{task_id}/runs
 #[tauri::command]
-pub async fn getTaskRuns(
-    boardSlug: String,
-    taskId: String,
-) -> Result<serde_json::Value, String> {
+pub async fn getTaskRuns(boardSlug: String, taskId: String) -> Result<serde_json::Value, String> {
     let path = format!("/v1/boards/{}/tasks/{}/runs", boardSlug, taskId);
     kanban_get(&path).await
 }

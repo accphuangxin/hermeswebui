@@ -101,7 +101,12 @@ export function TaskFlowView({ boardSlug, tasks }: TaskFlowViewProps) {
         await unlinkMutation.mutateAsync({ parentId, childId });
       } catch (error) {
         console.error("删除依赖关系失败:", parentId, "->", childId, error);
-        const msg = error instanceof Error ? error.message : (typeof error === "string" ? error : "未知错误");
+        const msg =
+          error instanceof Error
+            ? error.message
+            : typeof error === "string"
+              ? error
+              : "未知错误";
         toast.error(`删除失败: ${msg}`);
       }
     },
@@ -285,8 +290,7 @@ export function TaskFlowView({ boardSlug, tasks }: TaskFlowViewProps) {
             animated: true,
             style: { stroke: "#3b82f6", strokeWidth: 2 },
             data: {
-              onDelete: (id: string) =>
-                handleDeleteEdge(id, parentId, childId),
+              onDelete: (id: string) => handleDeleteEdge(id, parentId, childId),
             },
           },
           eds,
@@ -295,7 +299,10 @@ export function TaskFlowView({ boardSlug, tasks }: TaskFlowViewProps) {
 
       setHasChanges(true);
 
-      if (params.source?.startsWith("node-") || params.target?.startsWith("node-")) {
+      if (
+        params.source?.startsWith("node-") ||
+        params.target?.startsWith("node-")
+      ) {
         toast.info('请点击"保存流程"按钮保存改动');
         return;
       }
@@ -312,9 +319,11 @@ export function TaskFlowView({ boardSlug, tasks }: TaskFlowViewProps) {
 
     const handleMouseMove = (e: MouseEvent) => {
       // 清除所有节点的 show-handles
-      document.querySelectorAll(".react-flow__node.show-handles").forEach((el) => {
-        el.classList.remove("show-handles");
-      });
+      document
+        .querySelectorAll(".react-flow__node.show-handles")
+        .forEach((el) => {
+          el.classList.remove("show-handles");
+        });
       // 给鼠标下的节点加 show-handles
       const el = (e.target as Element)?.closest(".react-flow__node");
       if (el) el.classList.add("show-handles");
@@ -323,9 +332,11 @@ export function TaskFlowView({ boardSlug, tasks }: TaskFlowViewProps) {
     const cleanup = () => {
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", cleanup);
-      document.querySelectorAll(".react-flow__node.show-handles").forEach((el) => {
-        el.classList.remove("show-handles");
-      });
+      document
+        .querySelectorAll(".react-flow__node.show-handles")
+        .forEach((el) => {
+          el.classList.remove("show-handles");
+        });
     };
 
     document.addEventListener("mousemove", handleMouseMove);
@@ -334,9 +345,11 @@ export function TaskFlowView({ boardSlug, tasks }: TaskFlowViewProps) {
 
   const onConnectEnd = useCallback(() => {
     setIsConnecting(false);
-    document.querySelectorAll(".react-flow__node.show-handles").forEach((el) => {
-      el.classList.remove("show-handles");
-    });
+    document
+      .querySelectorAll(".react-flow__node.show-handles")
+      .forEach((el) => {
+        el.classList.remove("show-handles");
+      });
   }, []);
 
   const onEdgesDelete = useCallback(
@@ -392,7 +405,11 @@ export function TaskFlowView({ boardSlug, tasks }: TaskFlowViewProps) {
       return;
     }
 
-    if (!window.confirm(`即将批量创建 ${pendingNodes.length} 个任务，确定要生成吗？`)) {
+    if (
+      !window.confirm(
+        `即将批量创建 ${pendingNodes.length} 个任务，确定要生成吗？`,
+      )
+    ) {
       return;
     }
 
@@ -493,7 +510,9 @@ export function TaskFlowView({ boardSlug, tasks }: TaskFlowViewProps) {
           const msg = error instanceof Error ? error.message : String(error);
           if (msg.includes("cycle") || msg.includes("循环")) {
             setEdges((eds) => eds.filter((e) => e.id !== edge.id));
-            toast.error(`连线 ${edge.source} → ${edge.target} 会导致循环依赖，已移除`);
+            toast.error(
+              `连线 ${edge.source} → ${edge.target} 会导致循环依赖，已移除`,
+            );
           } else {
             failCount++;
           }
@@ -503,7 +522,8 @@ export function TaskFlowView({ boardSlug, tasks }: TaskFlowViewProps) {
       if (newlySaved.size > 0) {
         setSavedEdges((prev) => new Set([...prev, ...newlySaved]));
       }
-      if (successCount > 0) toast.success(`成功保存 ${successCount} 条依赖关系`);
+      if (successCount > 0)
+        toast.success(`成功保存 ${successCount} 条依赖关系`);
       if (failCount > 0) toast.error(`${failCount} 条依赖关系保存失败，请重试`);
       setHasChanges(failCount > 0);
     } catch (error) {
@@ -631,7 +651,9 @@ export function TaskFlowView({ boardSlug, tasks }: TaskFlowViewProps) {
           </Button>
         </div>
 
-        <div className={`flex-1 bg-gray-50 relative select-none${isConnecting ? " is-connecting" : ""}`}>
+        <div
+          className={`flex-1 bg-gray-50 relative select-none${isConnecting ? " is-connecting" : ""}`}
+        >
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -705,7 +727,9 @@ export function TaskFlowView({ boardSlug, tasks }: TaskFlowViewProps) {
         <DialogContent className="max-w-2xl p-8">
           <DialogHeader className="pb-6">
             <DialogTitle className="text-xl">
-              {selectedNode?.id.startsWith("node-") ? "新建任务节点" : "编辑任务"}
+              {selectedNode?.id.startsWith("node-")
+                ? "新建任务节点"
+                : "编辑任务"}
             </DialogTitle>
           </DialogHeader>
 
@@ -767,10 +791,7 @@ export function TaskFlowView({ boardSlug, tasks }: TaskFlowViewProps) {
               <Trash2 className="h-4 w-4 mr-1" />
               删除
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => setEditDialogOpen(false)}
-            >
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
               取消
             </Button>
             <Button onClick={handleSaveNode} disabled={!title}>

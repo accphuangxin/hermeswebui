@@ -1,4 +1,12 @@
-import { User, ArrowUp, ArrowDown, Clock, RotateCcw, Play, CheckCircle } from "lucide-react";
+import {
+  User,
+  ArrowUp,
+  ArrowDown,
+  Clock,
+  RotateCcw,
+  Play,
+  CheckCircle,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { KanbanTask } from "@/types";
 
@@ -10,7 +18,13 @@ interface TaskCardProps {
   onUnblock?: (taskId: string) => void;
 }
 
-export function TaskCard({ task, onClick, onReset, onExecute, onUnblock }: TaskCardProps) {
+export function TaskCard({
+  task,
+  onClick,
+  onReset,
+  onExecute,
+  onUnblock,
+}: TaskCardProps) {
   const taskId = task.id || task.task_id || "";
   const isRootTask = !task.parents || task.parents.length === 0;
   const isDone = task.status === "done" || task.status === "failed";
@@ -47,7 +61,10 @@ export function TaskCard({ task, onClick, onReset, onExecute, onUnblock }: TaskC
         <div className="flex items-center gap-1 shrink-0">
           {isBlocked && onUnblock && (
             <button
-              onClick={(e) => { e.stopPropagation(); onUnblock(taskId); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onUnblock(taskId);
+              }}
               className="flex items-center gap-1 px-2 py-1 text-xs bg-amber-50 hover:bg-amber-100 text-amber-700 rounded transition-colors"
               title="人工审核通过，继续执行"
             >

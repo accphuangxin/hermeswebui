@@ -33,14 +33,17 @@ export const knowledgeApi = {
   deleteRecursive: (relPath: string): Promise<void> =>
     invoke<void>("knowledge_delete_recursive", { relPath }),
 
-  getBasePath: (): Promise<string> =>
-    invoke<string>("knowledge_get_base_path"),
+  getBasePath: (): Promise<string> => invoke<string>("knowledge_get_base_path"),
 
   importFiles: (destRelPath: string): Promise<KnowledgeImportResult | null> =>
-    invoke<KnowledgeImportResult | null>("knowledge_import_files", { destRelPath }),
+    invoke<KnowledgeImportResult | null>("knowledge_import_files", {
+      destRelPath,
+    }),
 
   importFolder: (destRelPath: string): Promise<KnowledgeImportResult | null> =>
-    invoke<KnowledgeImportResult | null>("knowledge_import_folder", { destRelPath }),
+    invoke<KnowledgeImportResult | null>("knowledge_import_folder", {
+      destRelPath,
+    }),
 };
 
 export interface KnowledgeImportResult {

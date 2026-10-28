@@ -103,7 +103,10 @@ export const kanbanApi = {
     return await invoke("unblockKanbanTask", { boardSlug, taskId });
   },
 
-  getTaskEvents: async (boardSlug: string, taskId: string): Promise<unknown> => {
+  getTaskEvents: async (
+    boardSlug: string,
+    taskId: string,
+  ): Promise<unknown> => {
     return await invoke("getTaskEvents", { boardSlug, taskId });
   },
 

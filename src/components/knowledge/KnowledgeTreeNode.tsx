@@ -18,7 +18,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { knowledgeApi, knowledgeKeys, type KnowledgeEntry } from "@/lib/api/knowledge";
+import {
+  knowledgeApi,
+  knowledgeKeys,
+  type KnowledgeEntry,
+} from "@/lib/api/knowledge";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { toast } from "sonner";
 
@@ -74,9 +78,8 @@ export function KnowledgeTreeNode({
       return;
     }
     // 文件必须以 .md 结尾
-    const finalName = !entry.isDir && !trimmed.endsWith(".md")
-      ? trimmed + ".md"
-      : trimmed;
+    const finalName =
+      !entry.isDir && !trimmed.endsWith(".md") ? trimmed + ".md" : trimmed;
     try {
       await knowledgeApi.rename(entry.relPath, finalName);
       const parentRelPath = entry.relPath.includes("/")
@@ -93,8 +96,14 @@ export function KnowledgeTreeNode({
   };
 
   const handleRenameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") { e.preventDefault(); void commitRename(); }
-    if (e.key === "Escape") { e.preventDefault(); setIsRenaming(false); }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      void commitRename();
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setIsRenaming(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -108,7 +117,10 @@ export function KnowledgeTreeNode({
         ? entry.relPath.substring(0, entry.relPath.lastIndexOf("/"))
         : "";
       onRefresh(parentRelPath);
-      if (selectedPath === entry.relPath || selectedPath?.startsWith(entry.relPath + "/")) {
+      if (
+        selectedPath === entry.relPath ||
+        selectedPath?.startsWith(entry.relPath + "/")
+      ) {
         onDeleteFile(entry.relPath);
       }
       toast.success(t("knowledge.deleteSuccess"));
@@ -125,10 +137,10 @@ export function KnowledgeTreeNode({
         <div
           className={cn(
             "flex items-center gap-1 py-0.5 pr-1 rounded text-sm select-none",
-            isRenaming
-              ? "bg-accent/30"
-              : "cursor-pointer hover:bg-accent/50",
-            !entry.isDir && !isRenaming && selectedPath === entry.relPath &&
+            isRenaming ? "bg-accent/30" : "cursor-pointer hover:bg-accent/50",
+            !entry.isDir &&
+              !isRenaming &&
+              selectedPath === entry.relPath &&
               "bg-accent text-accent-foreground",
           )}
           style={{ paddingLeft: `${8 + depth * 14}px` }}
@@ -146,14 +158,18 @@ export function KnowledgeTreeNode({
           {entry.isDir ? (
             <>
               <span className="shrink-0 text-muted-foreground">
-                {isExpanded
-                  ? <ChevronDown className="w-3.5 h-3.5" />
-                  : <ChevronRight className="w-3.5 h-3.5" />}
+                {isExpanded ? (
+                  <ChevronDown className="w-3.5 h-3.5" />
+                ) : (
+                  <ChevronRight className="w-3.5 h-3.5" />
+                )}
               </span>
               <span className="shrink-0">
-                {isExpanded
-                  ? <FolderOpen className="w-3.5 h-3.5 text-yellow-500" />
-                  : <Folder className="w-3.5 h-3.5 text-yellow-500" />}
+                {isExpanded ? (
+                  <FolderOpen className="w-3.5 h-3.5 text-yellow-500" />
+                ) : (
+                  <Folder className="w-3.5 h-3.5 text-yellow-500" />
+                )}
               </span>
             </>
           ) : (

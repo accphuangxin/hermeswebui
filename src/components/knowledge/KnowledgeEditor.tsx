@@ -7,7 +7,10 @@ import { Code2, Eye, Save, FileText, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { knowledgeApi, knowledgeKeys } from "@/lib/api/knowledge";
@@ -23,7 +26,10 @@ interface KnowledgeEditorProps {
   onDirtyChange?: (isDirty: boolean) => void;
 }
 
-export function KnowledgeEditor({ filePath, onDirtyChange }: KnowledgeEditorProps) {
+export function KnowledgeEditor({
+  filePath,
+  onDirtyChange,
+}: KnowledgeEditorProps) {
   const { t } = useTranslation();
   const darkMode = useDarkMode();
   const queryClient = useQueryClient();
@@ -34,7 +40,9 @@ export function KnowledgeEditor({ filePath, onDirtyChange }: KnowledgeEditorProp
   const originalContentRef = useRef("");
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: filePath ? knowledgeKeys.file(filePath) : ["knowledge", "file", "__none__"],
+    queryKey: filePath
+      ? knowledgeKeys.file(filePath)
+      : ["knowledge", "file", "__none__"],
     queryFn: () => knowledgeApi.readFile(filePath!),
     enabled: !!filePath,
     staleTime: 0,
@@ -58,13 +66,10 @@ export function KnowledgeEditor({ filePath, onDirtyChange }: KnowledgeEditorProp
     onDirtyChange?.(isDirty);
   }, [isDirty, onDirtyChange]);
 
-  const handleChange = useCallback(
-    (val: string) => {
-      setEditContent(val);
-      setIsDirty(val !== originalContentRef.current);
-    },
-    [],
-  );
+  const handleChange = useCallback((val: string) => {
+    setEditContent(val);
+    setIsDirty(val !== originalContentRef.current);
+  }, []);
 
   const handleSave = useCallback(async () => {
     if (!filePath || saving || !isDirty) return;
@@ -85,7 +90,12 @@ export function KnowledgeEditor({ filePath, onDirtyChange }: KnowledgeEditorProp
   // Ctrl/Cmd+S 保存
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "s" && viewMode === "edit" && filePath) {
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        e.key === "s" &&
+        viewMode === "edit" &&
+        filePath
+      ) {
         e.preventDefault();
         void handleSave();
       }
@@ -94,7 +104,7 @@ export function KnowledgeEditor({ filePath, onDirtyChange }: KnowledgeEditorProp
     return () => window.removeEventListener("keydown", handler);
   }, [handleSave, viewMode, filePath]);
 
-  const fileName = filePath ? filePath.split("/").pop() ?? filePath : "";
+  const fileName = filePath ? (filePath.split("/").pop() ?? filePath) : "";
 
   if (!filePath) {
     return (
@@ -181,7 +191,6 @@ export function KnowledgeEditor({ filePath, onDirtyChange }: KnowledgeEditorProp
             {saving ? t("common.saving") : t("common.save")}
           </Button>
         )}
-
       </div>
 
       {/* 内容区 */}

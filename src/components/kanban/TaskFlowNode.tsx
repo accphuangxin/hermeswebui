@@ -21,7 +21,13 @@ export function TaskFlowNode({ data, selected }: TaskFlowNodeProps) {
         minWidth={160}
         minHeight={60}
         lineStyle={{ borderColor: "#3b82f6" }}
-        handleStyle={{ width: 8, height: 8, borderRadius: 2, background: "#3b82f6", border: "none" }}
+        handleStyle={{
+          width: 8,
+          height: 8,
+          borderRadius: 2,
+          background: "#3b82f6",
+          border: "none",
+        }}
       />
 
       <Handle

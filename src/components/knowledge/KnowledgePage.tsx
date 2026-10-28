@@ -2,7 +2,11 @@ import { useState, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable";
 import { KnowledgeTree } from "./KnowledgeTree";
 import { KnowledgeEditor } from "./KnowledgeEditor";
 import { KnowledgeChat } from "./KnowledgeChat";
@@ -68,7 +72,9 @@ export function KnowledgePage() {
   // Chat 通知文件被修改 → 使编辑器 query 失效，触发重新读取文件
   const handleFileChanged = useCallback(() => {
     if (selectedPath && !selectedIsDir) {
-      void queryClient.refetchQueries({ queryKey: knowledgeKeys.file(selectedPath) });
+      void queryClient.refetchQueries({
+        queryKey: knowledgeKeys.file(selectedPath),
+      });
     }
   }, [queryClient, selectedPath, selectedIsDir]);
 

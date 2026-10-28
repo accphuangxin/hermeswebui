@@ -1,9 +1,9 @@
 use crate::config::{get_home_dir, write_text_file};
+use base64::Engine;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
-use base64::Engine;
 
 fn get_knowledge_dir() -> PathBuf {
     get_home_dir().join(".hermes-web").join("knowledge")
@@ -40,15 +40,12 @@ fn resolve_safe_path(rel_path: &str) -> Result<PathBuf, String> {
             None,
         )
     } else {
-        let parent = candidate
-            .parent()
-            .ok_or_else(|| "无效路径".to_string())?;
+        let parent = candidate.parent().ok_or_else(|| "无效路径".to_string())?;
         let name = candidate
             .file_name()
             .ok_or_else(|| "无效文件名".to_string())?
             .to_owned();
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("无法创建父目录: {e}"))?;
+        std::fs::create_dir_all(parent).map_err(|e| format!("无法创建父目录: {e}"))?;
         (
             parent
                 .canonicalize()
@@ -121,9 +118,7 @@ pub async fn knowledge_list_dir(rel_path: String) -> Result<Vec<KnowledgeEntry>,
 
     let mut entries: Vec<KnowledgeEntry> = Vec::new();
 
-    for entry in
-        std::fs::read_dir(&dir).map_err(|e| format!("读取目录失败: {e}"))?
-    {
+    for entry in std::fs::read_dir(&dir).map_err(|e| format!("读取目录失败: {e}"))? {
         let entry = match entry {
             Ok(e) => e,
             Err(_) => continue,
@@ -285,8 +280,9 @@ pub async fn knowledge_delete(rel_path: String) -> Result<(), String> {
         return Ok(());
     }
     if path.is_dir() {
-        std::fs::remove_dir(&path)
-            .map_err(|e| format!("删除目录失败（目录非空时请使用 knowledge_delete_recursive）: {e}"))
+        std::fs::remove_dir(&path).map_err(|e| {
+            format!("删除目录失败（目录非空时请使用 knowledge_delete_recursive）: {e}")
+        })
     } else {
         std::fs::remove_file(&path).map_err(|e| format!("删除文件失败: {e}"))
     }
@@ -350,7 +346,10 @@ pub async fn knowledge_import_files<R: tauri::Runtime>(
         let src = std::path::PathBuf::from(file_path.to_string());
         let file_name = match src.file_name().and_then(|n| n.to_str()) {
             Some(n) => n.to_string(),
-            None => { errors.push(format!("无法获取文件名: {}", src.display())); continue; }
+            None => {
+                errors.push(format!("无法获取文件名: {}", src.display()));
+                continue;
+            }
         };
         if !file_name.ends_with(".md") {
             skipped += 1;
@@ -366,23 +365,25 @@ pub async fn knowledge_import_files<R: tauri::Runtime>(
                 if !candidate.exists() {
                     let content = std::fs::read_to_string(&src)
                         .map_err(|e| format!("读取 {file_name} 失败: {e}"))?;
-                    write_text_file(&candidate, &content)
-                        .map_err(|e| format!("写入失败: {e}"))?;
+                    write_text_file(&candidate, &content).map_err(|e| format!("写入失败: {e}"))?;
                     imported += 1;
                     break;
                 }
                 n += 1;
             }
         } else {
-            let content = std::fs::read_to_string(&src)
-                .map_err(|e| format!("读取 {file_name} 失败: {e}"))?;
-            write_text_file(&dst, &content)
-                .map_err(|e| format!("写入失败: {e}"))?;
+            let content =
+                std::fs::read_to_string(&src).map_err(|e| format!("读取 {file_name} 失败: {e}"))?;
+            write_text_file(&dst, &content).map_err(|e| format!("写入失败: {e}"))?;
             imported += 1;
         }
     }
 
-    Ok(Some(KnowledgeImportResult { imported, skipped, errors }))
+    Ok(Some(KnowledgeImportResult {
+        imported,
+        skipped,
+        errors,
+    }))
 }
 
 /// 弹出文件夹选择框，递归导入其中所有 .md 文件，保留目录结构。
@@ -410,9 +411,19 @@ pub async fn knowledge_import_folder<R: tauri::Runtime>(
     let mut skipped = 0u32;
     let mut errors: Vec<String> = Vec::new();
 
-    import_dir_recursive(&folder_path, &dest_dir, &mut imported, &mut skipped, &mut errors);
+    import_dir_recursive(
+        &folder_path,
+        &dest_dir,
+        &mut imported,
+        &mut skipped,
+        &mut errors,
+    );
 
-    Ok(Some(KnowledgeImportResult { imported, skipped, errors }))
+    Ok(Some(KnowledgeImportResult {
+        imported,
+        skipped,
+        errors,
+    }))
 }
 
 fn import_dir_recursive(
@@ -424,13 +435,18 @@ fn import_dir_recursive(
 ) {
     let entries = match std::fs::read_dir(src_dir) {
         Ok(e) => e,
-        Err(e) => { errors.push(format!("读取目录失败 {}: {e}", src_dir.display())); return; }
+        Err(e) => {
+            errors.push(format!("读取目录失败 {}: {e}", src_dir.display()));
+            return;
+        }
     };
 
     for entry in entries.flatten() {
         let src_path = entry.path();
         let name = entry.file_name().to_string_lossy().to_string();
-        if name.starts_with('.') { continue; }
+        if name.starts_with('.') {
+            continue;
+        }
 
         if src_path.is_dir() {
             let sub_dst = dst_dir.join(&name);
@@ -446,19 +462,19 @@ fn import_dir_recursive(
                 let mut n = 1u32;
                 loop {
                     let c = dst_dir.join(format!("{stem}_{n}.md"));
-                    if !c.exists() { break c; }
+                    if !c.exists() {
+                        break c;
+                    }
                     n += 1;
                 }
             } else {
                 dst_path
             };
             match std::fs::read_to_string(&src_path) {
-                Ok(content) => {
-                    match write_text_file(&final_dst, &content) {
-                        Ok(_) => *imported += 1,
-                        Err(e) => errors.push(format!("写入 {name} 失败: {e}")),
-                    }
-                }
+                Ok(content) => match write_text_file(&final_dst, &content) {
+                    Ok(_) => *imported += 1,
+                    Err(e) => errors.push(format!("写入 {name} 失败: {e}")),
+                },
                 Err(e) => errors.push(format!("读取 {name} 失败: {e}")),
             }
         } else {

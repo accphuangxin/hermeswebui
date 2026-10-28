@@ -1,25 +1,41 @@
 import { invoke } from "@tauri-apps/api/core";
 import {
-  Document, Packer, Paragraph, TextRun,
-  HeadingLevel, ShadingType,
-  BorderStyle, Table, TableRow, TableCell, WidthType,
+  Document,
+  Packer,
+  Paragraph,
+  TextRun,
+  HeadingLevel,
+  ShadingType,
+  BorderStyle,
+  Table,
+  TableRow,
+  TableCell,
+  WidthType,
 } from "docx";
 
 // ─── 字号常量（半磅单位，1pt = 2 half-pts） ─────────────────────────────────
 const PT = (n: number) => n * 2;
 
 // ─── 样式定义 ─────────────────────────────────────────────────────────────────
-interface HeadingStyle { size: number; bold: boolean; color: string; spaceAfter: number }
+interface HeadingStyle {
+  size: number;
+  bold: boolean;
+  color: string;
+  spaceAfter: number;
+}
 const HEADING_STYLES: Record<number, HeadingStyle> = {
-  1: { size: PT(28), bold: true,  color: "1a1a1a", spaceAfter: 120 },
-  2: { size: PT(22), bold: true,  color: "1a1a1a", spaceAfter: 100 },
-  3: { size: PT(18), bold: true,  color: "1a1a1a", spaceAfter: 80  },
-  4: { size: PT(14), bold: true,  color: "333333", spaceAfter: 60  },
-  5: { size: PT(12), bold: true,  color: "555555", spaceAfter: 40  },
-  6: { size: PT(11), bold: true,  color: "666666", spaceAfter: 40  },
+  1: { size: PT(28), bold: true, color: "1a1a1a", spaceAfter: 120 },
+  2: { size: PT(22), bold: true, color: "1a1a1a", spaceAfter: 100 },
+  3: { size: PT(18), bold: true, color: "1a1a1a", spaceAfter: 80 },
+  4: { size: PT(14), bold: true, color: "333333", spaceAfter: 60 },
+  5: { size: PT(12), bold: true, color: "555555", spaceAfter: 40 },
+  6: { size: PT(11), bold: true, color: "666666", spaceAfter: 40 },
 };
 
-const HEADING_LEVEL_MAP: Record<number, typeof HeadingLevel[keyof typeof HeadingLevel]> = {
+const HEADING_LEVEL_MAP: Record<
+  number,
+  (typeof HeadingLevel)[keyof typeof HeadingLevel]
+> = {
   1: HeadingLevel.HEADING_1,
   2: HeadingLevel.HEADING_2,
   3: HeadingLevel.HEADING_3,
@@ -29,7 +45,13 @@ const HEADING_LEVEL_MAP: Record<number, typeof HeadingLevel[keyof typeof Heading
 };
 
 // ─── 行内格式解析 ─────────────────────────────────────────────────────────────
-interface RunBase { bold?: boolean; italics?: boolean; size?: number; color?: string; strike?: boolean }
+interface RunBase {
+  bold?: boolean;
+  italics?: boolean;
+  size?: number;
+  color?: string;
+  strike?: boolean;
+}
 
 function makeRun(text: string, base: RunBase): TextRun {
   return new TextRun({ text, ...base });
@@ -43,13 +65,18 @@ function parseInline(text: string, base: RunBase = {}): TextRun[] {
 
   while ((m = re.exec(text)) !== null) {
     if (m.index > last) runs.push(makeRun(text.slice(last, m.index), base));
-    if (m[1])      runs.push(makeRun(m[1], { ...base, bold: true, italics: true }));
+    if (m[1]) runs.push(makeRun(m[1], { ...base, bold: true, italics: true }));
     else if (m[2]) runs.push(makeRun(m[2], { ...base, bold: true }));
     else if (m[3]) runs.push(makeRun(m[3], { ...base, italics: true }));
-    else if (m[4]) runs.push(new TextRun({
-      text: m[4], font: "Courier New", size: PT(10),
-      shading: { type: ShadingType.CLEAR, fill: "F0F0F0", color: "auto" },
-    }));
+    else if (m[4])
+      runs.push(
+        new TextRun({
+          text: m[4],
+          font: "Courier New",
+          size: PT(10),
+          shading: { type: ShadingType.CLEAR, fill: "F0F0F0", color: "auto" },
+        }),
+      );
     else if (m[5]) runs.push(makeRun(m[5], { ...base, strike: true }));
     last = m.index + m[0].length;
   }
@@ -77,7 +104,13 @@ function toDocxParagraphs(markdown: string): (Paragraph | Table)[] {
       for (const codeLine of codeLines) {
         result.push(
           new Paragraph({
-            children: [new TextRun({ text: codeLine || " ", font: "Courier New", size: PT(10) })],
+            children: [
+              new TextRun({
+                text: codeLine || " ",
+                font: "Courier New",
+                size: PT(10),
+              }),
+            ],
             shading: { type: ShadingType.CLEAR, fill: "F6F8FA", color: "auto" },
             spacing: { before: 0, after: 0, line: 240 },
             indent: { left: 360 },
@@ -87,7 +120,9 @@ function toDocxParagraphs(markdown: string): (Paragraph | Table)[] {
           }),
         );
       }
-      result.push(new Paragraph({ text: "", spacing: { before: 80, after: 80 } }));
+      result.push(
+        new Paragraph({ text: "", spacing: { before: 80, after: 80 } }),
+      );
       continue;
     }
 
@@ -100,13 +135,23 @@ function toDocxParagraphs(markdown: string): (Paragraph | Table)[] {
       result.push(
         new Paragraph({
           heading: HEADING_LEVEL_MAP[level],
-          children: parseInline(text, { bold: style.bold, size: style.size, color: style.color } satisfies RunBase),
+          children: parseInline(text, {
+            bold: style.bold,
+            size: style.size,
+            color: style.color,
+          } satisfies RunBase),
           spacing: { before: 200, after: style.spaceAfter },
-          ...(level <= 2 ? {
-            border: {
-              bottom: { style: BorderStyle.SINGLE, size: 4, color: "E5E7EB" },
-            },
-          } : {}),
+          ...(level <= 2
+            ? {
+                border: {
+                  bottom: {
+                    style: BorderStyle.SINGLE,
+                    size: 4,
+                    color: "E5E7EB",
+                  },
+                },
+              }
+            : {}),
         }),
       );
       continue;
@@ -116,7 +161,9 @@ function toDocxParagraphs(markdown: string): (Paragraph | Table)[] {
     if (/^[-*_]{3,}$/.test(line.trim())) {
       result.push(
         new Paragraph({
-          border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: "D1D5DB" } },
+          border: {
+            bottom: { style: BorderStyle.SINGLE, size: 6, color: "D1D5DB" },
+          },
           spacing: { before: 200, after: 200 },
           text: "",
         }),
@@ -177,12 +224,24 @@ function toDocxParagraphs(markdown: string): (Paragraph | Table)[] {
     }
 
     // ── GFM 表格 ──
-    if (line.startsWith("|") && i + 1 < lines.length && lines[i + 1].match(/^\|[-| :]+\|/)) {
-      const headers = line.split("|").slice(1, -1).map((s) => s.trim());
+    if (
+      line.startsWith("|") &&
+      i + 1 < lines.length &&
+      lines[i + 1].match(/^\|[-| :]+\|/)
+    ) {
+      const headers = line
+        .split("|")
+        .slice(1, -1)
+        .map((s) => s.trim());
       i += 2; // 跳过分隔行
       const rows: string[][] = [];
       while (i < lines.length && lines[i].startsWith("|")) {
-        rows.push(lines[i].split("|").slice(1, -1).map((s) => s.trim()));
+        rows.push(
+          lines[i]
+            .split("|")
+            .slice(1, -1)
+            .map((s) => s.trim()),
+        );
         i++;
       }
       i--; // 外层 for 会 i++
@@ -193,37 +252,52 @@ function toDocxParagraphs(markdown: string): (Paragraph | Table)[] {
             new TableRow({
               tableHeader: true,
               children: headers.map(
-                (h) => new TableCell({
-                  children: [new Paragraph({
-                    children: parseInline(h, { bold: true }),
-                    spacing: { before: 60, after: 60 },
-                  })],
-                  shading: { type: ShadingType.CLEAR, fill: "F3F4F6", color: "auto" },
-                }),
+                (h) =>
+                  new TableCell({
+                    children: [
+                      new Paragraph({
+                        children: parseInline(h, { bold: true }),
+                        spacing: { before: 60, after: 60 },
+                      }),
+                    ],
+                    shading: {
+                      type: ShadingType.CLEAR,
+                      fill: "F3F4F6",
+                      color: "auto",
+                    },
+                  }),
               ),
             }),
             ...rows.map(
-              (cells) => new TableRow({
-                children: cells.map(
-                  (cell) => new TableCell({
-                    children: [new Paragraph({
-                      children: parseInline(cell),
-                      spacing: { before: 60, after: 60 },
-                    })],
-                  }),
-                ),
-              }),
+              (cells) =>
+                new TableRow({
+                  children: cells.map(
+                    (cell) =>
+                      new TableCell({
+                        children: [
+                          new Paragraph({
+                            children: parseInline(cell),
+                            spacing: { before: 60, after: 60 },
+                          }),
+                        ],
+                      }),
+                  ),
+                }),
             ),
           ],
         }),
       );
-      result.push(new Paragraph({ text: "", spacing: { before: 80, after: 80 } }));
+      result.push(
+        new Paragraph({ text: "", spacing: { before: 80, after: 80 } }),
+      );
       continue;
     }
 
     // ── 空行 ──
     if (raw.trim() === "") {
-      result.push(new Paragraph({ text: "", spacing: { before: 80, after: 0 } }));
+      result.push(
+        new Paragraph({ text: "", spacing: { before: 80, after: 0 } }),
+      );
       continue;
     }
 
@@ -240,7 +314,10 @@ function toDocxParagraphs(markdown: string): (Paragraph | Table)[] {
 }
 
 // ─── 导出入口 ─────────────────────────────────────────────────────────────────
-export async function exportToWord(markdown: string, fileName: string): Promise<void> {
+export async function exportToWord(
+  markdown: string,
+  fileName: string,
+): Promise<void> {
   const stemName = fileName.replace(/\.md$/i, "");
   const doc = new Document({
     styles: {
@@ -251,14 +328,16 @@ export async function exportToWord(markdown: string, fileName: string): Promise<
         },
       },
     },
-    sections: [{
-      properties: {
-        page: {
-          margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
+    sections: [
+      {
+        properties: {
+          page: {
+            margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
+          },
         },
+        children: toDocxParagraphs(markdown) as Paragraph[],
       },
-      children: toDocxParagraphs(markdown) as Paragraph[],
-    }],
+    ],
   });
 
   const base64 = await Packer.toBase64String(doc);
@@ -273,7 +352,10 @@ export async function exportToWord(markdown: string, fileName: string): Promise<
 
 // ─── PDF 导出（html2canvas + jsPDF） ─────────────────────────────────────────
 
-export async function exportToPdf(markdown: string, fileName: string): Promise<void> {
+export async function exportToPdf(
+  markdown: string,
+  fileName: string,
+): Promise<void> {
   const stemName = fileName.replace(/\.md$/i, "");
 
   // 用 marked 把 markdown 完整转成 HTML（含表格、标题、列表、代码块等）
@@ -314,8 +396,7 @@ export async function exportToPdf(markdown: string, fileName: string): Promise<v
   spinner.style.cssText =
     "position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:99999;" +
     "display:flex;align-items:center;justify-content:center;";
-  spinner.innerHTML =
-    `<div style="background:#fff;border-radius:8px;padding:20px 32px;font-size:14px;color:#333;">
+  spinner.innerHTML = `<div style="background:#fff;border-radius:8px;padding:20px 32px;font-size:14px;color:#333;">
        正在导出 PDF，请稍候…
      </div>`;
   document.body.appendChild(spinner);
@@ -332,7 +413,7 @@ export async function exportToPdf(markdown: string, fileName: string): Promise<v
     iDoc.open();
     iDoc.write(
       `<!DOCTYPE html><html><head><meta charset="utf-8">` +
-      `<style>${css}</style></head><body>${bodyHtml}</body></html>`
+        `<style>${css}</style></head><body>${bodyHtml}</body></html>`,
     );
     iDoc.close();
 
@@ -360,25 +441,53 @@ export async function exportToPdf(markdown: string, fileName: string): Promise<v
       logging: false,
     });
 
-    const A4_W = 210; const A4_H = 297; const MARGIN = 12;
+    const A4_W = 210;
+    const A4_H = 297;
+    const MARGIN = 12;
     const contentW = A4_W - MARGIN * 2;
     const pageH = A4_H - MARGIN * 2;
     const totalH = (canvas.height / canvas.width) * contentW;
     const scale = contentW / canvas.width;
 
-    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-    let yMM = 0; let page = 0;
+    const pdf = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    });
+    let yMM = 0;
+    let page = 0;
 
     while (yMM < totalH) {
       const sliceH = Math.min(pageH, totalH - yMM);
       const srcY = Math.round(yMM / scale);
       const srcH = Math.round(sliceH / scale);
       const slice = document.createElement("canvas");
-      slice.width = canvas.width; slice.height = Math.max(1, srcH);
-      slice.getContext("2d")!.drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH);
+      slice.width = canvas.width;
+      slice.height = Math.max(1, srcH);
+      slice
+        .getContext("2d")!
+        .drawImage(
+          canvas,
+          0,
+          srcY,
+          canvas.width,
+          srcH,
+          0,
+          0,
+          canvas.width,
+          srcH,
+        );
       if (page > 0) pdf.addPage();
-      pdf.addImage(slice.toDataURL("image/png"), "PNG", MARGIN, MARGIN, contentW, sliceH);
-      yMM += sliceH; page++;
+      pdf.addImage(
+        slice.toDataURL("image/png"),
+        "PNG",
+        MARGIN,
+        MARGIN,
+        contentW,
+        sliceH,
+      );
+      yMM += sliceH;
+      page++;
     }
 
     const base64 = pdf.output("datauristring").split(",")[1];
@@ -393,4 +502,3 @@ export async function exportToPdf(markdown: string, fileName: string): Promise<v
     document.body.removeChild(spinner);
   }
 }
-

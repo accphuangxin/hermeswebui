@@ -38,9 +38,7 @@ export function KnowledgeNewItemDialog({
     }
     if (type === "file" && !trimmed.endsWith(".md")) {
       const fullName = trimmed + ".md";
-      const relPath = parentRelPath
-        ? `${parentRelPath}/${fullName}`
-        : fullName;
+      const relPath = parentRelPath ? `${parentRelPath}/${fullName}` : fullName;
       setName("");
       setError("");
       onConfirm(relPath);
@@ -79,12 +77,16 @@ export function KnowledgeNewItemDialog({
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>
-            {type === "file" ? t("knowledge.newFile") : t("knowledge.newFolder")}
+            {type === "file"
+              ? t("knowledge.newFile")
+              : t("knowledge.newFolder")}
           </DialogTitle>
         </DialogHeader>
         <div className="px-6 py-4 space-y-3">
           <Label className="text-sm">
-            {type === "file" ? t("knowledge.newFileName") : t("knowledge.newFolderName")}
+            {type === "file"
+              ? t("knowledge.newFileName")
+              : t("knowledge.newFolderName")}
           </Label>
           <Input
             autoFocus
