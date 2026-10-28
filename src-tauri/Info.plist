@@ -23,6 +23,15 @@
       </array>
     </dict>
   </array>
+  <!-- 允许 WebView 内嵌加载明文 HTTP 页面（智能采购等外部嵌入页） -->
+  <key>NSAppTransportSecurity</key>
+  <dict>
+    <key>NSAllowsArbitraryLoadsInWebContent</key>
+    <true/>
+  </dict>
+  <!-- 聊天语音输入需要访问麦克风（WKWebView 的 getUserMedia） -->
+  <key>NSMicrophoneUsageDescription</key>
+  <string>用于聊天输入框的语音转文字功能，录音只会发送到你自己配置的转写服务。</string>
 </dict>
 </plist>
 

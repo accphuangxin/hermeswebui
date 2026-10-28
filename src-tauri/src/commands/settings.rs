@@ -21,6 +21,21 @@ fn merge_settings_for_save(
         }
         _ => {}
     }
+
+    // 语音输入：get_settings_for_frontend 会清空 api_key，
+    // 因此前端保存回来的空 key 表示「保持现有」，而不是清空。
+    match (&mut incoming.voice_input, &existing.voice_input) {
+        (None, _) => {
+            incoming.voice_input = existing.voice_input.clone();
+        }
+        (Some(incoming_voice), Some(existing_voice))
+            if incoming_voice.api_key.is_empty() && !existing_voice.api_key.is_empty() =>
+        {
+            incoming_voice.api_key = existing_voice.api_key.clone();
+        }
+        _ => {}
+    }
+
     incoming
 }
 

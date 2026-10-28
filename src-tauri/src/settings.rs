@@ -101,6 +101,92 @@ fn default_profile() -> String {
     "default".to_string()
 }
 
+/// 语音输入（语音转文字）设置
+///
+/// 走 OpenAI 兼容的 `/v1/audio/transcriptions`，因此只需要 Base URL + Key + 模型名，
+/// 第三方中转站也能直接复用。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VoiceInputSettings {
+    #[serde(default)]
+    pub enabled: bool,
+    /// OpenAI 兼容的 API 根地址（会自动补 `/v1/audio/transcriptions`）。
+    /// 默认指向内置的 Qwen3-ASR 服务。
+    #[serde(default)]
+    pub base_url: String,
+    /// 转写模型名；默认服务的模型名与服务端固定加载的一致
+    #[serde(default = "default_transcribe_model")]
+    pub model: String,
+    /// 识别语言（`zh` / `en` / ...）；None 表示自动识别
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub language: Option<String>,
+    #[serde(default)]
+    pub api_key: String,
+    /// 只读派生字段：前端据此显示「已配置」占位。
+    /// 只序列化、不反序列化（前端回传时忽略），避免被前端覆盖；
+    /// 为 false 时不落盘，避免污染 settings.json。
+    #[serde(
+        default,
+        skip_deserializing,
+        skip_serializing_if = "std::ops::Not::not"
+    )]
+    pub has_api_key: bool,
+}
+
+fn default_transcribe_model() -> String {
+    DEFAULT_TRANSCRIBE_MODEL.to_string()
+}
+
+/// 默认语音转写服务（OpenAI 兼容 /v1/audio/transcriptions）
+pub const DEFAULT_TRANSCRIBE_BASE_URL: &str = "http://134.175.238.232:8090";
+/// 默认转写模型（服务端固定加载 Qwen3-ASR-1.7B，model 字段仅作占位）
+pub const DEFAULT_TRANSCRIBE_MODEL: &str = "Qwen/Qwen3-ASR-1.7B-hf";
+
+impl Default for VoiceInputSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            base_url: DEFAULT_TRANSCRIBE_BASE_URL.to_string(),
+            model: default_transcribe_model(),
+            language: None,
+            // 源码不内置任何凭证：Key 由用户在「设置 → 通用 → 语音输入」里填写后落到
+            // settings.json。仓库是公开的，硬编码 Key 等同于公开自己的转写额度。
+            api_key: String::new(),
+            has_api_key: false,
+        }
+    }
+}
+
+impl VoiceInputSettings {
+    /// 把「旧版默认值」升级成内置服务的默认值。
+    ///
+    /// 早期版本默认写的是 `https://api.openai.com` + `whisper-1`，这套配置对绝大多数
+    /// 用户不可用；一旦被 autosave 落盘，之后改 `Default` 也救不回来。这里只在**地址与
+    /// 模型都仍是旧默认值且没有 Key** 时整体替换，用户改过任意一项就完全不动。
+    ///
+    /// 迁移永远不写入 Key —— 源码不携带凭证。
+    fn normalize(&mut self) {
+        let base = self.base_url.trim();
+        let model = self.model.trim();
+        let legacy = (base.is_empty() || base == "https://api.openai.com")
+            && (model.is_empty() || model == "whisper-1")
+            && self.api_key.trim().is_empty();
+
+        if legacy {
+            self.base_url = DEFAULT_TRANSCRIBE_BASE_URL.to_string();
+            self.model = DEFAULT_TRANSCRIBE_MODEL.to_string();
+            return;
+        }
+
+        if base.is_empty() {
+            self.base_url = DEFAULT_TRANSCRIBE_BASE_URL.to_string();
+        }
+        if model.is_empty() {
+            self.model = DEFAULT_TRANSCRIBE_MODEL.to_string();
+        }
+    }
+}
+
 /// WebDAV 同步设置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -301,6 +387,15 @@ pub struct AppSettings {
     /// - Linux: "gnome-terminal" | "konsole" | "xfce4-terminal" | "alacritty" | "kitty" | "ghostty"
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub preferred_terminal: Option<String>,
+
+    // ===== 语音输入（语音转文字）=====
+    /// 缺省即启用，并指向内置的默认转写服务
+    #[serde(default = "default_voice_input")]
+    pub voice_input: Option<VoiceInputSettings>,
+}
+
+fn default_voice_input() -> Option<VoiceInputSettings> {
+    Some(VoiceInputSettings::default())
 }
 
 fn default_show_in_tray() -> bool {
@@ -351,6 +446,7 @@ impl Default for AppSettings {
             backup_interval_hours: None,
             backup_retain_count: None,
             preferred_terminal: None,
+            voice_input: Some(VoiceInputSettings::default()),
         }
     }
 }
@@ -420,6 +516,11 @@ impl AppSettings {
             if sync.is_empty() {
                 self.webdav_sync = None;
             }
+        }
+
+        // 语音输入：把旧的 OpenAI 默认值升级成内置转写服务
+        if let Some(voice) = &mut self.voice_input {
+            voice.normalize();
         }
     }
 
@@ -523,6 +624,11 @@ pub fn get_settings_for_frontend() -> AppSettings {
     let mut settings = get_settings();
     if let Some(sync) = &mut settings.webdav_sync {
         sync.password.clear();
+    }
+    // 语音输入的 Key 只留在后端，前端拿到的是「是否有 Key」的占位信息
+    if let Some(voice) = &mut settings.voice_input {
+        voice.has_api_key = !voice.api_key.trim().is_empty();
+        voice.api_key.clear();
     }
     settings.webdav_backup = None;
     settings
@@ -788,6 +894,100 @@ pub fn update_webdav_sync_status(status: WebDavSyncStatus) -> Result<(), AppErro
 mod tests {
     use super::*;
     use crate::app_config::AppType;
+
+    #[test]
+    fn voice_input_normalize_upgrades_legacy_openai_defaults() {
+        // 早期版本 autosave 落盘的旧默认值
+        let mut voice = VoiceInputSettings {
+            enabled: true,
+            base_url: "https://api.openai.com".to_string(),
+            model: "whisper-1".to_string(),
+            language: None,
+            api_key: String::new(),
+            has_api_key: false,
+        };
+        voice.normalize();
+
+        assert_eq!(voice.base_url, DEFAULT_TRANSCRIBE_BASE_URL);
+        assert_eq!(voice.model, DEFAULT_TRANSCRIBE_MODEL);
+        // 迁移只换地址与模型，源码不内置 Key
+        assert!(voice.api_key.is_empty());
+    }
+
+    #[test]
+    fn voice_input_normalize_keeps_user_customized_values() {
+        let mut voice = VoiceInputSettings {
+            enabled: true,
+            base_url: "https://my-own-asr.example.com".to_string(),
+            model: "my-model".to_string(),
+            language: Some("zh".to_string()),
+            api_key: "sk-user".to_string(),
+            has_api_key: false,
+        };
+        voice.normalize();
+
+        assert_eq!(voice.base_url, "https://my-own-asr.example.com");
+        assert_eq!(voice.model, "my-model");
+        // 用户自己填的 Key 原样保留
+        assert_eq!(voice.api_key, "sk-user");
+    }
+
+    #[test]
+    fn voice_input_normalize_keeps_custom_url_without_key() {
+        let mut voice = VoiceInputSettings {
+            enabled: true,
+            base_url: "https://my-own-asr.example.com".to_string(),
+            model: "whisper-1".to_string(),
+            language: None,
+            api_key: String::new(),
+            has_api_key: false,
+        };
+        voice.normalize();
+
+        // 用户改过地址：地址与模型原样保留，且不会凭空生成 Key
+        assert_eq!(voice.base_url, "https://my-own-asr.example.com");
+        assert_eq!(voice.model, "whisper-1");
+        assert!(voice.api_key.is_empty());
+    }
+
+    #[test]
+    fn voice_input_defaults_to_builtin_service() {
+        let voice = VoiceInputSettings::default();
+        assert!(voice.enabled);
+        assert_eq!(voice.base_url, DEFAULT_TRANSCRIBE_BASE_URL);
+        assert_eq!(voice.model, DEFAULT_TRANSCRIBE_MODEL);
+        // 源码不携带凭证：默认 Key 为空，由用户首次填写
+        assert!(voice.api_key.is_empty());
+    }
+
+    #[test]
+    fn old_settings_file_without_voice_input_gets_defaults() {
+        // 老版本 settings.json 没有 voiceInput 字段，应回落到默认值（启用 + 内置服务）
+        let settings: AppSettings = serde_json::from_value(serde_json::json!({
+            "showInTray": true,
+        }))
+        .expect("parse settings");
+
+        let voice = settings.voice_input.expect("voice input default");
+        assert!(voice.enabled);
+        assert_eq!(voice.base_url, DEFAULT_TRANSCRIBE_BASE_URL);
+    }
+
+    #[test]
+    fn frontend_view_clears_key_but_reports_presence() {
+        let mut settings = AppSettings::default();
+        settings.voice_input = Some(VoiceInputSettings::default());
+
+        // 模拟 get_settings_for_frontend 的处理
+        if let Some(voice) = &mut settings.voice_input {
+            voice.has_api_key = !voice.api_key.trim().is_empty();
+            voice.api_key.clear();
+        }
+
+        let voice = settings.voice_input.unwrap();
+        assert!(voice.api_key.is_empty());
+        assert!(voice.has_api_key);
+    }
 
     #[test]
     fn visible_apps_old_settings_default_claude_desktop_visible() {
